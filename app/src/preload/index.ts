@@ -50,6 +50,15 @@ const api: HuAgentApi = {
     setEnabled: (name, scope, enabled) => ipcRenderer.invoke('mcp:set-enabled', name, scope, enabled),
     test: (name) => ipcRenderer.invoke('mcp:test', name),
   },
+  cloud: {
+    status: () => ipcRenderer.invoke('cloud:status'),
+    login: (serverUrl, email, password) => ipcRenderer.invoke('cloud:login', serverUrl, email, password),
+    logout: (allDevices) => ipcRenderer.invoke('cloud:logout', allDevices),
+    devices: () => ipcRenderer.invoke('cloud:devices'),
+    revokeDevice: (deviceId) => ipcRenderer.invoke('cloud:revoke-device', deviceId),
+    flush: () => ipcRenderer.invoke('cloud:flush'),
+    clearQueue: () => ipcRenderer.invoke('cloud:clear-queue'),
+  },
   workspace: {
     list: () => ipcRenderer.invoke('workspace:list'),
     active: () => ipcRenderer.invoke('workspace:active'),

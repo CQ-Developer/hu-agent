@@ -23,6 +23,8 @@ jobs:
       - run: uv run ruff check .
       - run: uv run mypy src
       - run: uv run pytest -q
+      # 集成测试需要 Docker（GitHub 托管 runner 已提供）
+      - run: HUAGENT_TESTCONTAINERS=1 uv run pytest -m integration -q
 
   app:
     name: app (Electron)

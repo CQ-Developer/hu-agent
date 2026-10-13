@@ -8,6 +8,7 @@ interface Props {
   workspace: WorkspaceInfoView | null
   workspaces: WorkspaceInfoView[]
   searchHits: SessionSearchHitView[]
+  accountLabel: string
   onSelect: (id: string) => void
   onNew: () => void
   onOpenProfile: () => void
@@ -23,6 +24,7 @@ export default function Sidebar({
   workspace,
   workspaces,
   searchHits,
+  accountLabel,
   onSelect,
   onNew,
   onOpenProfile,
@@ -123,7 +125,7 @@ export default function Sidebar({
         >
           <span className="grid h-6 w-6 place-items-center rounded-full bg-neutral-200 text-xs">👤</span>
           <span className="flex-1">个人中心</span>
-          <span className="text-[10px] text-neutral-400">未登录</span>
+          <span className="max-w-[110px] truncate text-[10px] text-neutral-400">{accountLabel}</span>
         </button>
       </div>
     </aside>

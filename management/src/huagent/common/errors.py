@@ -73,9 +73,11 @@ class AppError(Exception):
         *,
         status_code: int | None = None,
         details: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.status_code = status_code or DEFAULT_STATUS[code]
         self.details = details or {}
+        self.headers = headers or {}

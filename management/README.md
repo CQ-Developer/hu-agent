@@ -12,7 +12,23 @@ uv run pytest -q         # 单元测试（不需要数据库）
 uv run ruff check .      # lint
 uv run ruff format .     # format
 uv run mypy src          # 类型检查
+uv run python scripts/export_openapi.py   # 重新生成 ../openapi/openapi.json（不要手改）
 ```
+
+## 已实现接口（阶段 4）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/api/v1/auth/register` | 邮箱注册（可用 `HUAGENT_AUTH_REGISTRATION_ENABLED=false` 关闭） |
+| POST | `/api/v1/auth/login` | 本地账号登录，绑定设备，签发 access + refresh |
+| POST | `/api/v1/auth/refresh` | 旋转刷新，重放检测（撤销该设备全部会话 + 通知） |
+| POST | `/api/v1/auth/logout` | 单设备/全部设备注销 |
+| GET | `/api/v1/auth/providers` | 可用登录方式 |
+| GET/PATCH | `/api/v1/me` | 个人资料 |
+| GET/DELETE | `/api/v1/me/devices` `/{deviceId}` | 设备列表 / 吊销 |
+| POST | `/api/v1/usage:batch` | 用量批量上报（≤100 条，幂等，归属校验） |
+
+安全参数（`HUAGENT_*`）：`JWT_SECRET`（生产必换）、`ACCESS_TOKEN_TTL_SECONDS`、`REFRESH_TOKEN_TTL_SECONDS`、`LOGIN_IP_LIMIT`、`LOGIN_FAIL_THRESHOLD`、`RATE_LIMIT_STRICT`、`WEAK_PASSWORD_FILE`。
 
 ## 集成测试（需要 Docker）
 

@@ -6,7 +6,10 @@ import { ModelGateway } from './model/gateway'
 import { broadcastInteraction, registerIpc, type AppContext } from './ipc'
 import { SecretStore } from './config/secrets'
 import { SettingsStore } from './config/settings-store'
-import { configFilePath, secretsFilePath, usageLedgerPath, workspacesIndexFile } from './config/paths'
+import { configFilePath, cloudConfigFile, secretsFilePath, usageLedgerPath, workspacesIndexFile } from './config/paths'
+import { CloudStore } from './cloud/store'
+import { CloudClient } from './cloud/client'
+import { UsageReporter } from './cloud/reporter'
 import { InteractionBroker } from './permissions/broker'
 import { McpManager } from './mcp/manager'
 import { SkillManager } from './skills/manager'
@@ -66,6 +69,10 @@ async function bootstrap(): Promise<void> {
   })
   const interactions = new InteractionBroker({ broadcast: broadcastInteraction })
 
+  // 云账户与上报器必须共享同一个 CloudClient（access token 只存内存）
+  const cloud = new CloudClient(secrets, new CloudStore(cloudConfigFile()), app.getVersion())
+  const reporter = new UsageReporter(cloud, app.getVersion())
+
   const context: AppContext = {
     workspaces,
     settings,
@@ -76,6 +83,8 @@ async function bootstrap(): Promise<void> {
     interactions,
     skills: new SkillManager(),
     mcp: new McpManager(secrets, app.getVersion()),
+    cloud,
+    reporter,
     grants: new Map(),
     sessionStores: new Map(),
     artifactStores: new Map(),
@@ -89,8 +98,20 @@ async function bootstrap(): Promise<void> {
     .then((ws) => context.mcp.tools(ws))
     .catch(() => undefined)
 
+  // 用量上报：启动时尝试一次 + 每 60s 扫描（退避与积压判定在 reporter 内部）
+  const tickReporter = async (): Promise<void> => {
+    try {
+      await context.reporter.tick(await context.workspaces.list())
+    } catch (error) {
+      console.warn('[telemetry] tick 失败：', error)
+    }
+  }
+  void tickReporter()
+  const reporterTimer = setInterval(() => void tickReporter(), 60_000)
+
   // 退出时回收所有 MCP 子进程（design 5.8.2）
   app.on('before-quit', () => {
+    clearInterval(reporterTimer)
     void context.mcp.closeAll()
   })
 }

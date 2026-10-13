@@ -8,6 +8,7 @@ import type { SessionStore } from '../session/store'
 import { ulid } from '../session/ulid'
 import type { MessagePart, ToolStatus } from '../session/types'
 import type { UsageLedger } from '../usage/ledger'
+import type { TelemetryInput, TelemetrySink } from '../usage/telemetry'
 import type { InteractionBroker } from '../permissions/broker'
 import type { PermissionEngine } from '../permissions/engine'
 import { OUTPUT_LIMIT, truncateMiddle } from '../tools/truncate'
@@ -26,6 +27,8 @@ export interface LoopDeps {
   sessions: SessionStore
   artifacts: ArtifactStore
   ledger: UsageLedger
+  /** 用量上报（design 5.10，阶段 4）：未登录时 sink 内部丢弃 */
+  telemetry?: TelemetrySink
   permissions: PermissionEngine
   interactions: InteractionBroker
   emit: (event: AgentEvent) => void
@@ -154,6 +157,16 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
           status: 'error',
           errorCode: kind,
         })
+        await recordTelemetry(deps, sessionId, {
+          provider: provider.id,
+          model: model.name,
+          role: 'primary',
+          inputTokens: 0,
+          outputTokens: 0,
+          durationMs,
+          status: 'error',
+          errorCode: kind,
+        })
         throw error
       }
 
@@ -173,6 +186,17 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
       })
       await deps.ledger.record({
         ts: now(),
+        provider: provider.id,
+        model: model.name,
+        role: 'primary',
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        cacheReadTokens: usage?.cacheReadTokens,
+        cacheWriteTokens: usage?.cacheWriteTokens,
+        durationMs,
+        status: 'success',
+      })
+      await recordTelemetry(deps, sessionId, {
         provider: provider.id,
         model: model.name,
         role: 'primary',
@@ -280,6 +304,21 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
   }
 
   deps.emit({ type: 'turn.end', sessionId, turnId, stopReason })
+}
+
+/** 上报失败不得中断对话（队列内部退避重试）。 */
+async function recordTelemetry(
+  deps: LoopDeps,
+  sessionId: string,
+  entry: Omit<TelemetryInput, 'sessionId' | 'purpose'> & { role: 'primary' | 'fast' },
+): Promise<void> {
+  if (!deps.telemetry) return
+  const { role, ...rest } = entry
+  try {
+    await deps.telemetry.record({ ...rest, sessionId, purpose: role })
+  } catch (error) {
+    console.warn('[telemetry] 入队失败：', error)
+  }
 }
 
 async function executeTool(

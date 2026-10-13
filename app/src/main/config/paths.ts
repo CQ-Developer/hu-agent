@@ -24,6 +24,11 @@ export function defaultWorkspaceDir(): string {
   return join(globalDir(), 'workspaces', 'default')
 }
 
+/** 工作空间与云账户路径（design 4.1/5.10）。 */
+export function cloudConfigFile(): string {
+  return join(globalDir(), 'cloud.json')
+}
+
 /** 多工作空间索引（design 5.6）：列表与当前激活项 */
 export function workspacesIndexFile(): string {
   return join(globalDir(), 'workspaces.json')

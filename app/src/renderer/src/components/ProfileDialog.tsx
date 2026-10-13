@@ -7,9 +7,10 @@ interface Props {
   workspaces: WorkspaceInfoView[]
   activeWorkspace: WorkspaceInfoView | null
   onClose: () => void
+  onChanged?: () => void
 }
 
-export default function ProfileDialog({ usage, workspaces, activeWorkspace, onClose }: Props) {
+export default function ProfileDialog({ usage, workspaces, activeWorkspace, onClose, onChanged }: Props) {
   return (
     <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
@@ -23,7 +24,12 @@ export default function ProfileDialog({ usage, workspaces, activeWorkspace, onCl
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          <ProfileSection usage={usage} workspaces={workspaces} activeWorkspace={activeWorkspace} />
+          <ProfileSection
+            usage={usage}
+            workspaces={workspaces}
+            activeWorkspace={activeWorkspace}
+            onChanged={onChanged}
+          />
         </div>
       </div>
     </div>

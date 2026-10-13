@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from huagent.api.errors import install_exception_handlers
 from huagent.api.middleware import TraceIdMiddleware
-from huagent.api.routes import system
+from huagent.api.routes import auth, me, system, usage
 from huagent.common.config import get_settings
 from huagent.domain.db import dispose_engine
 from huagent.domain.schema import verify_schema
@@ -38,6 +38,9 @@ def create_app() -> FastAPI:
     app.add_middleware(TraceIdMiddleware)
     install_exception_handlers(app)
     app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
+    app.include_router(auth.router, prefix="/api/v1")
+    app.include_router(me.router, prefix="/api/v1")
+    app.include_router(usage.router, prefix="/api/v1")
 
     if settings.cors_origins:
         app.add_middleware(

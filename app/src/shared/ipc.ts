@@ -180,6 +180,39 @@ export interface McpTestResultView {
   tools: { name: string; description: string }[]
 }
 
+export interface CloudUserView {
+  id: string
+  email: string
+  displayName: string
+  locale: string
+  isSystemAdmin: boolean
+}
+
+export interface CloudDeviceView {
+  id: string
+  deviceId: string
+  platform: string
+  appVersion: string
+  name: string | null
+  lastSeenAt: string | null
+  createdAt: string
+  current: boolean
+}
+
+export interface CloudStatusView {
+  serverUrl: string
+  deviceId: string
+  loggedIn: boolean
+  user?: CloudUserView
+  pending: number
+}
+
+export interface CloudFlushResultView {
+  sent: number
+  pending: number
+  error?: string
+}
+
 export interface SessionSearchHitView {
   sessionId: string
   title: string
@@ -229,6 +262,15 @@ export interface HuAgentApi {
     remove(name: string, scope: 'global' | 'workspace'): Promise<McpServerView[]>
     setEnabled(name: string, scope: 'global' | 'workspace', enabled: boolean): Promise<McpServerView[]>
     test(name: string): Promise<McpTestResultView>
+  }
+  cloud: {
+    status(): Promise<CloudStatusView>
+    login(serverUrl: string, email: string, password: string): Promise<CloudStatusView>
+    logout(allDevices?: boolean): Promise<CloudStatusView>
+    devices(): Promise<CloudDeviceView[]>
+    revokeDevice(deviceId: string): Promise<CloudDeviceView[]>
+    flush(): Promise<CloudFlushResultView>
+    clearQueue(): Promise<CloudStatusView>
   }
   workspace: {
     list(): Promise<WorkspaceInfoView[]>

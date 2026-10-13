@@ -33,6 +33,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<AppTab>('chat')
   const [profileOpen, setProfileOpen] = useState(false)
+  const [accountLabel, setAccountLabel] = useState('未登录')
   const [usage, setUsage] = useState<UsageStatsView | null>(null)
   const [workspace, setWorkspace] = useState<WorkspaceInfoView | null>(null)
   const [workspaces, setWorkspaces] = useState<WorkspaceInfoView[]>([])
@@ -96,6 +97,8 @@ export default function App() {
       setUsage(await window.huAgent.usage.stats())
       const view = await window.huAgent.settings.get()
       setModels(view.availableModels)
+      const cloud = await window.huAgent.cloud.status()
+      setAccountLabel(cloud.loggedIn && cloud.user ? cloud.user.displayName || cloud.user.email : '未登录')
     })()
   }, [loadWorkspaceState])
 
@@ -286,10 +289,13 @@ export default function App() {
     setSearchHits(await window.huAgent.sessions.search(query))
   }, [])
 
-  /** 配置变更后同步用量、可选模型与会话统计。 */
+  /** 配置变更后同步用量、可选模型、会话统计与账户状态。 */
   const refreshDerived = useCallback((): void => {
     void window.huAgent.usage.stats().then(setUsage)
     void window.huAgent.settings.get().then((view) => setModels(view.availableModels))
+    void window.huAgent.cloud.status().then((cloud) =>
+      setAccountLabel(cloud.loggedIn && cloud.user ? cloud.user.displayName || cloud.user.email : '未登录'),
+    )
     if (currentId) void window.huAgent.sessions.stats(currentId).then(setStats)
   }, [currentId])
 
@@ -301,6 +307,7 @@ export default function App() {
         workspace={workspace}
         workspaces={workspaces}
         searchHits={searchHits}
+        accountLabel={accountLabel}
         onSelect={(id) => void openSession(id)}
         onNew={() => void createSession()}
         onOpenProfile={() => setProfileOpen(true)}
@@ -360,6 +367,7 @@ export default function App() {
           workspaces={workspaces}
           activeWorkspace={workspace}
           onClose={() => setProfileOpen(false)}
+          onChanged={refreshDerived}
         />
       )}
     </div>

@@ -23,6 +23,20 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://huagent:huagent_dev@localhost:5432/huagent"
     redis_url: str = "redis://localhost:6379/0"
 
+    # 认证（design 4.1 / 6.10.1 / 8.1）
+    jwt_secret: str = "dev-only-change-me-0123456789abcdef"  # noqa: S105 —— 生产必须由 HUAGENT_JWT_SECRET 覆盖
+    jwt_algorithm: str = "HS256"
+    access_token_ttl_seconds: int = 900
+    refresh_token_ttl_seconds: int = 30 * 24 * 3600
+    auth_registration_enabled: bool = True
+    login_ip_limit: int = 10
+    login_ip_window_seconds: int = 60
+    login_fail_threshold: int = 5
+    # Redis 不可用时是否拒绝登录（生产建议 true；本地/测试 false 走内存降级）
+    rate_limit_strict: bool = False
+    # 弱口令名单文件（每行一个；生产可挂载到 top-10k 名单）
+    weak_password_file: str = ""
+
     # 启动时校验数据库 schema 版本（design 6.8.3）；阶段 0 期望 V0001
     schema_check_enabled: bool = True
     schema_expected_version: str = "V0001"

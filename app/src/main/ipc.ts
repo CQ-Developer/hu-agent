@@ -8,6 +8,8 @@ import { runTurn } from './agent/loop'
 import type { SecretStore } from './config/secrets'
 import type { SettingsStore } from './config/settings-store'
 import { configFilePath } from './config/paths'
+import type { CloudClient } from './cloud/client'
+import type { UsageReporter } from './cloud/reporter'
 import { AuditLog, readAuditTail } from './permissions/audit'
 import type { InteractionBroker } from './permissions/broker'
 import { PermissionEngine } from './permissions/engine'
@@ -36,6 +38,8 @@ export interface AppContext {
   interactions: InteractionBroker
   skills: SkillManager
   mcp: McpManager
+  cloud: CloudClient
+  reporter: UsageReporter
   /** sessionId -> 本会话授权 scope */
   grants: Map<string, Set<string>>
   sessionStores: Map<string, SessionStore>
@@ -197,6 +201,17 @@ export function registerIpc(context: AppContext): void {
           fastTarget: settings.defaults.fast ?? settings.defaults.primary,
           skillSection: await context.skills.systemPromptSection(ws),
           extraTools: await context.mcp.tools(ws),
+          telemetry: {
+            record: async (input) => {
+              try {
+                await context.reporter.enqueue(ws, input)
+                // 入队后后台尝试上报（未到退避时间会自动跳过）
+                void context.reporter.tick([ws])
+              } catch (error) {
+                console.warn('[telemetry] 入队失败：', error)
+              }
+            },
+          },
         },
         { sessionId, userText: text, signal: controller.signal },
       )
@@ -338,6 +353,33 @@ export function registerIpc(context: AppContext): void {
     const { ws } = await scoped(context)
     return context.mcp.test(ws, name)
   })
+
+  // ---------- 云账户与用量上报（design 4.1 / 5.10） ----------
+  ipcMain.handle('cloud:status', () => buildCloudStatus(context))
+  ipcMain.handle('cloud:login', async (_event, serverUrl: string, email: string, password: string) => {
+    await context.cloud.login(serverUrl, email, password)
+    const { ws } = await scoped(context)
+    await context.reporter.flush(ws, { force: true }).catch(() => undefined)
+    return buildCloudStatus(context)
+  })
+  ipcMain.handle('cloud:logout', async (_event, allDevices: boolean) => {
+    await context.cloud.logout(Boolean(allDevices))
+    return buildCloudStatus(context)
+  })
+  ipcMain.handle('cloud:devices', () => context.cloud.devices())
+  ipcMain.handle('cloud:revoke-device', async (_event, deviceId: string) => {
+    await context.cloud.revokeDevice(deviceId)
+    return context.cloud.devices()
+  })
+  ipcMain.handle('cloud:flush', async () => {
+    const { ws } = await scoped(context)
+    return context.reporter.flush(ws, { force: true })
+  })
+  ipcMain.handle('cloud:clear-queue', async () => {
+    const { ws } = await scoped(context)
+    await context.reporter.clear(ws)
+    return buildCloudStatus(context)
+  })
 }
 
 interface SaveProviderInputWire {
@@ -361,8 +403,7 @@ interface McpSaveInputWire {
   scope: 'global' | 'workspace'
 }
 
-async function resolveSessionOptions(context: AppContext, sessionId: string): Promise<SessionOptionsView> {
-  const settings = await context.settings.load()
+async function resolveSessionOptions(context: AppContext, sessionId: string): Promise<SessionOptionsView> {  const settings = await context.settings.load()
   const { sessions } = await scoped(context)
   const stored = await sessions.loadOptions(sessionId)
   return {
@@ -392,5 +433,28 @@ async function buildSettingsView(context: AppContext): Promise<import('../shared
     defaults: settings.defaults,
     secretsConfigured,
     availableModels,
+  }
+}
+
+/** 云账户状态（个人中心展示）：服务器地址、设备指纹、登录态与待上报数。 */
+async function buildCloudStatus(context: AppContext): Promise<import('../shared/ipc').CloudStatusView> {
+  const [config, loggedIn] = await Promise.all([context.cloud.config(), context.cloud.isLoggedIn()])
+  const { ws } = await scoped(context)
+  const pending = await context.reporter.pendingCount(ws)
+  return {
+    serverUrl: config.serverUrl,
+    deviceId: config.deviceId,
+    loggedIn,
+    user:
+      loggedIn && config.userId
+        ? {
+            id: config.userId,
+            email: config.email ?? '',
+            displayName: config.displayName ?? '',
+            locale: config.locale ?? 'zh-CN',
+            isSystemAdmin: Boolean(config.isSystemAdmin),
+          }
+        : undefined,
+    pending,
   }
 }
