@@ -32,8 +32,9 @@ powershell -ExecutionPolicy Bypass -File scripts/stage5-demo.ps1
 
 对象存储：
 
-- 默认 `s3`（MinIO）。若 `docker pull minio/minio` 受网络限制，可先以内存实现跑通全流程：
-  `HUAGENT_OBJECT_STORE=memory uv run huagent-api`，此时下载地址为 `memory://…`，脚本只校验摘要、不实际下载；
-- 需要真实预签名下载时启动 MinIO：`docker compose -f docker/compose.yaml up -d minio`，服务端用默认 s3 存储启动即可（首次上传会自动创建桶）。
+- 社区版 MinIO 已不以官方镜像分发，本地由 `docker/minio/Dockerfile` 源码构建（首次约 5 分钟，之后走本地镜像缓存；`docker compose up -d minio` 会自动构建）；
+- 构建参数：`MINIO_GOPROXY` 可换成 `https://goproxy.cn,direct`；受限网络可再加 `HTTP_PROXY=http://host.docker.internal:7890`；
+- 已实测：构建成功后走默认 `s3` 存储，走查第 12 步会真实预签名下载 `.hskill` 并校验 sha256；
+- 若暂时无法构建，也以内存实现跑通其余 16 步：`HUAGENT_OBJECT_STORE=memory uv run huagent-api`（此时下载地址为 `memory://…`，只校验摘要）。
 
 提示：Windows PowerShell 5.1 控制台若显示中文乱码，先执行 `chcp 65001`；脚本文件必须保留 UTF-8 BOM（否则 5.1 会按 ANSI 解析导致语法错误）。

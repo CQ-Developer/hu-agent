@@ -147,7 +147,7 @@ flowchart TB
 | 数据访问 | SQLAlchemy 2.0（Core/ORM）+ psycopg 3（async） | 复杂统计查询直接手写 SQL；参数绑定防注入；psycopg 对新 Python 版本跟进更快 |
 | Schema 变更 | 编号 DDL 脚本手工维护（不引入 Flyway/Liquibase） | 见 6.8.3：只追加、人工/流水线执行、附回滚脚本 |
 | 缓存 / 锁 | Redis 7（缓存 / 限流）+ PostgreSQL advisory lock | v1 不引入消息队列；worker 定时任务用 advisory lock + `job_runs` 防重 |
-| 对象存储 | MinIO（S3 兼容） | 本地部署友好，API 通用 |
+| 对象存储 | MinIO（S3 兼容） | 本地部署友好，API 通用；社区版已不发布 Docker 镜像，本地由 `docker/minio/Dockerfile` 源码构建 |
 | 接口规范 | REST + OpenAPI 3.1（FastAPI 自动生成） | 管理台与客户端用 openapi-typescript 生成调用代码 |
 | 鉴权 | PyJWT（access 15min）+ 旋转 refresh token（30d）+ 设备绑定；SSO 用 authlib | 桌面端需要长期登录 |
 | 密码哈希 | argon2id（argon2-cffi） | 现代默认 |

@@ -100,6 +100,7 @@ cd management && uv sync
 
 ```bash
 # 1. 启动本地依赖（PG18 / Redis / MinIO / Keycloak / Mailpit）
+#    MinIO 社区版无官方镜像，首次会从源码构建（约 5 分钟）；之后走本地镜像缓存
 scripts/dev-deps.sh up
 
 # 2. 初始化数据库（按编号顺序执行 db/ddl/V*.sql）
@@ -113,6 +114,8 @@ curl http://localhost:8080/api/v1/system/health
 ```
 
 > 本机端口：PostgreSQL `5432`、Redis `6379`、MinIO `9000/9001`、Keycloak `8081`、Mailpit `1025/8025`、服务端 `8080`。
+> 单独重建 MinIO：`docker compose -f docker/compose.yaml build minio`；Go 模块源受限时用
+> `MINIO_GOPROXY=https://goproxy.cn,direct scripts/dev-deps.sh up`。
 
 客户端：
 

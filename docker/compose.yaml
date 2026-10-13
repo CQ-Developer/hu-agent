@@ -39,7 +39,14 @@ services:
       retries: 20
 
   minio:
-    image: minio/minio:latest
+    # 社区版不再发布官方镜像，本地源码构建（见 docker/minio/Dockerfile）
+    image: huagent-minio:local
+    build:
+      context: .
+      dockerfile: minio/Dockerfile
+      args:
+        # 可覆盖：GOPROXY=https://goproxy.cn,direct
+        GOPROXY: ${MINIO_GOPROXY:-https://proxy.golang.org,direct}
     container_name: huagent-minio
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -50,6 +57,11 @@ services:
       - "9001:9001"
     volumes:
       - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
 
   keycloak:
     image: quay.io/keycloak/keycloak:26.3
