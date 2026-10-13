@@ -46,15 +46,15 @@ src/renderer/   # 渲染进程（React 界面）
   - [x] 思考内容展示：可折叠思考块（流式默认展开，历史默认折叠），随消息落盘但不回传模型
   - [x] 模型配置支持 API 类型：OpenAI Chat Completions / OpenAI Responses / Anthropic Messages（含思考强度映射与签名回放）
   - [x] 本地用量账本 + 侧边栏统计
-  - [x] 39 个单测（`npm run test`）
+  - [x] 40 个单测（`npm run test`）
   - [x] 真实模型联调：DeepSeek `deepseek-flash` 流式对话 + 工具调用（集成测试见下）
 
 ## 真实模型集成测试（需要密钥，默认跳过）
 
 ```bash
-DEEPSEEK_API_KEY=... npx vitest run tests/integration/deepseek.test.ts
-# Anthropic 协议（使用 DeepSeek 的 Anthropic 兼容端点）
-DEEPSEEK_API_KEY=... npx vitest run tests/integration/deepseek-anthropic.test.ts
+DEEPSEEK_API_KEY=... npx vitest run tests/integration/deepseek.test.ts            # OpenAI Chat 协议
+DEEPSEEK_API_KEY=... npx vitest run tests/integration/deepseek-anthropic.test.ts  # Anthropic Messages 协议
+DEEPSEEK_API_KEY=... npx vitest run tests/integration/deepseek-responses.test.ts  # OpenAI Responses 协议
 ```
 
-密钥只从环境变量读取，不落盘；测试覆盖基础流式对话与 Agent 工具调用链路。
+密钥只从环境变量读取，不落盘；三种协议均覆盖基础流式对话与 Agent 工具调用链路。

@@ -64,7 +64,9 @@ export async function* streamOpenAiResponses(options: ProviderStreamOptions): As
         }
         break
       }
-      case 'response.reasoning_summary_text.delta': {
+      case 'response.reasoning_summary_text.delta':
+      // DeepSeek 等兼容实现使用 reasoning_text.delta（内容等价）
+      case 'response.reasoning_text.delta': {
         if (typeof payload.delta === 'string' && payload.delta) {
           yield { type: 'reasoning_delta', text: payload.delta }
         }

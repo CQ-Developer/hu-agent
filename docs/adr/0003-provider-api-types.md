@@ -33,5 +33,16 @@ Anthropic 的 thinking 签名随会话 JSONL 的 `reasoning` 部分持久化；R
 
 - 新增协议只需实现一个 `ProviderStreamOptions -> StreamEvent` 的适配器并注册，不改循环与 UI；
 - 代价是三套协议的事件解析需要各自维护单测（已覆盖请求体转换与流式解析）；
-- 思考强度是"尽力而为"的能力：未声明的模型不发送相关参数；
-- 验证情况：`anthropic-messages` 适配器已用 DeepSeek 的 Anthropic 兼容端点（`https://api.deepseek.com/anthropic`）真实联调——基础对话、思考强度（budget）、工具调用与思考签名回放均通过。
+- 思考强度是"尽力而为"的能力：未声明的模型不发送相关参数。
+
+## 验证情况（2026-10-13）
+
+三种协议均已用 DeepSeek 的真实端点完成端到端验证（`deepseek-flash`），每条链路覆盖：基础流式对话 + 思考内容 + 思考强度 + Agent 工具调用：
+
+| apiType | 端点 | 集成测试 | 结果 |
+| --- | --- | --- | --- |
+| `openai-chat` | `https://api.deepseek.com` | `tests/integration/deepseek.test.ts` | 2/2 通过 |
+| `anthropic-messages` | `https://api.deepseek.com/anthropic` | `tests/integration/deepseek-anthropic.test.ts` | 3/3 通过（含签名回放） |
+| `openai-responses` | `https://api.deepseek.com`（`/responses`） | `tests/integration/deepseek-responses.test.ts` | 3/3 通过 |
+
+兼容性发现：DeepSeek 的 Responses 实现使用 `response.reasoning_text.delta`（OpenAI 为 `response.reasoning_summary_text.delta`），适配器已同时处理两种事件名。

@@ -62,6 +62,34 @@ describe('streamOpenAiResponses', () => {
     ])
   })
 
+  it('兼容 DeepSeek 的 response.reasoning_text.delta 事件名', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          'data: {"type":"response.reasoning_text.delta","delta":"思考中"}\n\n',
+          'data: {"type":"response.output_text.delta","delta":"回答"}\n\n',
+          'data: {"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":1,"output_tokens":1}}}\n\n',
+        ]),
+      ),
+    )
+
+    const events: StreamEvent[] = []
+    for await (const event of streamOpenAiResponses({
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-flash',
+      messages: [{ role: 'user', content: 'hi' }],
+    })) {
+      events.push(event)
+    }
+
+    const reasoning = events
+      .filter((event) => event.type === 'reasoning_delta')
+      .map((event) => (event.type === 'reasoning_delta' ? event.text : ''))
+      .join('')
+    expect(reasoning).toBe('思考中')
+  })
+
   it('解析 reasoning summary、function_call 增量与 usage', async () => {
     vi.stubGlobal(
       'fetch',

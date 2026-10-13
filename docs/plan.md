@@ -195,7 +195,7 @@ hu-agent/                      # 一个仓库
 
 **阶段退出（可 dogfood）**：断网、用本地模型或已配密钥，让 Agent 完成一件真实任务（改一个脚本/整理一个目录），完成后重启能恢复会话。
 
-> 状态（2026-10-13）：1-01 ~ 1-06 已完成并验证（typecheck / 39 个单测 / 构建均通过）；DeepSeek（`deepseek-flash`）真实模型联调覆盖两条协议链路：openai-chat（流式对话/思考内容/工具调用）与 anthropic-messages（经 `https://api.deepseek.com/anthropic`，含思考强度与工具续轮签名回放）。联调中发现并修复了 SSE 工具调用解析 bug（`name`/`arguments` 嵌套在 `function` 下），已补解析回归单测。1-08（输入框模型选择/思考强度/用量指示）、1-09（思考内容展示）与 1-10（API 类型选择）已完成并同步到 design 5.2.6/5.9 与 ADR 0003；1-07（Anthropic 适配）由 1-10 覆盖；ask_guide 与授权卡片在阶段 2 一并实现。
+> 状态（2026-10-13）：1-01 ~ 1-06 已完成并验证（typecheck / 40 个单测 / 构建均通过）；三种 API 协议均用 DeepSeek 真实端点完成端到端验证（openai-chat、anthropic-messages、openai-responses，共 8 个集成用例：流式对话/思考内容/思考强度/Agent 工具调用）。联调中发现并修复两个真 bug：SSE 工具调用字段嵌套（`function.name`/`function.arguments`）与 Responses 思考事件名差异（`reasoning_text.delta`）。1-08（输入框模型选择/思考强度/用量指示）、1-09（思考内容展示）与 1-10（API 类型选择）已完成并同步到 design 5.2.6/5.9 与 ADR 0003；1-07（Anthropic 适配）由 1-10 覆盖；ask_guide 与授权卡片在阶段 2 一并实现。
 
 ### 4.3 阶段 2：Workspace 与安全（对应 M2）
 
