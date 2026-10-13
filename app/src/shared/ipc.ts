@@ -2,9 +2,12 @@
 
 import type { AgentEvent } from './events'
 
+export type ReasoningEffortView = 'off' | 'low' | 'medium' | 'high'
+
 export interface ModelCapabilitiesView {
   tools: boolean
   vision?: boolean
+  reasoningEffort?: boolean
   contextWindow: number
   maxOutput?: number
 }
@@ -23,10 +26,20 @@ export interface ProviderView {
   models: ModelEntryView[]
 }
 
+/** 输入框模型下拉选项（跨供应商展开） */
+export interface ModelOptionView {
+  target: string
+  providerId: string
+  name: string
+  contextWindow: number
+  reasoningEffort: boolean
+}
+
 export interface SettingsView {
   providers: ProviderView[]
   defaults: { primary: string; fast?: string }
   secretsConfigured: Record<string, boolean>
+  availableModels: ModelOptionView[]
 }
 
 export interface SaveProviderInput {
@@ -43,6 +56,21 @@ export interface SessionMetaView {
   createdAt: string
   updatedAt: string
   messageCount: number
+}
+
+export interface SessionOptionsView {
+  model: string
+  reasoningEffort: ReasoningEffortView
+}
+
+export interface SessionUsageView {
+  calls: number
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheHitRate: number
+  contextWindow: number
+  contextRemainingPercent: number
 }
 
 export type SessionItemView =
@@ -87,6 +115,9 @@ export interface HuAgentApi {
     create(): Promise<SessionMetaView>
     items(sessionId: string): Promise<SessionItemView[]>
     rename(sessionId: string, title: string): Promise<void>
+    options(sessionId: string): Promise<SessionOptionsView>
+    setOptions(sessionId: string, options: SessionOptionsView): Promise<SessionOptionsView>
+    stats(sessionId: string): Promise<SessionUsageView>
   }
   agent: {
     send(sessionId: string, text: string): Promise<void>

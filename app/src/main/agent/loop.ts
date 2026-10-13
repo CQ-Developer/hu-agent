@@ -60,7 +60,8 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
   let stopReason: TurnStopReason = 'done'
   try {
     const messages = await deps.sessions.loadMessages(sessionId)
-    const { provider, model } = deps.gateway.resolve('primary')
+    const sessionOptions = await deps.sessions.loadOptions(sessionId)
+    const { provider, model } = deps.gateway.resolve(sessionOptions.model)
 
     for (let step = 0; step < maxSteps; step += 1) {
       const modelMessages: LlmMessage[] = [
@@ -75,7 +76,12 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
       const startedAt = Date.now()
 
       try {
-        for await (const event of deps.gateway.chat('primary', modelMessages, deps.tools.toModelTools(), signal)) {
+        for await (const event of deps.gateway.chat(
+          { target: sessionOptions.model, reasoningEffort: sessionOptions.reasoningEffort },
+          modelMessages,
+          deps.tools.toModelTools(),
+          signal,
+        )) {
           if (event.type === 'text_delta') {
             assistantText += event.text
             deps.emit({ type: 'assistant.delta', sessionId, turnId, text: event.text })

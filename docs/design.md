@@ -414,6 +414,15 @@ flowchart TB
 - 同一 turn 内：只读工具（`read_file`）可并行（≤ 4）；写工具（`write_file / edit_file / bash / powershell`）串行；MCP 工具默认串行（外部不确定性高）。
 - 取消信号通过 `AbortController` 传播；子进程按进程组终止（Windows 用 `taskkill /T`，macOS 用进程组信号）。
 
+#### 5.2.6 输入框交互与用量指示
+
+- 输入框上方提供两个**会话级**选择，持久化在会话 JSONL 的 `session_options` 行（见 5.3.2）：
+  - **模型**：跨供应商的 `provider/model` 列表，默认取 `defaults.primary`；
+  - **思考强度**：关闭 / 低 / 中 / 高；仅当模型声明 `capabilities.reasoningEffort` 时可选，否则置灰并强制关闭。
+- 同一位置实时显示本会话累计：**输入 tokens、输出 tokens、缓存命中率、上下文剩余百分比**。
+- 缓存命中率 = `cacheRead / input`（input 含缓存部分）；
+- 上下文剩余 = 1 −（最近一次调用的输入 + 输出）/ 模型 `contextWindow`，下限 0；turn 结束后由主进程重新统计校准，避免流式事件误差累积。
+
 ### 5.3 会话与 JSONL 持久化
 
 #### 5.3.1 文件布局
@@ -452,6 +461,7 @@ flowchart TB
 | `usage` | `provider, model, input, output, cacheRead, cacheWrite, durationMs, status` | 记账 |
 | `summary` | `text, fromLine, toLine, model` | 压缩摘要 |
 | `checkpoint` | `name, line, note?` | 手动/自动检查点，便于回滚上下文 |
+| `session_options` | `model?, reasoningEffort?, createdAt` | 会话级模型/思考强度选择，后写入者覆盖（5.2.6） |
 | `error` | `code, message, detail?` | 会话级错误 |
 
 示例（单行折行展示）：
@@ -834,7 +844,7 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
         },
         {
           "name": "gpt-4o-mini",
-          "capabilities": { "tools": true, "contextWindow": 128000, "maxOutput": 16384 },
+          "capabilities": { "tools": true, "reasoningEffort": true, "contextWindow": 128000, "maxOutput": 16384 },
           "roles": ["fast"]
         }
       ]
@@ -857,6 +867,7 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
 - Provider 类型：`openai-compatible`（覆盖 OpenAI / Azure / vLLM / Ollama / DeepSeek 等）、`anthropic`。`openai-compatible` 下"是否支持 tools/vision"由用户声明，客户端只做能力探测提示。
 - 密钥存储（阶段 1 已实现）：`apiKeyRef` 指向客户端密钥库；实现为 Electron safeStorage（加密密钥由 Windows DPAPI / macOS Keychain 保护）加密后写入 `~/.hu-agent/secrets.enc.json`，配置文件、日志与上报中永不出现明文（ADR 0002）。
 - "快速模型"用于会话标题、历史压缩、ask_guide 生成等低价值调用（也计入用量上报，标记 `purpose: fast`）。
+- 思考强度：模型声明 `capabilities.reasoningEffort = true` 后，会话可选择 关闭/低/中/高（见 5.2.6），请求映射为 OpenAI 兼容协议的 `reasoning_effort: low|medium|high`（关闭时不传）；未声明支持的模型不发送该参数。
 - 模型不可用时的降级：按配置顺序回落，全部失败则提示用户（不静默切到本地小模型）。
 - 中转/代理：支持 `baseUrl` 指向企业网关；不支持客户端级 HTTP 代理配置（v1 直接用系统代理）。
 - 未来可选服务端下发模型白名单/默认模型（企业统一管控，见 D11）。

@@ -14,6 +14,8 @@ export interface OpenAiChatOptions {
   apiKey?: string | null
   signal?: AbortSignal
   maxOutputTokens?: number
+  /** 仅当模型声明支持时传入（design 5.9） */
+  reasoningEffort?: 'low' | 'medium' | 'high'
 }
 
 interface DeltaToolCall {
@@ -67,6 +69,7 @@ export async function* streamOpenAiChat(options: OpenAiChatOptions): AsyncIterab
     body.tools = options.tools.map((tool) => ({ type: 'function', function: tool }))
   }
   if (options.maxOutputTokens) body.max_tokens = options.maxOutputTokens
+  if (options.reasoningEffort) body.reasoning_effort = options.reasoningEffort
 
   let response: Response
   try {
@@ -125,12 +128,15 @@ export async function* streamOpenAiChat(options: OpenAiChatOptions): AsyncIterab
     }
     const usage = payload.usage as Record<string, unknown> | undefined
     if (usage) {
+      const cacheRead =
+        Number(usage.prompt_cache_hit_tokens ?? 0) ||
+        Number((usage.prompt_tokens_details as Record<string, unknown> | undefined)?.cached_tokens ?? 0)
       events.push({
         type: 'usage',
         usage: {
           inputTokens: Number(usage.prompt_tokens ?? 0),
           outputTokens: Number(usage.completion_tokens ?? 0),
-          cacheReadTokens: Number((usage.prompt_tokens_details as Record<string, unknown> | undefined)?.cached_tokens ?? 0),
+          cacheReadTokens: cacheRead,
         },
       })
     }

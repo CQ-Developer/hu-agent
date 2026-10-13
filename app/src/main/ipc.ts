@@ -3,13 +3,14 @@
 import { BrowserWindow, app, ipcMain } from 'electron'
 
 import { ModelGateway } from './model/gateway'
-import type { ModelSettings } from './model/types'
+import type { ModelSettings, ReasoningEffort } from './model/types'
 import { runTurn } from './agent/loop'
 import type { SecretStore } from './config/secrets'
 import type { SettingsStore } from './config/settings-store'
 import type { ArtifactStore } from './session/artifacts'
 import type { SessionStore } from './session/store'
-import type { SessionItemView } from '../shared/ipc'
+import { computeSessionUsage } from './session/stats'
+import type { SessionItemView, SessionOptionsView } from '../shared/ipc'
 import type { SessionLine } from './session/types'
 import type { ToolRegistry } from './tools/registry'
 import type { UsageLedger } from './usage/ledger'
@@ -82,6 +83,20 @@ export function registerIpc(context: AppContext): void {
   ipcMain.handle('sessions:rename', (_event, sessionId: string, title: string) =>
     context.sessions.rename(sessionId, title),
   )
+  ipcMain.handle('sessions:options', (_event, sessionId: string) => resolveSessionOptions(context, sessionId))
+  ipcMain.handle('sessions:set-options', async (_event, sessionId: string, options: SessionOptionsView) => {
+    await context.sessions.setOptions(sessionId, {
+      model: options.model,
+      reasoningEffort: options.reasoningEffort,
+    })
+    return resolveSessionOptions(context, sessionId)
+  })
+  ipcMain.handle('sessions:stats', async (_event, sessionId: string) => {
+    const { lines } = await context.sessions.readLines(sessionId)
+    const options = await resolveSessionOptions(context, sessionId)
+    const { model } = context.gateway.resolve(options.model)
+    return computeSessionUsage(lines, model.capabilities.contextWindow)
+  })
 
   ipcMain.handle('agent:send', async (_event, sessionId: string, text: string) => {
     if (activeTurns.has(sessionId)) throw new Error('该会话已有运行中的任务')
@@ -120,13 +135,37 @@ interface SaveProviderInputWire {
   models: ModelSettings['providers'][number]['models']
 }
 
+async function resolveSessionOptions(context: AppContext, sessionId: string): Promise<SessionOptionsView> {
+  const settings = await context.settings.load()
+  const stored = await context.sessions.loadOptions(sessionId)
+  return {
+    model: stored.model ?? settings.defaults.primary,
+    reasoningEffort: (stored.reasoningEffort ?? 'off') as ReasoningEffort,
+  }
+}
+
 async function buildSettingsView(context: AppContext): Promise<import('../shared/ipc').SettingsView> {
   const settings = await context.settings.load()
   const secretsConfigured: Record<string, boolean> = {}
+  const availableModels: import('../shared/ipc').ModelOptionView[] = []
   for (const provider of settings.providers) {
     if (provider.apiKeyRef) secretsConfigured[provider.apiKeyRef] = context.secrets.has(provider.apiKeyRef)
+    for (const model of provider.models) {
+      availableModels.push({
+        target: `${provider.id}/${model.name}`,
+        providerId: provider.id,
+        name: model.name,
+        contextWindow: model.capabilities.contextWindow,
+        reasoningEffort: model.capabilities.reasoningEffort ?? false,
+      })
+    }
   }
-  return { providers: settings.providers.map((provider) => ({ ...provider, apiKeyRef: provider.apiKeyRef ?? null })), defaults: settings.defaults, secretsConfigured }
+  return {
+    providers: settings.providers.map((provider) => ({ ...provider, apiKeyRef: provider.apiKeyRef ?? null })),
+    defaults: settings.defaults,
+    secretsConfigured,
+    availableModels,
+  }
 }
 
 export function buildSessionItems(lines: SessionLine[]): SessionItemView[] {

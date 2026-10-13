@@ -42,8 +42,9 @@ src/renderer/   # 渲染进程（React 界面）
   - [x] 会话 JSONL：append-only、索引可重建、崩溃容错（`src/main/session`）
   - [x] 内置工具：read_file / write_file / edit_file / bash / powershell（截断 + artifact）
   - [x] 聊天 UI：流式消息、工具卡片、会话列表、模型设置抽屉
+  - [x] 输入框：会话级模型选择、思考强度（需模型声明支持）、输入/输出 tokens、缓存命中率、上下文剩余百分比
   - [x] 本地用量账本 + 侧边栏统计
-  - [x] 20 个单测（`npm run test`）
+  - [x] 29 个单测（`npm run test`）
   - [x] 真实模型联调：DeepSeek `deepseek-flash` 流式对话 + 工具调用（集成测试见下）
 
 ## 真实模型集成测试（需要密钥，默认跳过）

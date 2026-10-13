@@ -3,7 +3,7 @@
 import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import type { LlmMessage, ToolCall } from '../model/types'
+import type { LlmMessage, ReasoningEffort, ToolCall } from '../model/types'
 import type { MessageLine, SessionIndex, SessionLine, SessionMeta, ToolResultLine } from './types'
 import { ulid } from './ulid'
 
@@ -122,6 +122,31 @@ export class SessionStore {
     meta.updatedAt = new Date().toISOString()
     meta.messageCount += messageDelta
     await this.saveIndex(index)
+  }
+
+  /** 会话级模型 / 思考强度；取最后一条 session_options 行（design 5.2.6）。 */
+  async loadOptions(sessionId: string): Promise<{ model?: string; reasoningEffort?: ReasoningEffort }> {
+    const { lines } = await this.readLines(sessionId)
+    let model: string | undefined
+    let reasoningEffort: ReasoningEffort | undefined
+    for (const line of lines) {
+      if (line.type !== 'session_options') continue
+      if (line.model) model = line.model
+      if (line.reasoningEffort) reasoningEffort = line.reasoningEffort
+    }
+    return { model, reasoningEffort }
+  }
+
+  async setOptions(
+    sessionId: string,
+    options: { model?: string; reasoningEffort?: ReasoningEffort },
+  ): Promise<void> {
+    await this.append(sessionId, {
+      type: 'session_options',
+      model: options.model,
+      reasoningEffort: options.reasoningEffort,
+      createdAt: new Date().toISOString(),
+    })
   }
 
   private async loadIndex(): Promise<SessionIndex> {

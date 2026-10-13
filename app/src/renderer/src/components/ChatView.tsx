@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 
-import type { SessionItemView } from '@shared/ipc'
+import type { ModelOptionView, SessionItemView, SessionOptionsView, SessionUsageView } from '@shared/ipc'
 
 import Composer from './Composer'
 import MessageBubble from './MessageBubble'
@@ -11,11 +11,26 @@ interface Props {
   streamingText: string
   running: boolean
   error: string | null
+  models: ModelOptionView[]
+  options: SessionOptionsView | null
+  stats: SessionUsageView | null
+  onOptionsChange: (options: SessionOptionsView) => void
   onSend: (text: string) => void
   onStop: () => void
 }
 
-export default function ChatView({ items, streamingText, running, error, onSend, onStop }: Props) {
+export default function ChatView({
+  items,
+  streamingText,
+  running,
+  error,
+  models,
+  options,
+  stats,
+  onOptionsChange,
+  onSend,
+  onStop,
+}: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -44,7 +59,15 @@ export default function ChatView({ items, streamingText, running, error, onSend,
         {error && <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
         <div ref={bottomRef} />
       </div>
-      <Composer running={running} onSend={onSend} onStop={onStop} />
+      <Composer
+        running={running}
+        models={models}
+        options={options}
+        stats={stats}
+        onOptionsChange={onOptionsChange}
+        onSend={onSend}
+        onStop={onStop}
+      />
     </main>
   )
 }

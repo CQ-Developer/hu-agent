@@ -101,4 +101,46 @@ describe('streamOpenAiChat', () => {
     )
     await expect(collect()).rejects.toMatchObject({ kind: 'rate_limit', retryable: true })
   })
+
+  it('传入 reasoningEffort 时写入请求体 reasoning_effort', async () => {
+    const fetchMock = vi.fn(async () => sseResponse(['data: {"choices":[{"delta":{"content":"ok"}}]}\n\n', 'data: [DONE]\n\n']))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const events: StreamEvent[] = []
+    for await (const event of streamOpenAiChat({
+      baseUrl: 'https://example.test/v1',
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'hi' }],
+      reasoningEffort: 'high',
+    })) {
+      events.push(event)
+    }
+
+    const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body)) as Record<
+      string,
+      unknown
+    >
+    expect(body.reasoning_effort).toBe('high')
+  })
+
+  it('解析 DeepSeek 的 prompt_cache_hit_tokens', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          'data: {"choices":[{"delta":{"content":"ok"}}]}\n\n',
+          'data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":10,"prompt_cache_hit_tokens":80}}\n\n',
+          'data: [DONE]\n\n',
+        ]),
+      ),
+    )
+
+    const events = await collect()
+    const usage = events.find((event) => event.type === 'usage')
+    expect(usage && usage.type === 'usage' ? usage.usage : undefined).toMatchObject({
+      inputTokens: 100,
+      outputTokens: 10,
+      cacheReadTokens: 80,
+    })
+  })
 })

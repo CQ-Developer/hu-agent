@@ -1,8 +1,16 @@
-/** 模型网关：按 primary/fast 角色路由到 provider，统一流式事件与重试（design 5.2/5.9）。 */
+/** 模型网关：按会话选择的模型路由到 provider，统一流式事件与重试（design 5.2/5.9）。 */
 
 import { ModelError, classifyThrown } from './errors'
 import { streamOpenAiChat } from './providers/openai'
-import type { LlmMessage, ModelEntry, ModelRole, ModelSettings, ProviderConfig, StreamEvent, ToolDefinitionForModel } from './types'
+import type {
+  ChatRequestOptions,
+  LlmMessage,
+  ModelEntry,
+  ModelSettings,
+  ProviderConfig,
+  StreamEvent,
+  ToolDefinitionForModel,
+} from './types'
 
 export interface GatewayDeps {
   getSettings(): ModelSettings
@@ -14,17 +22,18 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 export class ModelGateway {
   constructor(private readonly deps: GatewayDeps) {}
 
-  resolve(role: ModelRole): { provider: ProviderConfig; model: ModelEntry } {
+  /** target 形如 "providerId/modelName"；缺省用 defaults.primary。 */
+  resolve(target?: string): { provider: ProviderConfig; model: ModelEntry } {
     const settings = this.deps.getSettings()
-    const target = role === 'fast' ? (settings.defaults.fast ?? settings.defaults.primary) : settings.defaults.primary
-    const slash = target.indexOf('/')
-    const providerId = slash >= 0 ? target.slice(0, slash) : ''
-    const modelName = slash >= 0 ? target.slice(slash + 1) : target
+    const wanted = target ?? settings.defaults.primary
+    const slash = wanted.indexOf('/')
+    const providerId = slash >= 0 ? wanted.slice(0, slash) : ''
+    const modelName = slash >= 0 ? wanted.slice(slash + 1) : wanted
 
     const provider =
       settings.providers.find((item) => item.id === providerId) ??
       settings.providers.find((item) => item.models.some((model) => model.name === modelName))
-    if (!provider) throw new ModelError('bad_request', `未找到模型配置：${target}`)
+    if (!provider) throw new ModelError('bad_request', `未找到模型配置：${wanted}`)
 
     const model = provider.models.find((item) => item.name === modelName) ?? provider.models[0]
     if (!model) throw new ModelError('bad_request', `供应商 ${provider.id} 未配置模型`)
@@ -32,13 +41,17 @@ export class ModelGateway {
   }
 
   async *chat(
-    role: ModelRole,
+    request: ChatRequestOptions,
     messages: LlmMessage[],
     tools: ToolDefinitionForModel[],
     signal?: AbortSignal,
   ): AsyncIterable<StreamEvent> {
-    const { provider, model } = this.resolve(role)
+    const { provider, model } = this.resolve(request.target)
     const apiKey = provider.apiKeyRef ? this.deps.getSecret(provider.apiKeyRef) : null
+    const effort =
+      model.capabilities.reasoningEffort && request.reasoningEffort && request.reasoningEffort !== 'off'
+        ? request.reasoningEffort
+        : undefined
 
     let attempt = 0
     for (;;) {
@@ -52,6 +65,7 @@ export class ModelGateway {
           apiKey,
           signal,
           maxOutputTokens: model.capabilities.maxOutput,
+          reasoningEffort: effort,
         })
         for await (const event of stream) {
           receivedAny = true

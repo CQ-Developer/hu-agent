@@ -1,5 +1,7 @@
 /** 会话 JSONL 行协议（design 5.3.2）。 */
 
+import type { ReasoningEffort } from '../model/types'
+
 export type ToolStatus = 'ok' | 'error' | 'denied' | 'timeout'
 
 export interface SessionMetaLine {
@@ -74,6 +76,14 @@ export interface CheckpointLine {
   createdAt: string
 }
 
+/** 会话级选项：模型选择与思考强度（design 5.2.6）；后写入的覆盖先写入的。 */
+export interface SessionOptionsLine {
+  type: 'session_options'
+  model?: string
+  reasoningEffort?: ReasoningEffort
+  createdAt: string
+}
+
 export interface ErrorLine {
   type: 'error'
   code: string
@@ -90,6 +100,7 @@ export type SessionLine =
   | UsageLine
   | SummaryLine
   | CheckpointLine
+  | SessionOptionsLine
   | ErrorLine
 
 export interface SessionMeta {

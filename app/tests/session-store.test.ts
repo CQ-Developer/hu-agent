@@ -91,4 +91,12 @@ describe('SessionStore', () => {
     const list = await store.list()
     expect(list[0]?.messageCount).toBe(1)
   })
+
+  it('会话选项按最后一条 session_options 生效', async () => {
+    const meta = await store.create()
+    await store.setOptions(meta.id, { model: 'a/x', reasoningEffort: 'low' })
+    await store.setOptions(meta.id, { model: 'b/y' })
+
+    expect(await store.loadOptions(meta.id)).toEqual({ model: 'b/y', reasoningEffort: 'low' })
+  })
 })

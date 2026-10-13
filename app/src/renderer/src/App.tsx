@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import type { AgentEvent } from '@shared/events'
-import type { SessionItemView, SessionMetaView, UsageStatsView, WorkspaceInfoView } from '@shared/ipc'
+import type {
+  ModelOptionView,
+  SessionItemView,
+  SessionMetaView,
+  SessionOptionsView,
+  SessionUsageView,
+  UsageStatsView,
+  WorkspaceInfoView,
+} from '@shared/ipc'
 
 import ChatView from './components/ChatView'
 import SettingsDrawer from './components/SettingsDrawer'
@@ -17,6 +25,9 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [usage, setUsage] = useState<UsageStatsView | null>(null)
   const [workspace, setWorkspace] = useState<WorkspaceInfoView | null>(null)
+  const [models, setModels] = useState<ModelOptionView[]>([])
+  const [options, setOptions] = useState<SessionOptionsView | null>(null)
+  const [stats, setStats] = useState<SessionUsageView | null>(null)
   const streamingRef = useRef('')
 
   const refreshSessions = useCallback(async (): Promise<SessionMetaView[]> => {
@@ -31,6 +42,8 @@ export default function App() {
     setStreamingText('')
     setError(null)
     setItems(await window.huAgent.sessions.items(sessionId))
+    setOptions(await window.huAgent.sessions.options(sessionId))
+    setStats(await window.huAgent.sessions.stats(sessionId))
   }, [])
 
   const createSession = useCallback(async (): Promise<void> => {
@@ -51,6 +64,8 @@ export default function App() {
       }
       setWorkspace(await window.huAgent.workspace.info())
       setUsage(await window.huAgent.usage.stats())
+      const view = await window.huAgent.settings.get()
+      setModels(view.availableModels)
     })()
   }, [openSession, refreshSessions])
 
@@ -114,6 +129,7 @@ export default function App() {
           )
           break
         case 'usage.update':
+          setStats((prev) => applyUsage(prev, event.usage, models, options))
           break
         case 'turn.end': {
           const text = streamingRef.current
@@ -135,12 +151,21 @@ export default function App() {
           if (event.stopReason === 'error' && event.error) setError(event.error)
           void refreshSessions()
           void window.huAgent.usage.stats().then(setUsage)
+          void window.huAgent.sessions.stats(event.sessionId).then(setStats)
           break
         }
       }
     })
     return off
-  }, [currentId, refreshSessions])
+  }, [currentId, models, options, refreshSessions])
+
+  const changeOptions = useCallback(
+    async (next: SessionOptionsView): Promise<void> => {
+      if (!currentId) return
+      setOptions(await window.huAgent.sessions.setOptions(currentId, next))
+    },
+    [currentId],
+  )
 
   const send = useCallback(
     async (text: string): Promise<void> => {
@@ -187,6 +212,10 @@ export default function App() {
         streamingText={streamingText}
         running={running}
         error={error}
+        models={models}
+        options={options}
+        stats={stats}
+        onOptionsChange={(next) => void changeOptions(next)}
         onSend={(text) => void send(text)}
         onStop={stop}
       />
@@ -195,9 +224,37 @@ export default function App() {
           onClose={() => setSettingsOpen(false)}
           onChanged={() => {
             void window.huAgent.usage.stats().then(setUsage)
+            void window.huAgent.settings.get().then((view) => setModels(view.availableModels))
+            if (currentId) void window.huAgent.sessions.stats(currentId).then(setStats)
           }}
         />
       )}
     </div>
   )
+}
+
+/** 用 usage.update 事件实时累加会话统计（turn.end 时再用 IPC 校准）。 */
+function applyUsage(
+  prev: SessionUsageView | null,
+  incoming: { inputTokens: number; outputTokens: number; cacheReadTokens?: number },
+  models: ModelOptionView[],
+  options: SessionOptionsView | null,
+): SessionUsageView {
+  const contextWindow =
+    models.find((model) => model.target === options?.model)?.contextWindow ?? prev?.contextWindow ?? 0
+  const calls = (prev?.calls ?? 0) + 1
+  const inputTokens = (prev?.inputTokens ?? 0) + incoming.inputTokens
+  const outputTokens = (prev?.outputTokens ?? 0) + incoming.outputTokens
+  const cacheReadTokens = (prev?.cacheReadTokens ?? 0) + (incoming.cacheReadTokens ?? 0)
+  const used = incoming.inputTokens + incoming.outputTokens
+  return {
+    calls,
+    inputTokens,
+    outputTokens,
+    cacheReadTokens,
+    cacheHitRate: inputTokens > 0 ? cacheReadTokens / inputTokens : 0,
+    contextWindow,
+    contextRemainingPercent:
+      contextWindow > 0 ? Math.max(0, Math.min(1, 1 - used / contextWindow)) * 100 : 100,
+  }
 }

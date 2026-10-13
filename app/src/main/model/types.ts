@@ -2,9 +2,14 @@
 
 export type ModelRole = 'primary' | 'fast'
 
+/** 思考强度；off 表示不传推理参数（design 5.9） */
+export type ReasoningEffort = 'off' | 'low' | 'medium' | 'high'
+
 export interface ModelCapabilities {
   tools: boolean
   vision?: boolean
+  /** 是否支持 reasoning_effort 参数（OpenAI 兼容协议） */
+  reasoningEffort?: boolean
   contextWindow: number
   maxOutput?: number
 }
@@ -62,6 +67,12 @@ export interface TokenUsage {
 }
 
 export type StopReason = 'stop' | 'tool_use' | 'length'
+
+export interface ChatRequestOptions {
+  /** "providerId/modelName"；缺省用 defaults.primary */
+  target?: string
+  reasoningEffort?: ReasoningEffort
+}
 
 export type StreamEvent =
   | { type: 'text_delta'; text: string }

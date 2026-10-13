@@ -14,6 +14,7 @@ interface FormState {
   modelName: string
   contextWindow: string
   supportsTools: boolean
+  supportsReasoning: boolean
   isPrimary: boolean
 }
 
@@ -24,6 +25,7 @@ const EMPTY_FORM: FormState = {
   modelName: '',
   contextWindow: '128000',
   supportsTools: true,
+  supportsReasoning: false,
   isPrimary: true,
 }
 
@@ -52,6 +54,7 @@ export default function SettingsDrawer({ onClose, onChanged }: Props) {
       modelName: model?.name ?? '',
       contextWindow: String(model?.capabilities.contextWindow ?? 32768),
       supportsTools: model?.capabilities.tools ?? true,
+      supportsReasoning: model?.capabilities.reasoningEffort ?? false,
       isPrimary: settings?.defaults.primary === `${provider.id}/${model?.name ?? ''}`,
     })
   }
@@ -70,6 +73,7 @@ export default function SettingsDrawer({ onClose, onChanged }: Props) {
           roles: ['primary', 'fast'],
           capabilities: {
             tools: form.supportsTools,
+            reasoningEffort: form.supportsReasoning,
             contextWindow: Number(form.contextWindow) || 32768,
           },
         },
@@ -194,6 +198,14 @@ export default function SettingsDrawer({ onClose, onChanged }: Props) {
                   onChange={(event) => setForm({ ...form, supportsTools: event.target.checked })}
                 />
                 支持工具
+              </label>
+              <label className="flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  checked={form.supportsReasoning}
+                  onChange={(event) => setForm({ ...form, supportsReasoning: event.target.checked })}
+                />
+                支持思考强度
               </label>
               <label className="flex items-center gap-1">
                 <input
