@@ -207,6 +207,15 @@ export interface CloudStatusView {
   pending: number
 }
 
+/** 启动门禁的会话探测结果（ADR 0004 / D16）。 */
+export interface CloudSessionView {
+  loggedIn: boolean
+  /** true：需要用户登录；false 且 error 存在：有登录态但服务端不可达，只可重试 */
+  needsLogin: boolean
+  error?: string
+  code?: string
+}
+
 export interface CloudFlushResultView {
   sent: number
   pending: number
@@ -265,6 +274,7 @@ export interface HuAgentApi {
   }
   cloud: {
     status(): Promise<CloudStatusView>
+    session(): Promise<CloudSessionView>
     login(serverUrl: string, email: string, password: string): Promise<CloudStatusView>
     register(serverUrl: string, email: string, displayName: string, password: string): Promise<CloudStatusView>
     logout(allDevices?: boolean): Promise<CloudStatusView>
@@ -272,6 +282,8 @@ export interface HuAgentApi {
     revokeDevice(deviceId: string): Promise<CloudDeviceView[]>
     flush(): Promise<CloudFlushResultView>
     clearQueue(): Promise<CloudStatusView>
+    /** 会话被服务端撤销时触发（如设备被吊销/账号被禁用） */
+    onSessionLost(listener: (reason: string) => void): () => void
   }
   workspace: {
     list(): Promise<WorkspaceInfoView[]>

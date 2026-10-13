@@ -161,6 +161,74 @@ describe('CloudClient', () => {
     await expect(client.me()).rejects.toMatchObject({ code: 'UNAUTHENTICATED' })
   })
 
+  it('restore：无本地登录态时要求登录', async () => {
+    await expect(client.restore()).resolves.toMatchObject({ ok: false, needsLogin: true })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('restore：服务端不可达时保留登录态，needsLogin=false', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({
+        accessToken: 'a',
+        refreshToken: 'r',
+        expiresIn: 900,
+        user: { id: 'u1', email: 'a@b.com', displayName: '用户', locale: 'zh-CN', isSystemAdmin: false },
+      }),
+    )
+    await client.login('http://127.0.0.1:8080', 'a@b.com', 'password-123')
+
+    // 模拟应用重启：新实例无内存 access token，只能靠 refresh
+    const restarted = new CloudClient(secrets, new CloudStore(join(dir, 'cloud.json')), '0.1.0')
+    fetchMock.mockRejectedValue(new TypeError('fetch failed'))
+    const result = await restarted.restore()
+    expect(result.ok).toBe(false)
+    expect(result.needsLogin).toBe(false)
+    expect(result.code).toBe('NETWORK')
+    expect(await restarted.isLoggedIn()).toBe(true) // 登录态保留
+  })
+
+  it('restore：服务端拒绝刷新时清理会话并通知界面退回门禁', async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({
+        accessToken: 'a',
+        refreshToken: 'r',
+        expiresIn: 900,
+        user: { id: 'u1', email: 'a@b.com', displayName: '用户', locale: 'zh-CN', isSystemAdmin: false },
+      }),
+    )
+    await client.login('http://127.0.0.1:8080', 'a@b.com', 'password-123')
+
+    const events: string[] = []
+    const restarted = new CloudClient(secrets, new CloudStore(join(dir, 'cloud.json')), '0.1.0', {
+      onSessionLost: (reason) => events.push(reason),
+    })
+    fetchMock.mockResolvedValueOnce(json({ code: 'REFRESH_REVOKED', message: '刷新令牌已失效，请重新登录' }, 401))
+    const result = await restarted.restore()
+    expect(result).toMatchObject({ ok: false, needsLogin: true, code: 'REFRESH_REVOKED' })
+    expect(await restarted.isLoggedIn()).toBe(false)
+    expect(events).toEqual(['刷新令牌已失效，请重新登录'])
+  })
+
+  it('主动登出不触发 session-lost', async () => {
+    const events: string[] = []
+    const hooked = new CloudClient(secrets, new CloudStore(join(dir, 'cloud.json')), '0.1.0', {
+      onSessionLost: (reason) => events.push(reason),
+    })
+    fetchMock
+      .mockResolvedValueOnce(
+        json({
+          accessToken: 'a',
+          refreshToken: 'r',
+          expiresIn: 900,
+          user: { id: 'u1', email: 'a@b.com', displayName: '用户', locale: 'zh-CN', isSystemAdmin: false },
+        }),
+      )
+      .mockResolvedValueOnce(json({ revoked: 1 }))
+    await hooked.login('http://127.0.0.1:8080', 'a@b.com', 'password-123')
+    await hooked.logout()
+    expect(events).toEqual([])
+  })
+
   it('服务器地址非法时登录直接报错', async () => {
     await expect(client.login('not-a-url', 'a@b.com', 'password-123')).rejects.toBeInstanceOf(CloudError)
     expect(fetchMock).not.toHaveBeenCalled()

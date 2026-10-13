@@ -13,6 +13,7 @@ import type {
 } from '@shared/ipc'
 
 import ChatView from './components/ChatView'
+import LoginGate from './components/LoginGate'
 import ProfileDialog from './components/ProfileDialog'
 import Sidebar from './components/Sidebar'
 import TopTabs, { type AppTab } from './components/TopTabs'
@@ -34,6 +35,9 @@ export default function App() {
   const [tab, setTab] = useState<AppTab>('chat')
   const [profileOpen, setProfileOpen] = useState(false)
   const [accountLabel, setAccountLabel] = useState('未登录')
+  const [sessionState, setSessionState] = useState<'loading' | 'required' | 'ready'>('loading')
+  const [gateNotice, setGateNotice] = useState<string | null>(null)
+  const [gateRetryOnly, setGateRetryOnly] = useState(false)
   const [usage, setUsage] = useState<UsageStatsView | null>(null)
   const [workspace, setWorkspace] = useState<WorkspaceInfoView | null>(null)
   const [workspaces, setWorkspaces] = useState<WorkspaceInfoView[]>([])
@@ -89,18 +93,48 @@ export default function App() {
     [openSession, refreshSessions],
   )
 
-  useEffect(() => {
-    void (async () => {
-      const [list, active] = await Promise.all([window.huAgent.workspace.list(), window.huAgent.workspace.active()])
-      setWorkspaces(list)
-      await loadWorkspaceState(active)
-      setUsage(await window.huAgent.usage.stats())
-      const view = await window.huAgent.settings.get()
-      setModels(view.availableModels)
-      const cloud = await window.huAgent.cloud.status()
-      setAccountLabel(cloud.loggedIn && cloud.user ? cloud.user.displayName || cloud.user.email : '未登录')
-    })()
+  /** 登录成功后加载工作空间、会话、模型与账号状态（design 4.1 + D16）。 */
+  const loadSessionData = useCallback(async (): Promise<void> => {
+    const [list, active] = await Promise.all([window.huAgent.workspace.list(), window.huAgent.workspace.active()])
+    setWorkspaces(list)
+    await loadWorkspaceState(active)
+    setUsage(await window.huAgent.usage.stats())
+    const view = await window.huAgent.settings.get()
+    setModels(view.availableModels)
+    const cloud = await window.huAgent.cloud.status()
+    setAccountLabel(cloud.loggedIn && cloud.user ? cloud.user.displayName || cloud.user.email : '未登录')
   }, [loadWorkspaceState])
+
+  /** 启动门禁探测：未登录/会话失效一律停在上登录页（不能绕过）。 */
+  const probeSession = useCallback(async (): Promise<void> => {
+    setSessionState('loading')
+    const result = await window.huAgent.cloud.session()
+    if (result.loggedIn) {
+      setGateNotice(null)
+      setGateRetryOnly(false)
+      await loadSessionData()
+      setSessionState('ready')
+      return
+    }
+    setGateNotice(result.error ?? null)
+    setGateRetryOnly(!result.needsLogin && Boolean(result.error))
+    setSessionState('required')
+  }, [loadSessionData])
+
+  useEffect(() => {
+    void probeSession()
+  }, [probeSession])
+
+  // 服务端拒绝会话（令牌撤销/账号禁用）：立即退回门禁
+  useEffect(
+    () =>
+      window.huAgent.cloud.onSessionLost((reason) => {
+        setGateNotice(reason)
+        setGateRetryOnly(false)
+        setSessionState('required')
+      }),
+    [],
+  )
 
   useEffect(() => {
     const off = window.huAgent.agent.onEvent((event: AgentEvent) => {
@@ -293,11 +327,36 @@ export default function App() {
   const refreshDerived = useCallback((): void => {
     void window.huAgent.usage.stats().then(setUsage)
     void window.huAgent.settings.get().then((view) => setModels(view.availableModels))
-    void window.huAgent.cloud.status().then((cloud) =>
-      setAccountLabel(cloud.loggedIn && cloud.user ? cloud.user.displayName || cloud.user.email : '未登录'),
-    )
+    void window.huAgent.cloud.status().then((cloud) => {
+      setAccountLabel(cloud.loggedIn && cloud.user ? cloud.user.displayName || cloud.user.email : '未登录')
+      // 主动登出后回到门禁（强制登录，ADR 0004）
+      if (!cloud.loggedIn) {
+        setGateNotice(null)
+        setGateRetryOnly(false)
+        setSessionState('required')
+      }
+    })
     if (currentId) void window.huAgent.sessions.stats(currentId).then(setStats)
   }, [currentId])
+
+  if (sessionState === 'loading') {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-neutral-100 text-sm text-neutral-500">
+        正在连接服务端…
+      </div>
+    )
+  }
+
+  if (sessionState === 'required') {
+    return (
+      <LoginGate
+        notice={gateNotice}
+        retryOnly={gateRetryOnly}
+        onLoggedIn={() => void probeSession()}
+        onRetry={() => void probeSession()}
+      />
+    )
+  }
 
   return (
     <div className="flex h-screen w-screen bg-neutral-100 text-neutral-900">

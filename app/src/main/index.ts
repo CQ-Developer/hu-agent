@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { BrowserWindow, Menu, app, shell } from 'electron'
 
 import { ModelGateway } from './model/gateway'
-import { broadcastInteraction, registerIpc, type AppContext } from './ipc'
+import { broadcastInteraction, broadcastSessionLost, registerIpc, type AppContext } from './ipc'
 import { SecretStore } from './config/secrets'
 import { SettingsStore } from './config/settings-store'
 import { configFilePath, cloudConfigFile, secretsFilePath, usageLedgerPath, workspacesIndexFile } from './config/paths'
@@ -69,8 +69,11 @@ async function bootstrap(): Promise<void> {
   })
   const interactions = new InteractionBroker({ broadcast: broadcastInteraction })
 
-  // 云账户与上报器必须共享同一个 CloudClient（access token 只存内存）
-  const cloud = new CloudClient(secrets, new CloudStore(cloudConfigFile()), app.getVersion())
+  // 云账户与上报器必须共享同一个 CloudClient（access token 只存内存）；
+  // 会话被服务端拒绝时广播给界面，强制退回登录门禁（ADR 0004 / D16）
+  const cloud = new CloudClient(secrets, new CloudStore(cloudConfigFile()), app.getVersion(), {
+    onSessionLost: (reason) => broadcastSessionLost(reason),
+  })
   const reporter = new UsageReporter(cloud, app.getVersion())
 
   const context: AppContext = {

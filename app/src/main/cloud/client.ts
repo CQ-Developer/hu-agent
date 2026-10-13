@@ -28,6 +28,20 @@ export class CloudError extends Error {
   }
 }
 
+export interface CloudHooks {
+  /** 服务端明确拒绝会话（令牌撤销/账号禁用）时通知界面退回门禁（ADR 0004 / D16） */
+  onSessionLost?: (reason: string) => void
+}
+
+export interface CloudRestoreResult {
+  ok: boolean
+  user?: CloudUser
+  /** true：没有本地登录态，需要用户登录；false：有登录态但验证失败（如服务端不可达） */
+  needsLogin?: boolean
+  error?: string
+  code?: string
+}
+
 export interface CloudUser {
   id: string
   email: string
@@ -63,7 +77,44 @@ export class CloudClient {
     private readonly secrets: SecretAccess,
     private readonly store: CloudStore,
     private readonly appVersion: string,
+    private readonly hooks: CloudHooks = {},
   ) {}
+
+  /**
+   * 启动时静默恢复会话（design 4.1 + D16 强制登录）：
+   * - 无本地登录态 → 需要用户登录
+   * - 有登录态且服务端可达 → 刷新并返回用户
+   * - 服务端明确拒绝 → 清理会话并重新登录
+   * - 网络不可达 → 保留登录态，仅提示重试（不提供绕过）
+   */
+  async restore(): Promise<CloudRestoreResult> {
+    const config = await this.store.load()
+    if (!config.serverUrl || !config.userId || !this.secrets.has(REFRESH_TOKEN_KEY)) {
+      return { ok: false, needsLogin: true }
+    }
+    try {
+      await this.ensureAccessToken()
+      const user = await this.me()
+      await this.store.save({
+        userId: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        isSystemAdmin: user.isSystemAdmin,
+        locale: user.locale,
+      })
+      return { ok: true, user }
+    } catch (error) {
+      if (error instanceof CloudError && isAuthError(error)) {
+        return { ok: false, needsLogin: true, error: error.message, code: error.code }
+      }
+      return {
+        ok: false,
+        needsLogin: false,
+        error: error instanceof Error ? error.message : String(error),
+        code: 'NETWORK',
+      }
+    }
+  }
 
   /** 是否已登录（本地有刷新令牌 + 账号信息）。 */
   async isLoggedIn(): Promise<boolean> {
@@ -75,7 +126,8 @@ export class CloudClient {
     return this.store.load()
   }
 
-  async login(serverUrl: string, email: string, password: string): Promise<CloudUser> {    const base = normalizeServerUrl(serverUrl)
+  async login(serverUrl: string, email: string, password: string): Promise<CloudUser> {
+    const base = normalizeServerUrl(serverUrl)
     if (!base) throw new CloudError('VALIDATION_FAILED', '请填写服务器地址', 0)
     const config = await this.store.load()
     const response = await this.fetchJson(`${base}/api/v1/auth/login`, {
@@ -162,17 +214,22 @@ export class CloudClient {
     const config = await this.store.load()
     if (!config.serverUrl) throw new CloudError('UNAUTHENTICATED', '未配置服务器地址', 0)
 
-    let attempt = 0
+    let retried = false
     for (;;) {
-      const token = options.auth === false ? null : await this.ensureAccessToken()
+      let token: string | null = null
       try {
+        token = options.auth === false ? null : await this.ensureAccessToken()
         return await this.fetchJson(`${config.serverUrl}${path}`, { ...options, token })
       } catch (error) {
-        if (error instanceof CloudError && error.status === 401 && options.auth !== false && attempt === 0) {
-          this.accessToken = null
-          this.accessExpiresAt = 0
-          attempt += 1
-          continue
+        if (isAuthError(error) && options.auth !== false) {
+          // 请求期间 access token 过期：清掉后重试一次；再失败则判定会话失效（ADR 0004）
+          if (token && !retried) {
+            retried = true
+            this.accessToken = null
+            this.accessExpiresAt = 0
+            continue
+          }
+          await this.invalidateSession(error)
         }
         throw error
       }
@@ -184,15 +241,28 @@ export class CloudClient {
     const refreshToken = this.secrets.get(REFRESH_TOKEN_KEY)
     if (!refreshToken) throw new CloudError('UNAUTHENTICATED', '未登录', 401)
     const config = await this.store.load()
-    const response = await this.fetchJson(`${config.serverUrl}/api/v1/auth/refresh`, {
-      method: 'POST',
-      body: { refreshToken },
-      timeoutMs: 15_000,
-    })
-    this.accessToken = String(response.accessToken)
-    this.accessExpiresAt = Date.now() + (Number(response.expiresIn) || 900) * 1000
-    await this.secrets.set(REFRESH_TOKEN_KEY, String(response.refreshToken))
-    return this.accessToken
+    try {
+      const response = await this.fetchJson(`${config.serverUrl}/api/v1/auth/refresh`, {
+        method: 'POST',
+        body: { refreshToken },
+        timeoutMs: 15_000,
+      })
+      this.accessToken = String(response.accessToken)
+      this.accessExpiresAt = Date.now() + (Number(response.expiresIn) || 900) * 1000
+      await this.secrets.set(REFRESH_TOKEN_KEY, String(response.refreshToken))
+      return this.accessToken
+    } catch (error) {
+      // 刷新被服务端拒绝（旋转令牌失效/账号禁用）→ 会话作废，界面退回门禁
+      if (isAuthError(error)) await this.invalidateSession(error)
+      throw error
+    }
+  }
+
+  /** 仅由服务端拒绝触发（用户主动登出不走这里）。 */
+  private async invalidateSession(error: CloudError): Promise<void> {
+    const hadSession = this.secrets.has(REFRESH_TOKEN_KEY)
+    await this.clearSession()
+    if (hadSession) this.hooks.onSessionLost?.(error.message)
   }
 
   private async fetchJson(
@@ -234,6 +304,17 @@ export class CloudClient {
     if (lastError instanceof CloudError) throw lastError
     throw new CloudError('NETWORK', lastError instanceof Error ? lastError.message : '网络请求失败', 0)
   }
+}
+
+function isAuthError(error: unknown): error is CloudError {
+  if (!(error instanceof CloudError)) return false
+  return (
+    error.status === 401 ||
+    error.status === 403 ||
+    error.code === 'UNAUTHENTICATED' ||
+    error.code === 'REFRESH_REVOKED' ||
+    error.code === 'ACCOUNT_DISABLED'
+  )
 }
 
 export function normalizeServerUrl(url: string): string {

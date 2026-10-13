@@ -53,6 +53,13 @@ export function broadcastEvent(event: AgentEvent): void {
   }
 }
 
+/** 会话被服务端拒绝（ADR 0004）：通知所有窗口退回登录门禁。 */
+export function broadcastSessionLost(reason: string): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send('cloud:session-lost', reason)
+  }
+}
+
 /** 把交互桥的请求包装成统一的 AgentEvent 通道。 */
 export function broadcastInteraction(view: ApprovalRequestView | GuideRequestView): void {
   if ('toolName' in view) {
@@ -356,6 +363,15 @@ export function registerIpc(context: AppContext): void {
 
   // ---------- 云账户与用量上报（design 4.1 / 5.10） ----------
   ipcMain.handle('cloud:status', () => buildCloudStatus(context))
+  ipcMain.handle('cloud:session', async () => {
+    const result = await context.cloud.restore()
+    return {
+      loggedIn: result.ok,
+      needsLogin: result.ok ? false : Boolean(result.needsLogin),
+      error: result.error,
+      code: result.code,
+    }
+  })
   ipcMain.handle('cloud:login', async (_event, serverUrl: string, email: string, password: string) => {
     await context.cloud.login(serverUrl, email, password)
     const { ws } = await scoped(context)

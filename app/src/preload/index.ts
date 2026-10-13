@@ -52,6 +52,7 @@ const api: HuAgentApi = {
   },
   cloud: {
     status: () => ipcRenderer.invoke('cloud:status'),
+    session: () => ipcRenderer.invoke('cloud:session'),
     login: (serverUrl, email, password) => ipcRenderer.invoke('cloud:login', serverUrl, email, password),
     register: (serverUrl, email, displayName, password) =>
       ipcRenderer.invoke('cloud:register', serverUrl, email, displayName, password),
@@ -60,6 +61,11 @@ const api: HuAgentApi = {
     revokeDevice: (deviceId) => ipcRenderer.invoke('cloud:revoke-device', deviceId),
     flush: () => ipcRenderer.invoke('cloud:flush'),
     clearQueue: () => ipcRenderer.invoke('cloud:clear-queue'),
+    onSessionLost: (listener) => {
+      const handler = (_event: unknown, reason: string): void => listener(reason)
+      ipcRenderer.on('cloud:session-lost', handler)
+      return () => ipcRenderer.removeListener('cloud:session-lost', handler)
+    },
   },
   workspace: {
     list: () => ipcRenderer.invoke('workspace:list'),
