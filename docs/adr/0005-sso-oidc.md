@@ -40,3 +40,8 @@
   邮箱未验证、禁止自动绑定）、禁用身份源即时撤销会话与 authorize 失效。
 - 客户端单测 8 个：PKCE 计算、authorize URL、回环服务、完整登录并持久化、错误回调、state 不匹配忽略、
   超时、未配置浏览器。
+- **真实 IdP 联调（2026-10-14，安装 cryptography 后）**：本机 Keycloak 26.3（realm `huagent`、confidential client、
+  测试用户）跑通完整链路：authorize 302 → 模拟浏览器表单登录 → 回环回调一次性 code → exchange →
+  真实 **RS256 + JWKS 验签** → JIT 建号与身份绑定 → 禁用身份源后刷新令牌立即 401 → 恢复启用。
+  联调脚本见 `scripts/sso-live-check.py`；数据库中 `client_secret_enc` 为 AES-GCM 密文，审计含
+  `auth.sso.authorize/login/exchange` 与 `sso.provider.*`。

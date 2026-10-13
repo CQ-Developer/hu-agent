@@ -7,6 +7,7 @@
 | `check-all.sh` | 三段全量校验（服务端 / 客户端 / 管理台） | `bash scripts/check-all.sh` |
 | `stage5-demo.ps1` | 阶段 5 全流程走查（组织→团队→邀请→RBAC→审批→Skill 市场→状态→停用/撤回/下架/删除） | 见下 |
 | `stage5-admin.http` | 管理台延后期间的审批/上下架代办请求（VS Code REST Client 或 curl） | 见文件内注释 |
+| `sso-live-check.py` | 真实 IdP（Keycloak 等）SSO 全流程联调：配置身份源 → 模拟浏览器登录 → exchange → 校验绑定 → 禁用撤销 | `uv run --project management python scripts/sso-live-check.py --admin-email … --admin-password …` |
 
 ## 阶段 5 走查（stage5-demo.ps1）
 
@@ -40,3 +41,26 @@ powershell -ExecutionPolicy Bypass -File scripts/stage5-demo.ps1
 - 若暂时无法构建，也以内存实现跑通其余 16 步：`HUAGENT_OBJECT_STORE=memory uv run huagent-api`（此时下载地址为 `memory://…`，只校验摘要）。
 
 提示：Windows PowerShell 5.1 控制台若显示中文乱码，先执行 `chcp 65001`；脚本文件必须保留 UTF-8 BOM（否则 5.1 会按 ANSI 解析导致语法错误）。
+
+## 真实 IdP（Keycloak）SSO 联调
+
+本机 docker compose 已带 Keycloak（`http://127.0.0.1:8081`，admin/admin）。准备测试身份源：
+
+```bash
+export MSYS_NO_PATHCONV=1   # Git Bash 下避免容器内绝对路径被转换
+KC="docker exec huagent-keycloak /opt/keycloak/bin/kcadm.sh"
+$KC config credentials --server http://localhost:8081 --realm master --user admin --password admin
+$KC create realms -s realm=huagent -s enabled=true
+$KC create clients -r huagent -s clientId=hu-agent -s enabled=true -s publicClient=false   -s secret=hu-agent-secret -s standardFlowEnabled=true   -s 'redirectUris=["http://127.0.0.1:8080/api/v1/auth/sso/callback"]'
+$KC create users -r huagent -s username=sso-user -s email=sso-user@example.com   -s emailVerified=true -s enabled=true -s firstName=SSO -s lastName=User
+$KC set-password -r huagent --username sso-user --new-password 'Sso-Passphrase-2026'
+```
+
+然后执行联调（脚本会登录本地管理员、创建/更新身份源、模拟浏览器完成表单登录与回环回调）：
+
+```bash
+uv run --project management python scripts/sso-live-check.py   --admin-email sysadmin@example.com --admin-password 'Str0ng-Passphrase-2026'
+```
+
+预期输出：`302 → IdP` → `收到一次性 code` → `exchange OK` → `/me` 与绑定关系 → `禁用身份源 → 刷新令牌 401` → `全部通过`。
+脚本会还原身份源为启用状态；测试用户与绑定关系保留在本地库中。

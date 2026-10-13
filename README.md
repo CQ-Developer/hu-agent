@@ -87,6 +87,7 @@
   - [x] 三方 PKCE 登录：authorize → callback（验签 ID Token / 回退 userinfo）→ 一次性 code（60s 单次）→ exchange
   - [x] 安全：state/nonce 校验、禁用身份源即时撤销会话、解绑保护（至少保留一种登录方式）、全量审计
   - [x] 桌面端：登录页自动发现身份源，「使用 xx 登录」走系统浏览器 + 回环回调
+  - [x] 实测：真实 Keycloak（RS256 + JWKS）全流程联调通过（`scripts/sso-live-check.py`）
   - [ ] 交付打磨：安装包签名/公证、CI 端到端作业（MinIO + SSO）、发布前清单核对
 
 - [x] **阶段 6：云同步与统计（6-04/6-07 延后）**
