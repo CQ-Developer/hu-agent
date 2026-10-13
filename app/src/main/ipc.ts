@@ -26,6 +26,8 @@ import { MarketClient } from './market/client'
 import type { InstalledSkill, SkillInstaller } from './market/installer'
 import { isHardDisabled, type ResourceStatusService, type StatusCache } from './market/status'
 import { reportActivationSnapshot } from './market/activations'
+import { SyncEngine } from './sync/engine'
+import { CloudSyncBackend } from './sync/backend'
 import type { SessionOptionsView } from '../shared/ipc'
 import type { SkillView } from '../shared/ipc'
 import type { MarketSkill } from './market/client'
@@ -376,6 +378,24 @@ export function registerIpc(context: AppContext): void {
   ipcMain.handle('market:check-status', async (_event, force?: boolean) => {
     return context.statuses.check({ force: force ?? true })
   })
+
+  // ---------- 云同步（design 5.11 / 6.6） ----------
+  const syncEngine = async (): Promise<SyncEngine> => {
+    const { ws } = await scoped(context)
+    return new SyncEngine(new CloudSyncBackend(context.cloud), ws)
+  }
+  ipcMain.handle('sync:status', async () => (await syncEngine()).status())
+  ipcMain.handle('sync:now', async () => (await syncEngine()).syncNow())
+  ipcMain.handle('sync:versions', async () => (await syncEngine()).versions())
+  ipcMain.handle('sync:restore', async (_event, version: number) =>
+    (await syncEngine()).restore(version, { keepLocalCopy: true }),
+  )
+  ipcMain.handle(
+    'sync:resolve',
+    async (_event, choice: 'keep-local' | 'cancel' | 'export-diff') => (await syncEngine()).resolve(choice),
+  )
+  ipcMain.handle('sync:pin', async (_event, snapshotId: string) => (await syncEngine()).pin(snapshotId))
+  ipcMain.handle('sync:remove', async (_event, snapshotId: string) => (await syncEngine()).remove(snapshotId))
 
   // ---------- 权限策略与审计 ----------
   ipcMain.handle('permissions:rules', async () => {

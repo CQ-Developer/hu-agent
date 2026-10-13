@@ -47,6 +47,15 @@ const api: HuAgentApi = {
     installed: () => ipcRenderer.invoke('market:installed'),
     checkStatus: (force) => ipcRenderer.invoke('market:check-status', force),
   },
+  sync: {
+    status: () => ipcRenderer.invoke('sync:status'),
+    now: () => ipcRenderer.invoke('sync:now'),
+    versions: () => ipcRenderer.invoke('sync:versions'),
+    restore: (version) => ipcRenderer.invoke('sync:restore', version),
+    resolve: (choice) => ipcRenderer.invoke('sync:resolve', choice),
+    pin: (snapshotId) => ipcRenderer.invoke('sync:pin', snapshotId),
+    remove: (snapshotId) => ipcRenderer.invoke('sync:remove', snapshotId),
+  },
   permissions: {
     rules: () => ipcRenderer.invoke('permissions:rules'),
     audit: (limit?: number) => ipcRenderer.invoke('permissions:audit', limit),

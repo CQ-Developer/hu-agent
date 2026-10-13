@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid as uuid_module
 from datetime import datetime
 from typing import Annotated
@@ -56,6 +57,8 @@ class SnapshotInitIn(ApiModel):
     file_count: int
     manifest_digest: str
     comment: str | None = None
+    # 文件清单（相对路径 + 大小），用于冲突时导出差异；服务端不校验内容
+    manifest: list[dict[str, object]] | None = None
 
 
 class SnapshotInitOut(ApiModel):
@@ -78,6 +81,7 @@ class SnapshotOut(ApiModel):
     comment: str | None
     pinned: bool
     created_at: datetime
+    manifest: list[dict[str, object]] | None = None
 
 
 class SnapshotListOut(ApiModel):
@@ -141,9 +145,9 @@ SELECT_MAX_SNAPSHOT_VERSION = text(
 INSERT_SNAPSHOT = text(
     """
     INSERT INTO workspace_snapshots (workspace_id, version, status, object_key, size_bytes, file_count,
-                                     manifest_digest, device_id, comment)
+                                     manifest_digest, device_id, comment, manifest)
     VALUES (:workspace_id, :version, 'uploading', :object_key, :size_bytes, :file_count,
-            :manifest_digest, :device_id, :comment)
+            :manifest_digest, :device_id, :comment, CAST(:manifest AS jsonb))
     RETURNING id
     """
 )
@@ -267,14 +271,19 @@ async def list_snapshots(
 
 
 @router.get("/workspaces/{workspace_id}/snapshots/latest", response_model=SnapshotOut)
-async def latest_snapshot(workspace_id: UUID, actor: ActorDep, session: SessionDep) -> SnapshotOut:
+async def latest_snapshot(
+    workspace_id: UUID,
+    actor: ActorDep,
+    session: SessionDep,
+    with_manifest: Annotated[bool, Query(alias="withManifest")] = False,
+) -> SnapshotOut:
     await _require_owner(session, actor, workspace_id)
     row = (
         await session.execute(
             text(
                 """
                 SELECT id, workspace_id, version, status, digest, manifest_digest, size_bytes, file_count,
-                       device_id, comment, pinned, created_at
+                       device_id, comment, pinned, created_at, manifest
                 FROM workspace_snapshots WHERE workspace_id = :workspace_id AND status = 'active'
                 ORDER BY version DESC LIMIT 1
                 """
@@ -284,7 +293,7 @@ async def latest_snapshot(workspace_id: UUID, actor: ActorDep, session: SessionD
     ).mappings().first()
     if row is None:
         raise AppError(ErrorCode.NOT_FOUND, "该工作空间还没有快照")
-    return _snapshot_out(row)
+    return _snapshot_out(row, with_manifest=with_manifest)
 
 
 @router.get("/workspaces/{workspace_id}/quota", response_model=QuotaOut)
@@ -350,6 +359,7 @@ async def init_snapshot(
                 "manifest_digest": payload.manifest_digest,
                 "device_id": actor.device_id,
                 "comment": payload.comment,
+                "manifest": json.dumps(payload.manifest or [], ensure_ascii=False),
             },
         )
     ).scalar_one()
@@ -507,7 +517,8 @@ async def _quota_snapshot(session: AsyncSession, user_id: UUID, team_id: UUID | 
     )
 
 
-def _snapshot_out(row: RowMapping) -> SnapshotOut:
+def _snapshot_out(row: RowMapping, *, with_manifest: bool = False) -> SnapshotOut:
+    manifest = row["manifest"] if with_manifest and "manifest" in row else None
     return SnapshotOut(
         id=row["id"],
         workspace_id=row["workspace_id"],
@@ -521,4 +532,5 @@ def _snapshot_out(row: RowMapping) -> SnapshotOut:
         comment=row["comment"],
         pinned=bool(row["pinned"]),
         created_at=row["created_at"],
+        manifest=manifest if isinstance(manifest, list) else None,
     )

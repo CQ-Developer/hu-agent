@@ -1009,13 +1009,25 @@ sequenceDiagram
 
 当服务端开启扫描校验（默认）时，服务端会校验 zip 结构合法、不含危险路径、大小与清单一致；扫描失败直接拒绝。
 
+> 实现要点（阶段 6-02）：
+> - `manifest_digest` 只包含「相对路径 + 文件大小」，保证**跨机器可比**（用于冲突信号与列表展示）；
+> - 本地脏检查在摘要之外再比对 `mtime`（含文件集变化），否则同尺寸内容修改（改一个字符）会被漏检；
+> - 回滚到旧版本后置 `dirty` 标记：视为一笔新的本地改动，下次同步会把回滚结果作为新版本上传，
+>   而不是立刻被服务端最新版覆盖（避免数据丢失）；
+> - 预签名 PUT 必须带 `Content-Length`（否则 MinIO 返回 411），上传使用流式 body。
+
 #### 5.11.3 下载与冲突处理
 
-- `GET /workspaces/{id}/snapshots/latest` → 预签名下载 → 客户端先下载到 `sync/staging/` 校验，再应用。
+- `GET /workspaces/{id}/snapshots/latest` → 预签名下载 → 客户端先下载到 `sync/staging/` 校验，再应用；需要文件级差异时用 `?withManifest=true` 获取文件清单。
 - 应用前检查本地是否有未同步修改（对比 `state.json` 的 `lastSyncedDigest` 与实际文件清单）：
   - 无修改：直接覆盖，旧文件先全量备份到 `.hu/backups/pre-restore-<ts>/`。
   - 有修改：默认**阻塞**，提供三个选项：① 保留本地副本后覆盖（副本存入 `sync/conflicts/<ts>/`）；② 取消；③ 导出差异清单（文件级）供人工合并。
 - 不做自动三方合并（v1 明确定义）。
+
+> 实现要点（阶段 6-02）：覆盖前先备份到 `.hu/backups/pre-restore-<ts>/`（先拷贝到系统临时目录再移入，
+> 避免「拷贝到自身子目录」）；保留本地副本写入 `.hu/sync/conflicts/<ts>/`；导出差异写入
+> `.hu/sync/conflicts/diff-<ts>.json`；按快照清单清理本地多余文件，但 `.hu/sync|logs|backups` 始终保留。
+> v1 在内存中解压快照（上限 256 MB，超过提示使用排除规则），流式解压留待 v1.x。
 
 #### 5.11.4 同步范围与限制
 

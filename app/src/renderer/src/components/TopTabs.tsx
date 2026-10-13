@@ -1,4 +1,13 @@
-export type AppTab = 'chat' | 'market' | 'models' | 'skills' | 'mcp' | 'workspace' | 'permissions' | 'about'
+export type AppTab =
+  | 'chat'
+  | 'market'
+  | 'models'
+  | 'skills'
+  | 'mcp'
+  | 'workspace'
+  | 'sync'
+  | 'permissions'
+  | 'about'
 
 export const APP_TABS: { id: AppTab; label: string }[] = [
   { id: 'chat', label: '对话' },
@@ -7,6 +16,7 @@ export const APP_TABS: { id: AppTab; label: string }[] = [
   { id: 'skills', label: 'Skill 配置' },
   { id: 'mcp', label: 'MCP 配置' },
   { id: 'workspace', label: '工作空间' },
+  { id: 'sync', label: '云同步' },
   { id: 'permissions', label: '权限与审计' },
   { id: 'about', label: '关于' },
 ]

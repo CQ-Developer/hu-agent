@@ -189,6 +189,50 @@ export interface MarketCheckResultView {
   error?: string
 }
 
+export type SyncStatusCode =
+  | 'unlinked'
+  | 'up-to-date'
+  | 'local-changes'
+  | 'remote-changes'
+  | 'conflict'
+  | 'error'
+
+export interface SyncConflictView {
+  detectedAt: string
+  remoteVersion: number
+  remoteDigest: string | null
+  localDigest: string
+  localFiles: number
+  diff: { added: string[]; modified: string[]; removed: string[] }
+  diffPath?: string
+}
+
+export interface SyncStatusView {
+  status: SyncStatusCode
+  workspaceId?: string
+  lastVersion?: number
+  lastSyncedAt?: string
+  lastError?: string
+  localFiles: number
+  localBytes: number
+  localDigest: string
+  remoteVersion?: number
+  remoteManifestDigest?: string
+  quota?: { usedBytes: number; limitBytes: number }
+  conflict?: SyncConflictView
+}
+
+export interface SyncVersionView {
+  id: string
+  version: number
+  sizeBytes: number
+  fileCount: number
+  pinned: boolean
+  createdAt: string
+  digest: string | null
+  latest: boolean
+}
+
 export interface PolicyRuleView {
   tools: string[]
   paths?: string[]
@@ -332,6 +376,15 @@ export interface HuAgentApi {
     uninstall(skillId: string): Promise<number>
     installed(): Promise<InstalledSkillView[]>
     checkStatus(force?: boolean): Promise<MarketCheckResultView>
+  }
+  sync: {
+    status(): Promise<SyncStatusView>
+    now(): Promise<SyncStatusView>
+    versions(): Promise<SyncVersionView[]>
+    restore(version: number): Promise<SyncStatusView>
+    resolve(choice: 'keep-local' | 'cancel' | 'export-diff'): Promise<SyncStatusView>
+    pin(snapshotId: string): Promise<void>
+    remove(snapshotId: string): Promise<void>
   }
   permissions: {
     rules(): Promise<{ workspace: PolicyRuleView[]; global: PolicyRuleView[] }>
