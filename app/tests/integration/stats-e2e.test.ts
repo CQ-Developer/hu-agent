@@ -50,12 +50,13 @@ describe.skipIf(!enabled)('统计客户端端到端（真实服务端）', () =>
       const iso = (value: Date): string => value.toISOString().slice(0, 10)
 
       const usage = await stats.usage({ scope: 'self', from: iso(from), to: iso(to), groupBy: 'model' })
-      expect(usage.totals.requests).toBeGreaterThan(0)
+      expect(usage.totals.requests).toBeGreaterThanOrEqual(3)
       const row = usage.rows.find((item) => item.model === model)
       expect(row).toBeDefined()
-      expect(row?.inputTokens).toBe(3003)
-      expect(row?.outputTokens).toBe(300)
-      expect(row?.errors).toBe(1)
+      // 种子脚本每次追加 3 条，重复执行会累加，因此断言下界（精确对账由阶段 4 的 CLOUD_E2E 验证）
+      expect(row?.inputTokens ?? 0).toBeGreaterThanOrEqual(3003)
+      expect(row?.outputTokens ?? 0).toBeGreaterThanOrEqual(300)
+      expect(row?.errors ?? 0).toBeGreaterThanOrEqual(1)
       expect(usage.currency).toBe('USD')
 
       const byDay = await stats.usage({ scope: 'self', from: iso(from), to: iso(to), groupBy: 'day' })

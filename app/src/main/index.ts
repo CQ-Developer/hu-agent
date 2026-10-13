@@ -21,6 +21,7 @@ import { StatsClient } from './stats/client'
 import { InteractionBroker } from './permissions/broker'
 import { McpManager } from './mcp/manager'
 import { SkillManager } from './skills/manager'
+import { FileLogger } from './logging'
 import { createDefaultToolRegistry } from './tools/registry'
 import { UsageLedger } from './usage/ledger'
 import { WorkspaceManager } from './workspace'
@@ -63,6 +64,11 @@ function createWindow(): void {
 }
 
 async function bootstrap(): Promise<void> {
+  // 文件日志（10MB × 5 滚动）最先安装，后续所有日志同时落盘
+  const logger = new FileLogger()
+  logger.install()
+  console.log(`hu-agent ${app.getVersion()} 启动（${process.platform} ${process.arch}）`)
+
   const workspaces = new WorkspaceManager(workspacesIndexFile())
   await workspaces.init()
 
@@ -170,6 +176,7 @@ async function bootstrap(): Promise<void> {
     context.statuses.stop()
     syncScheduler.stop()
     void context.mcp.closeAll()
+    logger.close()
   })
 }
 

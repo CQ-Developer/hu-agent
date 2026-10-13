@@ -6,13 +6,34 @@ directories:
 files:
   - out/**
   - package.json
+
 win:
   target:
     - nsis
+  # 代码签名由环境变量驱动（见 docs/delivery/signing.md）：
+  #   CSC_LINK（.pfx 路径或 base64）/ CSC_KEY_PASSWORD，electron-builder 自动签名
+  signingHashAlgorithms:
+    - sha256
+  rfc3161TimeStampServer: http://timestamp.digicert.com
+  publisherName: hu-agent
+
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+
 mac:
   target:
     - dmg
   category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # 公证需要 APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID；
+  # 由 scripts/package.sh 在具备凭据时通过 --config.mac.notarize=true 打开
+  notarize: false
+
+dmg:
+  sign: false

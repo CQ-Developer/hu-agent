@@ -18,7 +18,6 @@ jobs:
         with:
           python-version: "3.14"
           enable-cache: true
-      # 首次提交 uv.lock 后改为 uv sync --frozen，保证 CI 与本地一致
       - run: uv sync
       - run: uv run ruff check .
       - run: uv run mypy src
@@ -41,6 +40,7 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run test
       - run: npm run build
 
   management-ui:
@@ -59,3 +59,132 @@ jobs:
           cache-dependency-path: management-ui/package-lock.json
       - run: npm ci
       - run: npm run --if-present check
+
+  # 端到端：真实服务端 + 真实 S3（源码构建 MinIO）+ 真实 IdP（Keycloak）
+  # 覆盖 登录/上报/市场安装/云同步/统计聚合/SSO 全链路（发布冒烟的一部分）
+  e2e:
+    name: e2e (server + S3 + IdP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: huagent
+          POSTGRES_PASSWORD: huagent_dev
+          POSTGRES_DB: huagent
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U huagent"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      HUAGENT_DATABASE_URL: postgresql+psycopg://huagent:huagent_dev@localhost:5432/huagent
+      HUAGENT_REDIS_URL: redis://localhost:6379/0
+      HUAGENT_OBJECT_STORE: s3
+      HUAGENT_S3_ENDPOINT: http://127.0.0.1:9000
+      HUAGENT_S3_ACCESS_KEY: huagent
+      HUAGENT_S3_SECRET_KEY: huagent_dev_minio
+      HUAGENT_PUBLIC_BASE_URL: http://127.0.0.1:8080
+      HUAGENT_LOGIN_IP_LIMIT: "1000"
+      HUAGENT_LOGIN_FAIL_THRESHOLD: "1000"
+      # CI 专用主密钥（32 字节 Base64；非生产密钥）
+      HUAGENT_MASTER_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      HUAGENT_E2E_PASSWORD: Str0ng-Passphrase-2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: 安装依赖
+        run: |
+          (cd management && uv sync)
+          (cd app && npm ci)
+
+      - name: 构建 MinIO 本地镜像（社区版已不发布官方镜像）
+        run: docker build -t huagent-minio:ci -f docker/minio/Dockerfile docker
+
+      - name: 启动 MinIO 并等待就绪
+        run: |
+          docker run -d --name minio -p 9000:9000 \
+            -e MINIO_ROOT_USER=huagent -e MINIO_ROOT_PASSWORD=huagent_dev_minio \
+            huagent-minio:ci server /data
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:9000/minio/health/live && break || sleep 2
+          done
+
+      - name: 应用 DDL
+        working-directory: management
+        run: uv run python ../scripts/ci/apply-ddl.py
+
+      - name: 启动服务端并等待健康检查
+        working-directory: management
+        run: |
+          nohup uv run huagent-api > /tmp/huagent-api.log 2>&1 &
+          for i in $(seq 1 40); do
+            curl -fsS http://127.0.0.1:8080/api/v1/system/health && break || sleep 2
+          done
+
+      - name: 种子数据 + 用量聚合（模拟 worker 启动补偿）
+        working-directory: management
+        run: |
+          uv run python ../scripts/ci/seed-e2e.py
+          uv run python -c "import asyncio; from huagent.common.runtime import new_event_loop; from huagent.worker.jobs import run_job, aggregate_usage; print(asyncio.run(run_job('usage.aggregate', aggregate_usage), loop_factory=new_event_loop))"
+
+      - name: 客户端端到端（登录/上报、市场安装、云同步、统计）
+        working-directory: app
+        env:
+          CLOUD_E2E: "1"
+          MARKET_E2E: "1"
+          SYNC_E2E: "1"
+          STATS_E2E: "1"
+        run: |
+          npx vitest run \
+            tests/integration/cloud-e2e.test.ts \
+            tests/integration/market-e2e.test.ts \
+            tests/integration/sync-e2e.test.ts \
+            tests/integration/stats-e2e.test.ts
+
+      - name: 启动 Keycloak 并准备测试身份源
+        working-directory: management
+        run: |
+          docker run -d --name keycloak -p 8100:8100 \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin \
+            quay.io/keycloak/keycloak:26.3 start-dev --http-port=8100
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:8100/realms/master/.well-known/openid-configuration && break || sleep 3
+          done
+          uv run python ../scripts/ci/keycloak-setup.py --base http://127.0.0.1:8100
+
+      - name: SSO 真实 IdP 联调（RS256 + JWKS + JIT + 禁用撤销）
+        working-directory: management
+        run: |
+          uv run python ../scripts/sso-live-check.py \
+            --issuer http://127.0.0.1:8100/realms/huagent \
+            --admin-email sysadmin@example.com \
+            --admin-password 'Str0ng-Passphrase-2026'
+
+      - name: 失败时收集日志
+        if: failure()
+        run: |
+          echo "=== API ==="; cat /tmp/huagent-api.log || true
+          echo "=== MinIO ==="; docker logs minio --tail 100 || true
+          echo "=== Keycloak ==="; docker logs keycloak --tail 200 || true

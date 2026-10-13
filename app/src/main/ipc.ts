@@ -1,6 +1,7 @@
 /** 主进程 IPC 注册（design 5.1/5.5/5.6）。 */
 
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
+import { join } from 'node:path'
 
 import { ModelGateway } from './model/gateway'
 import type { ModelSettings, ReasoningEffort } from './model/types'
@@ -30,6 +31,7 @@ import { SyncEngine } from './sync/engine'
 import { CloudSyncBackend } from './sync/backend'
 import { SyncScheduler, loadSyncSettings, saveSyncSettings, type SyncSchedule } from './sync/scheduler'
 import { SsoLoginFlow } from './cloud/sso'
+import { exportDiagnostics } from './diagnostics'
 import { StatsClient } from './stats/client'
 import type { SyncStatusView } from '../shared/ipc'
 import type { SessionOptionsView } from '../shared/ipc'
@@ -561,6 +563,16 @@ export function registerIpc(context: AppContext): void {
     },
   )
   ipcMain.handle('cloud:providers', async (_event, serverUrl: string) => context.cloud.listProviders(serverUrl))
+  ipcMain.handle('diagnostics:export', async () => {
+    const target = await dialog.showSaveDialog({
+      title: '导出诊断包',
+      defaultPath: join(app.getPath('downloads'), `hu-agent-diagnostics-${Date.now()}.zip`),
+      filters: [{ name: 'Zip', extensions: ['zip'] }],
+    })
+    if (target.canceled || !target.filePath) return { canceled: true }
+    const report = await exportDiagnostics(target.filePath, app.getVersion())
+    return { canceled: false, ...report }
+  })
   ipcMain.handle('cloud:sso-login', async (_event, serverUrl: string, providerId: string) => {
     // 系统浏览器 + 回环回调（design 6.12.3）
     const flow = new SsoLoginFlow(context.cloud, {

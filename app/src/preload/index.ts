@@ -69,6 +69,9 @@ const api: HuAgentApi = {
     teams: () => ipcRenderer.invoke('stats:teams'),
     orgs: () => ipcRenderer.invoke('stats:orgs'),
   },
+  diagnostics: {
+    export: () => ipcRenderer.invoke('diagnostics:export'),
+  },
   permissions: {
     rules: () => ipcRenderer.invoke('permissions:rules'),
     audit: (limit?: number) => ipcRenderer.invoke('permissions:audit', limit),

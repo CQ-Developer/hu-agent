@@ -1,0 +1,46 @@
+# 发布前清单执行状态（附录 E）
+
+> 对应 `docs/plan.md` 附录 E。图例：✅ 完成并留证 / ⏳ 部分完成 / ❌ 未完成（阻塞发布，需补齐或需求方确认延后）。
+> 每项给出证据位置；未完成项附建议动作。
+
+## 功能与体验
+
+| 项 | 状态 | 证据 / 说明 |
+| --- | --- | --- |
+| 管理台可完成全部管理操作 | ❌ | 5-09 延后；当前用 `scripts/stage5-admin.http`、`scripts/sso-live-check.py` 代办。**需需求方确认是否可延后到 v1.x**，否则需实现管理台 |
+| 英文 i18n（D13） | ❌ | 客户端与管理台目前中文；i18n 结构未接入。发布前补齐或确认延后 |
+| 统计图表与 CSV 导出 | ✅ | 客户端「用量统计」Tab（按日柱状图、维度明细、激活明细、CSV UTF-8 BOM）；`app/tests/stats-csv.test.ts`、`STATS_E2E` 实测 |
+| 定时同步 + 冲突处理 | ✅ | 档位 关闭/15m/30m/1h/6h/24h；单飞/冲突暂停/失败重试；`app/tests/sync-scheduler.test.ts`、`tests/market-status.test.ts` |
+| SSO 真实 IdP 验证 | ✅ | Keycloak 26.3 实测（RS256+JWKS、JIT、绑定、禁用撤销）：`scripts/sso-live-check.py`；CI `e2e` 作业每次回归 |
+
+## 安全与合规
+
+| 项 | 状态 | 证据 / 说明 |
+| --- | --- | --- |
+| 安全用例全结（路径逃逸/zip/越权/令牌重放） | ✅（有小结，扫描待补） | `docs/delivery/security-review.md` 第 1-5 节逐条列证据（单测 + 集成 + 真实联调） |
+| 依赖与静态扫描无高危未处理 | ❌ | 未接入 CI。建议：`uvx pip-audit`（management）、`npm audit --omit=dev`（app/management-ui），按结果修复或记录豁免 |
+| 审计/保留/删除策略按 6.10.5 自检 | ⏳ | 审计与保留已实现（worker 分区保留、快照保留、审计落库）；**用户数据删除（GDPR 类）未实现**，需确认范围 |
+| 保护文件、权限矩阵与产品说明一致 | ✅ | `app/src/main/permissions/*` + `tests/permissions-*`；design 5.5 与「权限与审计」Tab 展示一致 |
+
+## 交付物
+
+| 项 | 状态 | 证据 / 说明 |
+| --- | --- | --- |
+| Windows/macOS 签名安装包 + 升级回滚验证 | ⏳ | 脚本与文档就绪：`scripts/package.ps1`、`scripts/package.sh`、`docs/delivery/signing.md`（含校验与回滚章节）；**缺企业证书与实测记录** |
+| 部署 / 使用 / 运维手册 | ✅ | `docs/delivery/deployment.md`、`user-guide.md`、`operations.md` |
+| staging/prod 监控与告警 | ❌ | 仅有 `/health`、`/ready` 与建议；需接入企业监控并明确值班 |
+| 发布冒烟 E2E 5 条 + 性能结论 | ⏳ | CI `e2e` 作业覆盖：登录与上报对账、市场安装、云同步（两机）、统计聚合、SSO 真实 IdP（5 条中的 4+1）；**性能验证未做**（建议 k6 压 `usage:batch` 与快照上传，记录 P95/容量拐点） |
+
+## 用户与需求方
+
+| 项 | 状态 | 说明 |
+| --- | --- | --- |
+| 需求方验收演示 | ❌ | 待安排；可复用 `scripts/stage5-demo.ps1`（17 步）、`MARKET_E2E`/`SYNC_E2E`、`scripts/sso-live-check.py` 作为演示脚本 |
+| 遗留问题清单经需求方确认 | ❌ | 待整理：管理台（5-09）、英文 i18n、MCP 市场（5-08）、MCP HTTP/SSE（3-05）、定时同步已提前完成、用户数据删除范围 |
+
+## 本次（阶段 7）新增产物
+
+- 客户端：文件日志（10MB × 5 滚动）+ 诊断包导出（脱敏、不含密钥库）与「关于」页入口
+- CI：`e2e` 作业（源码构建 MinIO + PG/Redis + 真实 API + Keycloak），失败自动收集日志
+- 打包：`scripts/package.sh`、`scripts/package.ps1`、electron-builder 签名配置、macOS 公证开关与 entitlements
+- 文档：`docs/delivery/{signing,deployment,operations,user-guide,security-review}.md` 与本清单

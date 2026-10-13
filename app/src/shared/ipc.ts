@@ -307,6 +307,13 @@ export interface StatsOrgOption {
   role: string | null
 }
 
+export interface DiagnosticsExportView {
+  canceled: boolean
+  path?: string
+  files?: number
+  bytes?: number
+}
+
 export interface PolicyRuleView {
   tools: string[]
   paths?: string[]
@@ -481,6 +488,10 @@ export interface HuAgentApi {
     }): Promise<ActivationView[]>
     teams(): Promise<StatsTeamOption[]>
     orgs(): Promise<StatsOrgOption[]>
+  }
+  diagnostics: {
+    /** 导出诊断包（脱敏后的日志与本地配置，不含密钥库） */
+    export(): Promise<DiagnosticsExportView>
   }
   permissions: {
     rules(): Promise<{ workspace: PolicyRuleView[]; global: PolicyRuleView[] }>
