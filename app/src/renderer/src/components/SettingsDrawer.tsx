@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type { ModelEntryView, SettingsView } from '@shared/ipc'
+import type { ApiTypeView, ModelEntryView, SettingsView } from '@shared/ipc'
 
 interface Props {
   onClose: () => void
@@ -9,6 +9,7 @@ interface Props {
 
 interface FormState {
   id: string
+  apiType: ApiTypeView
   baseUrl: string
   apiKey: string
   modelName: string
@@ -18,9 +19,22 @@ interface FormState {
   isPrimary: boolean
 }
 
+const API_TYPE_LABELS: Record<ApiTypeView, string> = {
+  'openai-chat': 'OpenAI Chat Completions',
+  'openai-responses': 'OpenAI Responses',
+  'anthropic-messages': 'Anthropic Messages',
+}
+
+const DEFAULT_BASE_URL: Record<ApiTypeView, string> = {
+  'openai-chat': 'https://api.openai.com/v1',
+  'openai-responses': 'https://api.openai.com/v1',
+  'anthropic-messages': 'https://api.anthropic.com/v1',
+}
+
 const EMPTY_FORM: FormState = {
   id: '',
-  baseUrl: 'https://api.openai.com/v1',
+  apiType: 'openai-chat',
+  baseUrl: DEFAULT_BASE_URL['openai-chat'],
   apiKey: '',
   modelName: '',
   contextWindow: '128000',
@@ -49,6 +63,7 @@ export default function SettingsDrawer({ onClose, onChanged }: Props) {
     const model = provider.models[0]
     setForm({
       id: provider.id,
+      apiType: provider.apiType,
       baseUrl: provider.baseUrl,
       apiKey: '',
       modelName: model?.name ?? '',
@@ -80,6 +95,7 @@ export default function SettingsDrawer({ onClose, onChanged }: Props) {
       ]
       const next = await window.huAgent.settings.saveProvider({
         id: form.id.trim(),
+        apiType: form.apiType,
         baseUrl: form.baseUrl.trim(),
         models,
         apiKey: form.apiKey,
@@ -135,7 +151,8 @@ export default function SettingsDrawer({ onClose, onChanged }: Props) {
                         )}
                       </div>
                       <div className="text-neutral-400">
-                        {provider.baseUrl} · {provider.models.map((model) => model.name).join(', ')}
+                        {API_TYPE_LABELS[provider.apiType]} · {provider.baseUrl} ·{' '}
+                        {provider.models.map((model) => model.name).join(', ')}
                         {provider.apiKeyRef && settings.secretsConfigured[provider.apiKeyRef] ? ' · 已配置密钥' : ''}
                       </div>
                     </div>
@@ -163,6 +180,27 @@ export default function SettingsDrawer({ onClose, onChanged }: Props) {
               value={form.id}
               onChange={(event) => setForm({ ...form, id: event.target.value })}
             />
+            <select
+              className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
+              value={form.apiType}
+              onChange={(event) => {
+                const apiType = event.target.value as ApiTypeView
+                setForm({
+                  ...form,
+                  apiType,
+                  baseUrl:
+                    form.baseUrl === '' || form.baseUrl === DEFAULT_BASE_URL[form.apiType]
+                      ? DEFAULT_BASE_URL[apiType]
+                      : form.baseUrl,
+                })
+              }}
+            >
+              {(Object.keys(API_TYPE_LABELS) as ApiTypeView[]).map((value) => (
+                <option key={value} value={value}>
+                  {API_TYPE_LABELS[value]}
+                </option>
+              ))}
+            </select>
             <input
               className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
               placeholder="Base URL（如 https://api.openai.com/v1）"

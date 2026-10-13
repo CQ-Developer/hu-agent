@@ -4,6 +4,8 @@ import type { AgentEvent } from './events'
 
 export type ReasoningEffortView = 'off' | 'low' | 'medium' | 'high'
 
+export type ApiTypeView = 'openai-chat' | 'openai-responses' | 'anthropic-messages'
+
 export interface ModelCapabilitiesView {
   tools: boolean
   vision?: boolean
@@ -20,7 +22,7 @@ export interface ModelEntryView {
 
 export interface ProviderView {
   id: string
-  type: 'openai-compatible'
+  apiType: ApiTypeView
   baseUrl: string
   apiKeyRef: string | null
   models: ModelEntryView[]
@@ -44,6 +46,7 @@ export interface SettingsView {
 
 export interface SaveProviderInput {
   id: string
+  apiType: ApiTypeView
   baseUrl: string
   models: ModelEntryView[]
   /** 明文密钥只在 IPC 中传递一次，主进程立即加密存储 */

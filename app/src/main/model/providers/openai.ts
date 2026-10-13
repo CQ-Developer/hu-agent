@@ -4,19 +4,12 @@
  */
 
 import { ModelError, classifyHttpError, classifyThrown } from '../errors'
-import type { LlmMessage, StreamEvent, ToolCall, ToolDefinitionForModel } from '../types'
+import { parseArguments } from './json-args'
+import { readSseData } from './sse'
+import type { ProviderStreamOptions } from './types'
+import type { LlmMessage, StreamEvent, ToolCall } from '../types'
 
-export interface OpenAiChatOptions {
-  baseUrl: string
-  model: string
-  messages: LlmMessage[]
-  tools?: ToolDefinitionForModel[]
-  apiKey?: string | null
-  signal?: AbortSignal
-  maxOutputTokens?: number
-  /** 仅当模型声明支持时传入（design 5.9） */
-  reasoningEffort?: 'low' | 'medium' | 'high'
-}
+export type OpenAiChatOptions = ProviderStreamOptions
 
 interface DeltaToolCall {
   /** OpenAI 协议通常带 index；部分兼容服务省略，按数组位置回退 */
@@ -89,10 +82,7 @@ export async function* streamOpenAiChat(options: OpenAiChatOptions): AsyncIterab
   }
   if (!response.body) throw new ModelError('server', '模型服务返回空响应体')
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
   const pendingToolCalls = new Map<number, PendingToolCall>()
-  let buffer = ''
   let stopReason: 'stop' | 'tool_use' | 'length' = 'stop'
   let sawToolCall = false
 
@@ -143,32 +133,19 @@ export async function* streamOpenAiChat(options: OpenAiChatOptions): AsyncIterab
     return events
   }
 
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-
-    let newlineIndex = buffer.indexOf('\n')
-    while (newlineIndex >= 0) {
-      const line = buffer.slice(0, newlineIndex).trim()
-      buffer = buffer.slice(newlineIndex + 1)
-      newlineIndex = buffer.indexOf('\n')
-      if (line.length === 0 || line.startsWith(':')) continue
-      if (!line.startsWith('data:')) continue
-      const data = line.slice(5).trim()
-      if (data === '[DONE]') {
-        for (const call of finalizeToolCalls(pendingToolCalls)) yield { type: 'tool_call', call }
-        yield { type: 'done', stopReason: sawToolCall ? 'tool_use' : stopReason }
-        return
-      }
-      let payload: Record<string, unknown>
-      try {
-        payload = JSON.parse(data) as Record<string, unknown>
-      } catch {
-        continue // 忽略无法解析的心跳/片段
-      }
-      for (const event of handleChunk(payload)) yield event
+  for await (const data of readSseData(response)) {
+    if (data === '[DONE]') {
+      for (const call of finalizeToolCalls(pendingToolCalls)) yield { type: 'tool_call', call }
+      yield { type: 'done', stopReason: sawToolCall ? 'tool_use' : stopReason }
+      return
     }
+    let payload: Record<string, unknown>
+    try {
+      payload = JSON.parse(data) as Record<string, unknown>
+    } catch {
+      continue // 忽略无法解析的心跳/片段
+    }
+    for (const event of handleChunk(payload)) yield event
   }
 
   for (const call of finalizeToolCalls(pendingToolCalls)) yield { type: 'tool_call', call }
@@ -183,13 +160,4 @@ function finalizeToolCalls(pending: Map<number, PendingToolCall>): ToolCall[] {
       name: partial.name ?? 'unknown',
       input: parseArguments(partial.argumentsText),
     }))
-}
-
-function parseArguments(text: string | undefined): unknown {
-  if (!text) return {}
-  try {
-    return JSON.parse(text)
-  } catch {
-    return { _raw: text }
-  }
 }

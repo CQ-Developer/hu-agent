@@ -1,8 +1,12 @@
-/** 模型网关：按会话选择的模型路由到 provider，统一流式事件与重试（design 5.2/5.9）。 */
+/** 模型网关：按会话选择的模型路由到 provider 适配器，统一流式事件与重试（design 5.2/5.9）。 */
 
 import { ModelError, classifyThrown } from './errors'
+import { streamAnthropicMessages } from './providers/anthropic'
 import { streamOpenAiChat } from './providers/openai'
+import { streamOpenAiResponses } from './providers/openai-responses'
+import type { ProviderStreamOptions } from './providers/types'
 import type {
+  ApiType,
   ChatRequestOptions,
   LlmMessage,
   ModelEntry,
@@ -18,6 +22,20 @@ export interface GatewayDeps {
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+type StreamFn = (options: ProviderStreamOptions) => AsyncIterable<StreamEvent>
+
+function adapterFor(apiType: ApiType): StreamFn {
+  switch (apiType) {
+    case 'openai-responses':
+      return streamOpenAiResponses
+    case 'anthropic-messages':
+      return streamAnthropicMessages
+    case 'openai-chat':
+    default:
+      return streamOpenAiChat
+  }
+}
 
 export class ModelGateway {
   constructor(private readonly deps: GatewayDeps) {}
@@ -52,12 +70,13 @@ export class ModelGateway {
       model.capabilities.reasoningEffort && request.reasoningEffort && request.reasoningEffort !== 'off'
         ? request.reasoningEffort
         : undefined
+    const streamFn = adapterFor(provider.apiType)
 
     let attempt = 0
     for (;;) {
       let receivedAny = false
       try {
-        const stream = streamOpenAiChat({
+        const stream = streamFn({
           baseUrl: provider.baseUrl,
           model: model.name,
           messages,

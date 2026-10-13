@@ -37,11 +37,12 @@
   - [x] 内置工具：read_file / write_file / edit_file / bash / powershell
   - [x] 最小聊天 UI（流式渲染、工具卡片、会话列表、模型设置、Markdown 消毒）
   - [x] 本地用量账本与统计
-  - [x] 单测 32 个 + typecheck + 构建全绿
+  - [x] 单测 39 个 + typecheck + 构建全绿
   - [x] 真实模型联调（DeepSeek `deepseek-flash`）：流式对话（含思考内容）与工具调用通过
   - [x] 输入框模型选择 / 思考强度 / 用量与上下文指示（1-08）
   - [x] 思考内容展示：可折叠思考块，落盘且不回传模型（1-09）
-  - [ ] Anthropic 适配（1-07，延后）
+  - [x] 模型配置支持 API 类型选择：OpenAI Chat / OpenAI Responses / Anthropic Messages（1-10）
+  - [ ] Anthropic 真实密钥联调（适配器与单测已就绪）
 
 ## 环境要求
 

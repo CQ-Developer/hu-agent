@@ -17,10 +17,12 @@ export interface TextPart {
   text: string
 }
 
-/** 思考内容（design 5.3.2）：仅存档展示，不回传给模型 */
+/** 思考内容（design 5.3.2）：仅存档展示，不回传给模型（Anthropic 工具续轮除外） */
 export interface ReasoningPart {
   type: 'reasoning'
   text: string
+  /** Anthropic 扩展思考的签名，回传工具结果时必需 */
+  signature?: string
 }
 
 export type MessagePart = TextPart | ReasoningPart

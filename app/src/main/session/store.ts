@@ -77,13 +77,23 @@ export class SessionStore {
 
     for (const line of lines) {
       if (line.type === 'message') {
-        // 思考内容（reasoning 部分）不回传模型，只取 text 部分（design 5.3.2）
         const content = line.parts
           .filter((part) => part.type === 'text')
           .map((part) => part.text)
           .join('')
         if (line.role === 'assistant') {
-          messages.push({ role: 'assistant', content })
+          const reasoningPart = line.parts.find((part) => part.type === 'reasoning')
+          const reasoningPartText = line.parts
+            .filter((part) => part.type === 'reasoning')
+            .map((part) => part.text)
+            .join('')
+          messages.push({
+            role: 'assistant',
+            content,
+            reasoning: reasoningPartText
+              ? { text: reasoningPartText, signature: reasoningPart?.type === 'reasoning' ? reasoningPart.signature : undefined }
+              : undefined,
+          })
           currentAssistant = messages.length - 1
         } else {
           messages.push({ role: line.role, content })

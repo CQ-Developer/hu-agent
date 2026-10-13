@@ -71,6 +71,7 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
 
       let assistantText = ''
       let reasoningText = ''
+      let reasoningSignature = ''
       const toolCalls: ToolCall[] = []
       let usage: TokenUsage | undefined
       let modelStop: StopReason = 'stop'
@@ -87,7 +88,8 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
             assistantText += event.text
             deps.emit({ type: 'assistant.delta', sessionId, turnId, text: event.text })
           } else if (event.type === 'reasoning_delta') {
-            reasoningText += event.text
+            if (event.text) reasoningText += event.text
+            if (event.signatureDelta) reasoningSignature += event.signatureDelta
             deps.emit({ type: 'reasoning.delta', sessionId, turnId, text: event.text })
           } else if (event.type === 'tool_call') {
             toolCalls.push(event.call)
@@ -153,9 +155,14 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
         role: 'assistant',
         content: assistantText,
         toolCalls: toolCalls.length ? toolCalls : undefined,
+        reasoning: reasoningText
+          ? { text: reasoningText, signature: reasoningSignature || undefined }
+          : undefined,
       })
       const parts: MessagePart[] = []
-      if (reasoningText) parts.push({ type: 'reasoning', text: reasoningText })
+      if (reasoningText) {
+        parts.push({ type: 'reasoning', text: reasoningText, signature: reasoningSignature || undefined })
+      }
       parts.push({ type: 'text', text: assistantText })
       await deps.sessions.append(sessionId, {
         type: 'message',

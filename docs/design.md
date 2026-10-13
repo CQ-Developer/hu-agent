@@ -327,7 +327,7 @@ flowchart TB
 type Role = 'system' | 'user' | 'assistant' | 'tool'
 type Part =
   | { type: 'text'; text: string }
-  | { type: 'reasoning'; text: string }                        // 思考内容：仅存档展示，不回传模型
+  | { type: 'reasoning'; text: string; signature?: string }    // 思考内容：仅存档展示，不回传模型（Anthropic 工具续轮除外）
   | { type: 'image'; mimeType: string; dataRef: string }   // 本地文件引用，不内联进 JSONL
   | { type: 'tool_use'; id: string; name: string; input: unknown }
   | { type: 'tool_result'; toolUseId: string; status: 'ok' | 'error' | 'denied' | 'timeout'; output: string }
@@ -835,7 +835,7 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
   "providers": [
     {
       "id": "openai",
-      "type": "openai-compatible",
+      "apiType": "openai-chat",
       "baseUrl": "https://api.openai.com/v1",
       "apiKeyRef": "secret://keychain/hu-agent/openai",
       "models": [
@@ -853,7 +853,7 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
     },
     {
       "id": "local-ollama",
-      "type": "openai-compatible",
+      "apiType": "openai-chat",
       "baseUrl": "http://127.0.0.1:11434/v1",
       "apiKeyRef": null,
       "models": [{ "name": "qwen2.5:14b", "capabilities": { "tools": true, "contextWindow": 32768 } }]
@@ -866,10 +866,11 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
 
 要点：
 
-- Provider 类型：`openai-compatible`（覆盖 OpenAI / Azure / vLLM / Ollama / DeepSeek 等）、`anthropic`。`openai-compatible` 下"是否支持 tools/vision"由用户声明，客户端只做能力探测提示。
+- **API 接入类型（`apiType`）**：`openai-chat`（Chat Completions）、`openai-responses`（Responses API）、`anthropic-messages`（Anthropic Messages API）；大多数厂商支持前两者之一，在模型设置中按供应商选择。适配层负责消息结构、工具定义、流式事件与思考强度的协议差异（ADR 0003）。
+- Provider 类型：三种 apiType 均内置于网关；`openai-chat` 自动兼容 OpenAI / Azure / vLLM / Ollama / DeepSeek 等；"是否支持 tools/vision"由用户在模型能力中声明，客户端只做能力提示。
 - 密钥存储（阶段 1 已实现）：`apiKeyRef` 指向客户端密钥库；实现为 Electron safeStorage（加密密钥由 Windows DPAPI / macOS Keychain 保护）加密后写入 `~/.hu-agent/secrets.enc.json`，配置文件、日志与上报中永不出现明文（ADR 0002）。
 - "快速模型"用于会话标题、历史压缩、ask_guide 生成等低价值调用（也计入用量上报，标记 `purpose: fast`）。
-- 思考强度：模型声明 `capabilities.reasoningEffort = true` 后，会话可选择 关闭/低/中/高（见 5.2.6），请求映射为 OpenAI 兼容协议的 `reasoning_effort: low|medium|high`（关闭时不传）；未声明支持的模型不发送该参数。
+- 思考强度：模型声明 `capabilities.reasoningEffort = true` 后，会话可选择 关闭/低/中/高（见 5.2.6）；协议映射：OpenAI 系 `reasoning_effort`（chat）/ `reasoning.effort`（responses），Anthropic 为 `thinking.budget_tokens`（低 2048 / 中 8192 / 高 16384）；Anthropic 工具续轮时必须按 API 要求回传 thinking 块与 signature，已随会话 JSONL 持久化。
 - 模型不可用时的降级：按配置顺序回落，全部失败则提示用户（不静默切到本地小模型）。
 - 中转/代理：支持 `baseUrl` 指向企业网关；不支持客户端级 HTTP 代理配置（v1 直接用系统代理）。
 - 未来可选服务端下发模型白名单/默认模型（企业统一管控，见 D11）。

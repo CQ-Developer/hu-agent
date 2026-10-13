@@ -5,6 +5,9 @@ export type ModelRole = 'primary' | 'fast'
 /** 思考强度；off 表示不传推理参数（design 5.9） */
 export type ReasoningEffort = 'off' | 'low' | 'medium' | 'high'
 
+/** 供应商接入的 API 协议类型（design 5.9） */
+export type ApiType = 'openai-chat' | 'openai-responses' | 'anthropic-messages'
+
 export interface ModelCapabilities {
   tools: boolean
   vision?: boolean
@@ -22,7 +25,7 @@ export interface ModelEntry {
 
 export interface ProviderConfig {
   id: string
-  type: 'openai-compatible'
+  apiType: ApiType
   baseUrl: string
   /** 密钥引用名（实际值存在 safeStorage 加密文件中），无鉴权的本地服务为 null */
   apiKeyRef?: string | null
@@ -50,7 +53,13 @@ export interface ToolCall {
 export type LlmMessage =
   | { role: 'system'; content: string }
   | { role: 'user'; content: string }
-  | { role: 'assistant'; content: string; toolCalls?: ToolCall[] }
+  | {
+      role: 'assistant'
+      content: string
+      toolCalls?: ToolCall[]
+      /** 思考内容；Anthropic 回传工具结果时需要带 signature 重放 */
+      reasoning?: { text: string; signature?: string }
+    }
   | { role: 'tool'; toolCallId: string; content: string }
 
 export interface ToolDefinitionForModel {
@@ -76,7 +85,7 @@ export interface ChatRequestOptions {
 
 export type StreamEvent =
   | { type: 'text_delta'; text: string }
-  | { type: 'reasoning_delta'; text: string }
+  | { type: 'reasoning_delta'; text: string; signatureDelta?: string }
   | { type: 'tool_call'; call: ToolCall }
   | { type: 'usage'; usage: TokenUsage }
   | { type: 'done'; stopReason: StopReason }

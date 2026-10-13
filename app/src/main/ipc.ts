@@ -50,7 +50,7 @@ export function registerIpc(context: AppContext): void {
     const providers = settings.providers.filter((provider) => provider.id !== input.id)
     providers.push({
       id: input.id,
-      type: 'openai-compatible',
+      apiType: input.apiType,
       baseUrl: input.baseUrl,
       apiKeyRef: context.secrets.has(secretKey) ? secretKey : null,
       models: input.models,
@@ -129,6 +129,7 @@ export function registerIpc(context: AppContext): void {
 
 interface SaveProviderInputWire {
   id: string
+  apiType: ModelSettings['providers'][number]['apiType']
   baseUrl: string
   apiKey?: string | null
   apiKeyRef?: string | null

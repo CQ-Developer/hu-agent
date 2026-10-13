@@ -29,14 +29,14 @@ const settings: ModelSettings = {
   providers: [
     {
       id: 'deepseek',
-      type: 'openai-compatible',
+      apiType: 'openai-chat',
       baseUrl,
       apiKeyRef: 'deepseek',
       models: [
         {
           name: modelName,
           roles: ['primary', 'fast'],
-          capabilities: { tools: true, contextWindow: 65536, maxOutput: 4096 },
+          capabilities: { tools: true, reasoningEffort: true, contextWindow: 65536, maxOutput: 4096 },
         },
       ],
     },
