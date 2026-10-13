@@ -7,9 +7,10 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from huagent.api.middleware import get_trace_id
-from huagent.common.errors import AppError, ErrorCode
+from huagent.common.errors import AppError, ErrorCode, code_for_status
 
 
 def error_payload(
@@ -31,6 +32,14 @@ def install_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status_code,
             content=error_payload(exc.code, exc.message, exc.details),
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def handle_http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+        message = exc.detail if isinstance(exc.detail, str) else "请求失败"
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=error_payload(code_for_status(exc.status_code), message),
         )
 
     @app.exception_handler(RequestValidationError)

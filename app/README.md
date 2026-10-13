@@ -13,6 +13,9 @@ npm run dist       # 打 Windows 安装包（需要签名时配置证书，见 d
 npm run dist:mac   # 打 macOS dmg（需 Developer ID 与公证配置）
 ```
 
+> 若 `npm install` 卡在 Electron 二进制下载（GitHub 超时），使用镜像：
+> `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install`
+
 ## 目录结构
 
 ```
@@ -32,4 +35,4 @@ src/renderer/   # 渲染进程（React 界面）
 
 - [x] 三进程结构与类型化 IPC（`app:get-version` 示例）
 - [x] electron-builder 打包配置（NSIS / dmg）
-- [ ] `npm install` 后验证 `npm run dev` / `npm run dist`（需你本机执行）
+- [x] `npm install`、`npm run typecheck`、`npm run build` 验证通过

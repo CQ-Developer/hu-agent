@@ -26,5 +26,5 @@ src/
 
 - [x] 布局、路由、AntD 主题与中英文切换
 - [x] 服务端健康检查示例（真实接口联调）
-- [ ] `npm install` 后验证 `npm run dev` / `npm run build`（需你本机执行）
+- [x] `npm install`、`npm run typecheck`、`npm run build` 验证通过；dev 代理联调 `/api/v1/system/health` 返回 200
 - [ ] 权限菜单、登录页、审批/市场/统计页面（后续阶段）

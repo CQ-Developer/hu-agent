@@ -17,9 +17,12 @@ async def test_health_ok_and_trace_id() -> None:
     assert response.headers["x-trace-id"] == "test-trace"
 
 
-async def test_unknown_route_returns_404() -> None:
+async def test_unknown_route_returns_unified_error() -> None:
     app = create_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/v1/not-exists")
 
     assert response.status_code == 404
+    body = response.json()
+    assert body["code"] == "NOT_FOUND"
+    assert body["traceId"] == response.headers["x-trace-id"]

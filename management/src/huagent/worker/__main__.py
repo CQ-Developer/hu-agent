@@ -7,6 +7,7 @@ import logging
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from huagent.common.runtime import new_event_loop
 from huagent.worker.jobs import heartbeat
 
 logger = logging.getLogger("huagent.worker")
@@ -28,7 +29,7 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    asyncio.run(run())
+    asyncio.run(run(), loop_factory=new_event_loop)
 
 
 if __name__ == "__main__":

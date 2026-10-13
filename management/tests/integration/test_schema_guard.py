@@ -11,7 +11,7 @@ from pathlib import Path
 
 import psycopg
 import pytest
-from testcontainers.postgres import PostgresContainer
+from testcontainers.community.postgres import PostgresContainer
 
 pytestmark = [
     pytest.mark.integration,

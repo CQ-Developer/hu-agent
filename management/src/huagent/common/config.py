@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     s3_endpoint: str = "http://localhost:9000"
     s3_region: str = "us-east-1"
     s3_access_key: str = "huagent"
-    s3_secret_key: str = "huagent_dev_minio"
+    s3_secret_key: str = "huagent_dev_minio"  # noqa: S105 —— 仅本地开发默认值，生产由环境变量覆盖
     s3_bucket_skills: str = "hu-agent-skills"
     s3_bucket_snapshots: str = "hu-agent-snapshots"
 

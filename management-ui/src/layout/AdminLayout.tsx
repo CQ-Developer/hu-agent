@@ -33,16 +33,18 @@ export default function AdminLayout() {
           }}
         >
           <Typography.Text strong>{t('app.name')}</Typography.Text>
-          <Segmented
-            size="small"
-            value={i18n.language}
-            onChange={(value) => void i18n.changeLanguage(String(value))}
-            options={[
-              { label: '中文', value: 'zh-CN' },
-              { label: 'EN', value: 'en-US' },
-            ]}
-            prefix={<GlobalOutlined />}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <GlobalOutlined />
+            <Segmented
+              size="small"
+              value={i18n.language}
+              onChange={(value) => void i18n.changeLanguage(String(value))}
+              options={[
+                { label: '中文', value: 'zh-CN' },
+                { label: 'EN', value: 'en-US' },
+              ]}
+            />
+          </div>
         </Header>
         <Content style={{ padding: 24 }}>
           <Outlet />

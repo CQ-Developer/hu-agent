@@ -1497,7 +1497,7 @@ db/
 { "code": "FORBIDDEN", "message": "需要团队管理员权限", "details": {}, "traceId": "..." }
 ```
 
-错误码枚举：`UNAUTHENTICATED / FORBIDDEN / NOT_FOUND / CONFLICT / VALIDATION_FAILED / QUOTA_EXCEEDED / RATE_LIMITED / ACCOUNT_DISABLED / INTERNAL`。
+错误码枚举：`UNAUTHENTICATED / REFRESH_REVOKED / FORBIDDEN / NOT_FOUND / CONFLICT / VERSION_CONFLICT / NAME_CONFLICT / VALIDATION_FAILED / PACKAGE_INVALID / QUOTA_EXCEEDED / RATE_LIMITED / ACCOUNT_DISABLED / CLIENT_TOO_OLD / METHOD_NOT_ALLOWED / INTERNAL`。
 
 - 分页：`?page=1&pageSize=20`（≤100），响应 `{ "items": [], "total": 0, "page": 1, "pageSize": 20 }`。
 - 幂等：写接口支持 `Idempotency-Key`（`/usage:batch` 必带）；快照完成接口由状态机保证幂等。

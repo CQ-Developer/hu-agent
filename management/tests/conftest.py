@@ -1,4 +1,9 @@
-"""测试公共配置。"""
+"""测试公共配置。
+
+注意：若在 Windows 上新增使用 psycopg async 的测试，pytest-asyncio 默认的
+ProactorEventLoop 会报错，需要为该类测试指定 SelectorEventLoop（参见
+huagent.common.runtime.new_event_loop 的做法）。当前测试不访问数据库。
+"""
 
 from __future__ import annotations
 

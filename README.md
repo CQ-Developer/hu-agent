@@ -17,17 +17,18 @@
 ## 当前进度
 
 - [x] 设计冻结（design.md v1.2，D1-D15 已确认）
-- [ ] **阶段 0：技术验证与骨架（进行中）**
+- [x] **阶段 0：技术验证与骨架（已验收）**
   - [x] 仓库与目录骨架
-  - [x] 本地依赖 docker compose
-  - [x] `db/ddl/V0001__init.sql` 初版（已在 PG18 验证：建库 / 幂等 / 种子 / 回滚）
-  - [x] 服务端 Python 骨架（FastAPI + SQLAlchemy + worker + 测试）
-  - [ ] 服务端依赖安装与 spike（`uv sync` + 实测，见 `management/README.md`）
-  - [x] Electron 骨架（electron-vite + 类型化 IPC + electron-builder 配置）
-  - [ ] 客户端依赖安装与验证（`npm install` 后 `npm run dev` / `npm run dist`）
-  - [x] CI 流水线（management / app / management-ui）
+  - [x] 本地依赖 docker compose（PG18 卷挂载已按镜像约定修正）
+  - [x] `db/ddl/V0001__init.sql`（已在 PG18 验证：建库 / 幂等 / 种子 / 回滚）
+  - [x] 服务端骨架（FastAPI + SQLAlchemy + worker + 测试）
+  - [x] 服务端 spike：`uv sync` / ruff / mypy / pytest / 真实启动 / OpenAPI 导出全部通过
+  - [x] Electron 骨架（electron-vite + 类型化 IPC + 打包配置）
+  - [x] 客户端验证：typecheck 与 build 通过
   - [x] 管理台骨架（Vite + AntD + 路由 + i18n + 健康检查联调）
-  - [ ] 管理台依赖安装与验证（`npm install` 后 `npm run dev`）
+  - [x] 管理台验证：typecheck、build、经 dev 代理调 API 均通过
+  - [x] CI 流水线（management / app / management-ui）
+- [ ] **阶段 1：Agent MVP（待开始）**
 
 ## 环境要求
 
@@ -89,3 +90,10 @@ npm run dev             # http://localhost:5173，概览页应显示服务端 ok
 - DDL 脚本放 `db/ddl/V000N__描述.sql`，只追加不改写；重要变更附 `db/rollback/R000N__描述.sql`
 - 应用启动不执行 DDL；`schema_versions` 版本不匹配时拒绝启动（fail fast）
 - 详细规范见 `docs/design.md` 6.8.3
+
+## 已知问题（当前网络环境）
+
+- **GitHub 下载超时**：`npm install` 时 Electron 二进制会从 GitHub 下载，可能超时；
+  可用镜像：`ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ npm install`。
+- **rollup 4.64.6 tarball 缺失**：`app` 与 `management-ui` 的 `package.json` 用 `overrides` 临时锁定 `4.64.5`，registry 修复后可移除。
+- **psycopg async 与 Windows 事件循环**：服务端入口已统一使用 `huagent.common.runtime.new_event_loop`（Selector loop），不要直接用默认 `asyncio.run` 连数据库。
