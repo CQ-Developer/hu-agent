@@ -20,12 +20,52 @@ export default function LoginGate({ notice, retryOnly, onLoggedIn, onRetry }: Pr
   })
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [ssoProviders, setSsoProviders] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     void window.huAgent.cloud.status().then((status) => {
       if (status.serverUrl) setForm((prev) => ({ ...prev, serverUrl: prev.serverUrl || status.serverUrl }))
     })
   }, [])
+
+  // 服务器地址可用时查询可用的 SSO 身份源（输入防抖 400ms）
+  useEffect(() => {
+    const serverUrl = form.serverUrl.trim()
+    if (!/^https?:\/\//i.test(serverUrl)) {
+      setSsoProviders([])
+      return
+    }
+    const timer = setTimeout(() => {
+      void window.huAgent.cloud
+        .providers(serverUrl)
+        .then((providers) =>
+          setSsoProviders(
+            providers
+              .filter((provider) => provider.type === 'oidc' && provider.enabled)
+              .map((provider) => ({ id: provider.id, name: provider.name })),
+          ),
+        )
+        .catch(() => setSsoProviders([]))
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [form.serverUrl])
+
+  const ssoLogin = useCallback(
+    async (providerId: string): Promise<void> => {
+      setBusy(true)
+      setError(null)
+      try {
+        const status = await window.huAgent.cloud.ssoLogin(form.serverUrl, providerId)
+        if (!status.loggedIn) throw new Error('SSO 登录未完成')
+        onLoggedIn()
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [form.serverUrl, onLoggedIn],
+  )
 
   const submit = useCallback(async (): Promise<void> => {
     setBusy(true)
@@ -92,6 +132,24 @@ export default function LoginGate({ notice, retryOnly, onLoggedIn, onRetry }: Pr
               onChange={(event) => setForm({ ...form, serverUrl: event.target.value })}
             />
           </label>
+
+          {ssoProviders.length > 0 && (
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 p-2">
+              <div className="mb-1 text-[11px] text-neutral-500">企业账号登录</div>
+              {ssoProviders.map((provider) => (
+                <button
+                  key={provider.id}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void ssoLogin(provider.id)}
+                  className="mb-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm hover:bg-neutral-100 disabled:opacity-40"
+                >
+                  使用 {provider.name} 登录
+                </button>
+              ))}
+              <div className="text-[10px] text-neutral-400">将打开系统浏览器完成身份验证，完成后自动返回应用。</div>
+            </div>
+          )}
           <label className="block text-xs text-neutral-500">
             邮箱
             <input

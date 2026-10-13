@@ -497,6 +497,8 @@ export interface HuAgentApi {
     status(): Promise<CloudStatusView>
     session(): Promise<CloudSessionView>
     login(serverUrl: string, email: string, password: string): Promise<CloudStatusView>
+    providers(serverUrl: string): Promise<{ id: string; type: string; name: string; enabled: boolean }[]>
+    ssoLogin(serverUrl: string, providerId: string): Promise<CloudStatusView>
     register(serverUrl: string, email: string, displayName: string, password: string): Promise<CloudStatusView>
     logout(allDevices?: boolean): Promise<CloudStatusView>
     devices(): Promise<CloudDeviceView[]>

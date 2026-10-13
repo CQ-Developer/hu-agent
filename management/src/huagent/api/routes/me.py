@@ -240,3 +240,63 @@ async def mark_notifications(
     )
     await session.commit()
     return {"updated": int(getattr(result, "rowcount", 0) or 0)}
+
+
+SELECT_IDENTITIES = text(
+    """
+    SELECT i.id, i.provider_id, p.name AS provider_name, i.email, i.last_login_at, i.created_at
+    FROM user_identities i JOIN identity_providers p ON p.id = i.provider_id
+    WHERE i.user_id = :user_id ORDER BY i.created_at
+    """
+)
+
+COUNT_IDENTITIES = text("SELECT count(*) FROM user_identities WHERE user_id = :user_id")
+
+SELECT_USER_PASSWORD = text("SELECT password_hash FROM users WHERE id = :user_id")
+
+DELETE_IDENTITY = text("DELETE FROM user_identities WHERE id = :id AND user_id = :user_id")
+
+
+class IdentityOut(ApiModel):
+    id: UUID
+    provider_id: UUID
+    provider_name: str
+    email: str | None
+    last_login_at: datetime | None
+    created_at: datetime
+
+
+@router.get("/identities", response_model=list[IdentityOut])
+async def list_identities(actor: ActorDep, session: SessionDep) -> list[IdentityOut]:
+    rows = (await session.execute(SELECT_IDENTITIES, {"user_id": actor.user_id})).mappings().all()
+    return [IdentityOut(**dict(row)) for row in rows]
+
+
+@router.delete("/identities/{identity_id}")
+async def unlink_identity(
+    identity_id: UUID,
+    actor: ActorDep,
+    request: Request,
+    session: SessionDep,
+) -> dict[str, object]:
+    """解绑身份源；必须保留至少一种可用登录方式（design 6.12.5）。"""
+    password_hash = (
+        await session.execute(SELECT_USER_PASSWORD, {"user_id": actor.user_id})
+    ).scalar_one_or_none()
+    total = int((await session.execute(COUNT_IDENTITIES, {"user_id": actor.user_id})).scalar_one())
+    if not password_hash and total <= 1:
+        raise AppError(ErrorCode.CONFLICT, "解绑后没有任何可用登录方式，请先设置本地密码")
+
+    result = await session.execute(DELETE_IDENTITY, {"id": identity_id, "user_id": actor.user_id})
+    if int(getattr(result, "rowcount", 0) or 0) == 0:
+        raise AppError(ErrorCode.NOT_FOUND, "绑定关系不存在")
+    await record_audit(
+        session,
+        action="me.identity.unlink",
+        actor_id=actor.user_id,
+        target_type="user_identity",
+        target_id=str(identity_id),
+        actor_ip=client_ip(request),
+    )
+    await session.commit()
+    return {"id": str(identity_id), "unlinked": True}

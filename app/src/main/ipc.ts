@@ -1,6 +1,6 @@
 /** 主进程 IPC 注册（design 5.1/5.5/5.6）。 */
 
-import { BrowserWindow, app, dialog, ipcMain } from 'electron'
+import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 
 import { ModelGateway } from './model/gateway'
 import type { ModelSettings, ReasoningEffort } from './model/types'
@@ -29,6 +29,7 @@ import { reportActivationSnapshot } from './market/activations'
 import { SyncEngine } from './sync/engine'
 import { CloudSyncBackend } from './sync/backend'
 import { SyncScheduler, loadSyncSettings, saveSyncSettings, type SyncSchedule } from './sync/scheduler'
+import { SsoLoginFlow } from './cloud/sso'
 import { StatsClient } from './stats/client'
 import type { SyncStatusView } from '../shared/ipc'
 import type { SessionOptionsView } from '../shared/ipc'
@@ -559,6 +560,19 @@ export function registerIpc(context: AppContext): void {
       return buildCloudStatus(context)
     },
   )
+  ipcMain.handle('cloud:providers', async (_event, serverUrl: string) => context.cloud.listProviders(serverUrl))
+  ipcMain.handle('cloud:sso-login', async (_event, serverUrl: string, providerId: string) => {
+    // 系统浏览器 + 回环回调（design 6.12.3）
+    const flow = new SsoLoginFlow(context.cloud, {
+      openBrowser: (url) => shell.openExternal(url),
+    })
+    await flow.login(serverUrl, providerId)
+    const { ws } = await scoped(context)
+    await context.reporter.flush(ws, { force: true }).catch(() => undefined)
+    await context.statuses.check({ force: true }).catch(() => undefined)
+    await reportScope(context, ws, 'global')
+    return buildCloudStatus(context)
+  })
   ipcMain.handle('cloud:logout', async (_event, allDevices: boolean) => {
     await context.cloud.logout(Boolean(allDevices))
     return buildCloudStatus(context)

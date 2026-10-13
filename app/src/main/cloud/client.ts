@@ -126,6 +126,33 @@ export class CloudClient {
     return this.store.load()
   }
 
+  /** 供 SSO 流程使用（凭证/回调需要设备指纹与版本）。 */
+  appVersionValue(): string {
+    return this.appVersion
+  }
+
+  /** 可用登录方式（本地 + 已启用身份源）。 */
+  async listProviders(serverUrl?: string): Promise<{ id: string; type: string; name: string; enabled: boolean }[]> {
+    const config = await this.store.load()
+    const base = normalizeServerUrl(serverUrl ?? config.serverUrl)
+    if (!base) throw new CloudError('VALIDATION_FAILED', '请填写服务器地址', 0)
+    const response = await this.fetchJson(`${base}/api/v1/auth/providers`, { timeoutMs: 15_000 })
+    const providers = (response.providers ?? []) as { id: string; type: string; name: string; enabled: boolean }[]
+    return providers
+  }
+
+  /** SSO 一次性 code 换本地会话（design 6.12.3）。 */
+  async ssoExchange(serverUrl: string, code: string, codeVerifier: string): Promise<CloudUser> {
+    const base = normalizeServerUrl(serverUrl)
+    if (!base) throw new CloudError('VALIDATION_FAILED', '请填写服务器地址', 0)
+    const response = await this.fetchJson(`${base}/api/v1/auth/sso/exchange`, {
+      method: 'POST',
+      body: { code, codeVerifier },
+      timeoutMs: 30_000,
+    })
+    return this.persistSession(response, base)
+  }
+
   async login(serverUrl: string, email: string, password: string): Promise<CloudUser> {
     const base = normalizeServerUrl(serverUrl)
     if (!base) throw new CloudError('VALIDATION_FAILED', '请填写服务器地址', 0)
@@ -144,6 +171,11 @@ export class CloudClient {
       },
       timeoutMs: 15_000,
     })
+    return this.persistSession(response, base)
+  }
+
+  /** 登录/SSO 成功后统一保存令牌与账号信息。 */
+  private async persistSession(response: Record<string, unknown>, base: string): Promise<CloudUser> {
     const user = response.user as CloudUser
     this.accessToken = String(response.accessToken)
     this.accessExpiresAt = Date.now() + (Number(response.expiresIn) || 900) * 1000

@@ -1805,6 +1805,12 @@ sequenceDiagram
 - 管理台（SPA）由服务端回调后携带一次性 code 重定向回应用，再走同一 `exchange`。
 - 一次性 code 有效期 60s、单次使用；state / nonce / PKCE 全量校验；ID token 验签用 JWKS 缓存（1h，支持强制刷新）。
 
+> 实现要点（阶段 7，详见 ADR 0005）：
+> - 三方 PKCE：客户端对 `exchange` 持自己的 verifier；服务端持对 IdP 的 verifier（AES-GCM 加密存储）；
+> - 一次性凭证存 PostgreSQL（`sso_login_requests` 10 分钟 / `sso_login_codes` 60 秒单次），不依赖 Redis；
+> - `client_secret` 加密密钥来自 `HUAGENT_MASTER_KEY`（32 字节 Base64/hex），未配置时退化为从 jwt_secret 派生并告警；
+> - 验签支持 HS256（无需额外依赖）与 RS256/ES256（JWKS 缓存 1h，需要 `cryptography`）。
+
 #### 6.12.4 账号匹配与 JIT 供给
 
 1. 先按 `(provider_id, subject)` 匹配，命中即登录并更新 `last_login_at`。
@@ -1817,6 +1823,10 @@ sequenceDiagram
 
 - `POST /auth/logout` 撤销本地会话；若 IdP 提供 `end_session_endpoint` 且用户勾选“同时退出 IdP”，浏览器跳转 IdP 登出。
 - 系统管理员可禁用身份源；禁用后新登录失败，且该身份源关联用户的 refresh token 立即全部撤销。
+
+> 实现：`PATCH /admin/identity-providers/{id}` 置 `enabled=false` 或 `DELETE` 时，按 `user_identities` 找出关联用户，
+> 一次性撤销其全部未撤销 refresh token（返回撤销条数）；禁用后 `/auth/sso/{id}/authorize` 返回 404。
+> 个人设置提供 `GET /me/identities` 与 `DELETE /me/identities/{id}`，解绑前校验至少保留一种可用登录方式。
 - 绑定关系可在个人设置中查看与解绑（解绑前需保留至少一种可用登录方式）。
 
 ---

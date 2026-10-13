@@ -49,7 +49,7 @@ plugins = ["pydantic.mypy"]
 exclude = ["tests/integration"]
 
 [[tool.mypy.overrides]]
-module = ["boto3.*", "botocore.*"]
+module = ["boto3.*", "botocore.*", "cryptography.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

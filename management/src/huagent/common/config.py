@@ -37,9 +37,9 @@ class Settings(BaseSettings):
     # 弱口令名单文件（每行一个；生产可挂载到 top-10k 名单）
     weak_password_file: str = ""
 
-    # 启动时校验数据库 schema 版本（design 6.8.3）；阶段 6 期望 V0003
+    # 启动时校验数据库 schema 版本（design 6.8.3）；阶段 7 期望 V0004
     schema_check_enabled: bool = True
-    schema_expected_version: str = "V0003"
+    schema_expected_version: str = "V0004"
 
     # 对象存储（阶段 5/6 使用）
     s3_endpoint: str = "http://localhost:9000"
@@ -67,6 +67,17 @@ class Settings(BaseSettings):
     snapshot_default_retention: int = 20
     quota_user_bytes: int = 10 * 1024 * 1024 * 1024
     quota_team_bytes: int = 100 * 1024 * 1024 * 1024
+
+    # SSO / OIDC（design 6.12）
+    # 主密钥（Base64 或 hex 的 32 字节）；为空时退化为从 jwt_secret 派生（仅本地开发）
+    master_key: str = ""
+    # 服务对外基地址（用于拼 IdP 回调地址）；为空时用 http://{api_host}:{api_port}
+    public_base_url: str = ""
+    sso_login_request_ttl_seconds: int = 600
+    sso_code_ttl_seconds: int = 60
+    sso_jwks_cache_seconds: int = 3600
+    # 允许的回跳地址：回环地址总是允许；管理台需在 cors_origins 内
+    sso_allow_any_loopback: bool = True
 
 
 @lru_cache(maxsize=1)

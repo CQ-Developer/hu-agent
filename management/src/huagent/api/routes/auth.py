@@ -13,6 +13,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import text
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from huagent.api.deps import Actor, client_ip, get_actor
@@ -183,24 +184,27 @@ def _user_out(row: object) -> UserOut:
 
 
 @router.get("/providers", response_model=ProvidersOut)
-async def list_providers() -> ProvidersOut:
+async def list_providers(session: SessionDep) -> ProvidersOut:
     settings = get_settings()
-    return ProvidersOut(
-        providers=[
-            {
-                "id": "local",
-                "type": "local",
-                "name": "本地账号",
-                "enabled": True,
-            },
-            {
-                "id": "registration",
-                "type": "local",
-                "name": "邮箱注册",
-                "enabled": settings.auth_registration_enabled,
-            },
-        ]
-    )
+    rows = (
+        await session.execute(
+            text(
+                "SELECT id, name FROM identity_providers WHERE enabled = true ORDER BY name"
+            )
+        )
+    ).mappings().all()
+    providers: list[dict[str, object]] = [
+        {"id": "local", "type": "local", "name": "本地账号", "enabled": True},
+        {
+            "id": "registration",
+            "type": "local",
+            "name": "邮箱注册",
+            "enabled": settings.auth_registration_enabled,
+        },
+    ]
+    for row in rows:
+        providers.append({"id": str(row["id"]), "type": "oidc", "name": str(row["name"]), "enabled": True})
+    return ProvidersOut(providers=providers)
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
@@ -266,26 +270,68 @@ async def login(
 
     await guard.on_success(email)
     device = payload.device
+    return await issue_login_tokens(
+        session,
+        user,
+        device_id=device.device_id,
+        platform=device.platform,
+        app_version=device.app_version,
+        device_name=device.name,
+        ip=ip,
+        user_agent=request.headers.get("user-agent"),
+        audit_action="auth.login",
+        audit_detail={"platform": device.platform, "appVersion": device.app_version},
+    )
+
+
+async def load_user_by_id(session: AsyncSession, user_id: UUID) -> RowMapping | None:
+    return (
+        await session.execute(
+            text(
+                "SELECT id, email, display_name, locale, is_system_admin, status, roles_version, password_hash "
+                "FROM users WHERE id = :user_id"
+            ),
+            {"user_id": user_id},
+        )
+    ).mappings().first()
+
+
+async def issue_login_tokens(
+    session: AsyncSession,
+    user: RowMapping,
+    *,
+    device_id: str,
+    platform: str,
+    app_version: str,
+    device_name: str | None,
+    ip: str,
+    user_agent: str | None,
+    audit_action: str,
+    audit_detail: dict[str, object] | None = None,
+) -> TokenOut:
+    """设备登记 + access/refresh 签发 + 审计（本地登录与 SSO exchange 共用）。"""
+    resolved_device = device_id or "unknown"
+    resolved_platform = platform if platform in {"win32", "darwin", "linux"} else "win32"
     await session.execute(
         UPSERT_DEVICE,
         {
             "user_id": user["id"],
-            "device_id": device.device_id,
-            "platform": device.platform,
-            "app_version": device.app_version,
-            "name": device.name,
+            "device_id": resolved_device,
+            "platform": resolved_platform,
+            "app_version": app_version or "0.0.0",
+            "name": device_name,
         },
     )
 
     access_token, expires_in = issue_access_token(
-        user["id"], device.device_id, int(user["roles_version"])
+        user["id"], resolved_device, int(user["roles_version"])
     )
     refresh_token = new_refresh_token()
     await session.execute(
         INSERT_REFRESH,
         {
             "user_id": user["id"],
-            "device_id": device.device_id,
+            "device_id": resolved_device,
             "token_hash": hash_refresh_token(refresh_token),
             "family_id": uuid.uuid7(),
             "expires_at": datetime.now(UTC)
@@ -294,13 +340,13 @@ async def login(
     )
     await record_audit(
         session,
-        action="auth.login",
+        action=audit_action,
         actor_id=user["id"],
         target_type="device",
-        target_id=device.device_id,
-        detail={"platform": device.platform, "appVersion": device.app_version},
+        target_id=resolved_device,
+        detail=audit_detail or {},
         actor_ip=ip,
-        user_agent=request.headers.get("user-agent"),
+        user_agent=user_agent,
     )
     await session.commit()
     return TokenOut(

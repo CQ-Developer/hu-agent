@@ -83,6 +83,8 @@ const api: HuAgentApi = {
   cloud: {
     status: () => ipcRenderer.invoke('cloud:status'),
     session: () => ipcRenderer.invoke('cloud:session'),
+    providers: (serverUrl: string) => ipcRenderer.invoke('cloud:providers', serverUrl),
+    ssoLogin: (serverUrl: string, providerId: string) => ipcRenderer.invoke('cloud:sso-login', serverUrl, providerId),
     login: (serverUrl, email, password) => ipcRenderer.invoke('cloud:login', serverUrl, email, password),
     register: (serverUrl, email, displayName, password) =>
       ipcRenderer.invoke('cloud:register', serverUrl, email, displayName, password),
