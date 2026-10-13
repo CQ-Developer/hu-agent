@@ -26,7 +26,8 @@
   - [x] Electron 骨架（electron-vite + 类型化 IPC + electron-builder 配置）
   - [ ] 客户端依赖安装与验证（`npm install` 后 `npm run dev` / `npm run dist`）
   - [x] CI 流水线（management / app / management-ui）
-  - [ ] 管理台骨架
+  - [x] 管理台骨架（Vite + AntD + 路由 + i18n + 健康检查联调）
+  - [ ] 管理台依赖安装与验证（`npm install` 后 `npm run dev`）
 
 ## 环境要求
 
@@ -66,6 +67,13 @@ curl http://localhost:8080/api/v1/system/health
 ```bash
 cd app && npm install   # 首次安装（生成 package-lock.json，请提交）
 npm run dev             # 开窗验证
+```
+
+管理台：
+
+```bash
+cd management-ui && npm install
+npm run dev             # http://localhost:5173，概览页应显示服务端 ok
 ```
 
 ## 常用脚本
