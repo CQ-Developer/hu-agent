@@ -4,7 +4,7 @@ import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { LlmMessage, ReasoningEffort, ToolCall } from '../model/types'
-import type { MessageLine, SessionIndex, SessionLine, SessionMeta, ToolResultLine } from './types'
+import type { MessageLine, SessionIndex, SessionLine, SessionMeta, SummaryLine, ToolResultLine } from './types'
 import { ulid } from './ulid'
 
 export interface SessionSearchHit {
@@ -79,47 +79,34 @@ export class SessionStore {
   /** 重建模型上下文（design 5.3.2）：message / tool_call / tool_result 按顺序还原。 */
   async loadMessages(sessionId: string, maxMessages = 120): Promise<LlmMessage[]> {
     const { lines } = await this.readLines(sessionId)
-    const messages: LlmMessage[] = []
-    let currentAssistant: number | null = null
+    const messages = buildMessages(lines)
+    return messages.length > maxMessages ? messages.slice(messages.length - maxMessages) : messages
+  }
 
-    for (const line of lines) {
-      if (line.type === 'message') {
-        const content = line.parts
-          .filter((part) => part.type === 'text')
-          .map((part) => part.text)
-          .join('')
-        if (line.role === 'assistant') {
-          const reasoningPart = line.parts.find((part) => part.type === 'reasoning')
-          const reasoningPartText = line.parts
-            .filter((part) => part.type === 'reasoning')
-            .map((part) => part.text)
-            .join('')
-          messages.push({
-            role: 'assistant',
-            content,
-            reasoning: reasoningPartText
-              ? { text: reasoningPartText, signature: reasoningPart?.type === 'reasoning' ? reasoningPart.signature : undefined }
-              : undefined,
-          })
-          currentAssistant = messages.length - 1
-        } else {
-          messages.push({ role: line.role, content })
-        }
-      } else if (line.type === 'tool_call') {
-        const call: ToolCall = { id: line.id, name: line.name, input: line.args }
-        const existing = currentAssistant === null ? undefined : messages[currentAssistant]
-        if (existing && existing.role === 'assistant') {
-          existing.toolCalls = [...(existing.toolCalls ?? []), call]
-          continue
-        }
-        messages.push({ role: 'assistant', content: '', toolCalls: [call] })
-        currentAssistant = messages.length - 1
-      } else if (line.type === 'tool_result') {
-        messages.push({ role: 'tool', toolCallId: line.id, content: line.output })
+  /** 带压缩摘要的上下文：应用最后一条 summary，只保留其覆盖范围之后的消息（design 5.2.3）。 */
+  async loadContextMessages(sessionId: string, maxMessages = 120): Promise<LlmMessage[]> {
+    const { lines } = await this.readLines(sessionId)
+    let summary: SummaryLine | null = null
+    let start = 0
+    for (let index = lines.length - 1; index >= 0; index -= 1) {
+      const line = lines[index]
+      if (line?.type === 'summary') {
+        summary = line
+        start = Math.min(line.toLine, lines.length)
+        break
       }
     }
 
-    return messages.length > maxMessages ? messages.slice(messages.length - maxMessages) : messages
+    const messages = buildMessages(lines.slice(start))
+    const summaryMessage: LlmMessage | null = summary
+      ? { role: 'system', content: `以下是较早对话的摘要，供你参考：\n${summary.text}` }
+      : null
+
+    if (!summaryMessage) {
+      return messages.length > maxMessages ? messages.slice(messages.length - maxMessages) : messages
+    }
+    const kept = messages.length > maxMessages - 1 ? messages.slice(messages.length - (maxMessages - 1)) : messages
+    return [summaryMessage, ...kept]
   }
 
   async list(): Promise<SessionMeta[]> {
@@ -250,6 +237,53 @@ export function textOf(message: MessageLine): string {
     .filter((part) => part.type === 'text')
     .map((part) => part.text)
     .join('')
+}
+
+/** 从 JSONL 行还原模型消息（含工具调用与思考部分）。 */
+function buildMessages(lines: SessionLine[]): LlmMessage[] {
+  const messages: LlmMessage[] = []
+  let currentAssistant: number | null = null
+
+  for (const line of lines) {
+    if (line.type === 'message') {
+      const content = line.parts
+        .filter((part) => part.type === 'text')
+        .map((part) => part.text)
+        .join('')
+      if (line.role === 'assistant') {
+        const reasoningPart = line.parts.find((part) => part.type === 'reasoning')
+        const reasoningText = line.parts
+          .filter((part) => part.type === 'reasoning')
+          .map((part) => part.text)
+          .join('')
+        messages.push({
+          role: 'assistant',
+          content,
+          reasoning: reasoningText
+            ? {
+                text: reasoningText,
+                signature: reasoningPart?.type === 'reasoning' ? reasoningPart.signature : undefined,
+              }
+            : undefined,
+        })
+        currentAssistant = messages.length - 1
+      } else {
+        messages.push({ role: line.role, content })
+      }
+    } else if (line.type === 'tool_call') {
+      const call: ToolCall = { id: line.id, name: line.name, input: line.args }
+      const existing = currentAssistant === null ? undefined : messages[currentAssistant]
+      if (existing && existing.role === 'assistant') {
+        existing.toolCalls = [...(existing.toolCalls ?? []), call]
+        continue
+      }
+      messages.push({ role: 'assistant', content: '', toolCalls: [call] })
+      currentAssistant = messages.length - 1
+    } else if (line.type === 'tool_result') {
+      messages.push({ role: 'tool', toolCallId: line.id, content: line.output })
+    }
+  }
+  return messages
 }
 
 export function isToolResultOk(line: SessionLine): line is ToolResultLine {

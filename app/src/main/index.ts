@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { BrowserWindow, app, shell } from 'electron'
+import { BrowserWindow, Menu, app, shell } from 'electron'
 
 import { ModelGateway } from './model/gateway'
 import { broadcastInteraction, registerIpc, type AppContext } from './ipc'
@@ -11,6 +11,15 @@ import { InteractionBroker } from './permissions/broker'
 import { createDefaultToolRegistry } from './tools/registry'
 import { UsageLedger } from './usage/ledger'
 import { WorkspaceManager } from './workspace'
+
+/** 移除无意义的默认应用菜单栏（Windows/Linux 完全移除；macOS 保留最小菜单以维持系统快捷键）。 */
+function configureApplicationMenu(): void {
+  if (process.platform === 'darwin') {
+    Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }]))
+    return
+  }
+  Menu.setApplicationMenu(null)
+}
 
 function createWindow(): void {
   const window = new BrowserWindow({
@@ -73,6 +82,7 @@ async function bootstrap(): Promise<void> {
 
 // 所有 IPC 在 bootstrap() -> registerIpc() 中统一注册（见 main/ipc.ts）
 void app.whenReady().then(async () => {
+  configureApplicationMenu()
   await bootstrap()
   createWindow()
 

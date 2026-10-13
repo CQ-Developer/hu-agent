@@ -316,6 +316,7 @@ flowchart TB
 
 - `contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`（渲染进程）；主进程只暴露白名单 IPC 通道。
 - 渲染进程严格 CSP；Markdown 渲染统一走消毒器（禁止内联脚本/事件属性）；外链必须经用户确认后 `shell.openExternal`。
+- 不提供应用菜单栏（Electron 默认 File/Edit/View/... 菜单已移除，macOS 保留系统最小菜单），操作全部在应用界面内完成。
 - 所有文件、命令操作只发生在主进程，渲染进程永远拿不到绝对路径以外的能力（路径也必须经工作空间管理器解析）。
 
 ### 5.2 Core Agent Loop
@@ -377,7 +378,7 @@ flowchart TB
 | `tool_timeout` | 120s | 单工具超时；bash 可在调用参数内指定上限 600s |
 | `tool_output_limit` | 30,000 字符 | 超出则头尾截断，全文落盘为 artifact |
 | `compact_threshold` | 上下文窗口 70% | 触发历史压缩 |
-| `keep_recent_turns` | 8 | 压缩时保留最近 N 轮原文 |
+| `keep_recent_messages` | 8 | 压缩时保留最近 8 条消息原文（其余生成摘要） |
 | `retry` | 模型请求 3 次指数退避 | 仅对网络/限流错误；工具调用不自动重试写操作 |
 
 #### 5.2.3 上下文构建与压缩
@@ -386,13 +387,13 @@ flowchart TB
 
 1. 系统提示：角色、行为约束、工具使用规范、工作空间信息、权限策略摘要。
 2. Skill 目录：每个已启用 Skill 的 `name / description / when_to_use / 路径`（**渐进披露**：只注入元数据，模型需要时自行 `read_file` 读取 `SKILL.md` 全文）。
-3. 历史压缩摘要（若有）+ 最近 N 轮原文。
+3. 历史压缩摘要（若有）+ 最近 8 条消息原文。
 4. 当前用户消息。
 
 压缩策略：
 
-- 触发时，用"快速模型"对最早的 K 轮生成结构化摘要（目标 ≤ 800 token），摘要写入 JSONL 的 `summary` 行，引用覆盖的行号区间。
-- 保留：系统提示、Skill 元数据、最近 N 轮原文、所有未完成的 `tool_use / tool_result` 对。
+- 触发时（估算 token 超过上下文窗口 70%），用"快速模型"对较早消息生成结构化摘要（目标 ≤ 800 token），摘要写入 JSONL 的 `summary` 行（含 `fromLine/toLine` 行号区间）。
+- 保留：系统提示、Skill 元数据、最近 8 条消息原文、所有未完成的 `tool_use / tool_result` 对；摘要以 system 消息注入上下文（`loadContextMessages`）。
 - 摘要链：多次压缩产生多条 `summary` 行，构建上下文时只应用最新一条（其引用终点之后的消息仍以原文保留）。
 - 压缩前先确保会话已落盘；压缩失败降级为截断最早消息，不阻塞会话。
 - 工具结果全文 artifact 不进入上下文，模型可按 artifact 路径重读。

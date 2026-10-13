@@ -15,6 +15,7 @@ import { ToolInputError } from '../tools/path-guard'
 import type { ToolRegistry } from '../tools/registry'
 import type { ToolContext } from '../tools/types'
 import type { AgentEvent, TurnStopReason } from '../../shared/events'
+import { COMPACT_THRESHOLD, compactHistory, estimateTokens } from './compaction'
 import { buildSystemPrompt } from './prompt'
 
 export interface LoopDeps {
@@ -27,6 +28,9 @@ export interface LoopDeps {
   interactions: InteractionBroker
   emit: (event: AgentEvent) => void
   workspaceRoot: string
+  /** 历史压缩使用的快速模型（缺省用当前会话模型） */
+  fastTarget?: string
+  keepRecentMessages?: number
   maxSteps?: number
   outputLimit?: number
 }
@@ -63,15 +67,36 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
 
   let stopReason: TurnStopReason = 'done'
   try {
-    const messages = await deps.sessions.loadMessages(sessionId)
+    let messages = await deps.sessions.loadContextMessages(sessionId)
     const sessionOptions = await deps.sessions.loadOptions(sessionId)
     const { provider, model } = deps.gateway.resolve(sessionOptions.model)
 
     for (let step = 0; step < maxSteps; step += 1) {
-      const modelMessages: LlmMessage[] = [
+      let modelMessages: LlmMessage[] = [
         { role: 'system', content: buildSystemPrompt(deps.workspaceRoot) },
         ...messages,
       ]
+
+      // 超过上下文阈值：压缩历史（失败则降级为保留最近消息）
+      const contextWindow = model.capabilities.contextWindow
+      if (contextWindow > 0 && estimateTokens(modelMessages) > contextWindow * COMPACT_THRESHOLD) {
+        const compacted = await compactHistory(
+          {
+            gateway: deps.gateway,
+            sessions: deps.sessions,
+            ledger: deps.ledger,
+            fastTarget: deps.fastTarget ?? sessionOptions.model ?? model.name,
+            keepRecentMessages: deps.keepRecentMessages,
+          },
+          sessionId,
+          signal,
+        ).catch(() => false)
+        messages = compacted
+          ? await deps.sessions.loadContextMessages(sessionId)
+          : messages.slice(-(deps.keepRecentMessages ?? 8) * 4)
+        modelMessages = [{ role: 'system', content: buildSystemPrompt(deps.workspaceRoot) }, ...messages]
+        deps.emit({ type: 'session.compacted', sessionId, turnId })
+      }
 
       let assistantText = ''
       let reasoningText = ''

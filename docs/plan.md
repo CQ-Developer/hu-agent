@@ -212,7 +212,7 @@ hu-agent/                      # 一个仓库
 
 **阶段退出**：故意在工作空间外取一个文件 → 弹窗授权 → 完成；故意让 Agent 改配置 → 被拒；能翻到对应审计记录。
 
-> 状态（2026-10-13）：2-01 ~ 2-04 已完成并验证（66 个单测 + Windows 真机联调）；2-05 的会话全文搜索与 artifact 回读已完成，历史压缩（summary 行）延后到下一轮；2-06 的 Windows 路径/保留名/UNC/符号链接用例已纳入单测（macOS 无法在本机验证，待有环境时补）。实现细节与 design 5.5/5.6 一致：授权卡片支持一次/本会话/始终（写入 `<workspace>/.hu/settings.json`），敏感路径与保护文件硬拒绝且不弹卡，审计写入 `.hu/logs/audit.jsonl`；ask_guide 已随本阶段一并实现（5.4.3）。
+> 状态（2026-10-13）：2-01 ~ 2-05 已完成并验证（70 个单测 + Windows 真机联调）；2-06 的 Windows 路径/保留名/UNC/符号链接用例已纳入单测（macOS 待有环境时补）。实现细节与 design 5.5/5.6 一致：授权卡片支持一次/本会话/始终（写入 `<workspace>/.hu/settings.json`），敏感路径与保护文件硬拒绝且不弹卡，审计写入 `.hu/logs/audit.jsonl`；ask_guide 已随本阶段实现（5.4.3）；历史压缩（summary 行 + 快速模型）与 `session.compacted` 事件已完成。另：按反馈移除了 Electron 默认应用菜单栏（design 5.1 已记录）。
 
 ### 4.4 阶段 3：本地 Skill / MCP 机制（对应 M3 客户端本地部分）
 

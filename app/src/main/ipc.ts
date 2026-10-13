@@ -174,6 +174,7 @@ export function registerIpc(context: AppContext): void {
     if (activeTurns.has(sessionId)) throw new Error('该会话已有运行中的任务')
     const { ws, sessions, artifacts } = await scoped(context)
     const permissions = await buildEngine(context, ws)
+    const settings = await context.settings.load()
     const controller = new AbortController()
     activeTurns.set(sessionId, controller)
     try {
@@ -188,6 +189,7 @@ export function registerIpc(context: AppContext): void {
           interactions: context.interactions,
           emit: broadcastEvent,
           workspaceRoot: ws.root,
+          fastTarget: settings.defaults.fast ?? settings.defaults.primary,
         },
         { sessionId, userText: text, signal: controller.signal },
       )

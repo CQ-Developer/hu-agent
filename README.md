@@ -49,7 +49,9 @@
   - [x] ask_guide 交互卡片
   - [x] Shell 加固（超时/取消终止进程树、输出限量、非 UTF-8 替换）
   - [x] 会话全文搜索
-  - [ ] 历史压缩（summary 行）与 macOS 平台实测
+  - [x] 历史压缩（summary 行 + 快速模型 + `session.compacted` 事件）
+  - [x] 移除 Electron 默认应用菜单栏
+  - [ ] macOS 平台用例实测
 
 ## 环境要求
 
