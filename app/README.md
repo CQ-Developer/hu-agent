@@ -53,6 +53,8 @@ src/renderer/   # 渲染进程（React 界面）
 
 ```bash
 DEEPSEEK_API_KEY=... npx vitest run tests/integration/deepseek.test.ts
+# Anthropic 协议（使用 DeepSeek 的 Anthropic 兼容端点）
+DEEPSEEK_API_KEY=... npx vitest run tests/integration/deepseek-anthropic.test.ts
 ```
 
 密钥只从环境变量读取，不落盘；测试覆盖基础流式对话与 Agent 工具调用链路。

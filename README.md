@@ -42,7 +42,7 @@
   - [x] 输入框模型选择 / 思考强度 / 用量与上下文指示（1-08）
   - [x] 思考内容展示：可折叠思考块，落盘且不回传模型（1-09）
   - [x] 模型配置支持 API 类型选择：OpenAI Chat / OpenAI Responses / Anthropic Messages（1-10）
-  - [ ] Anthropic 真实密钥联调（适配器与单测已就绪）
+  - [x] Anthropic 协议真实联调（经 DeepSeek 兼容端点 `https://api.deepseek.com/anthropic`：对话 / 工具 / 思考强度）
 
 ## 环境要求
 

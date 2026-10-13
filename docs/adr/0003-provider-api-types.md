@@ -33,4 +33,5 @@ Anthropic 的 thinking 签名随会话 JSONL 的 `reasoning` 部分持久化；R
 
 - 新增协议只需实现一个 `ProviderStreamOptions -> StreamEvent` 的适配器并注册，不改循环与 UI；
 - 代价是三套协议的事件解析需要各自维护单测（已覆盖请求体转换与流式解析）；
-- 思考强度是"尽力而为"的能力：未声明的模型不发送相关参数。
+- 思考强度是"尽力而为"的能力：未声明的模型不发送相关参数；
+- 验证情况：`anthropic-messages` 适配器已用 DeepSeek 的 Anthropic 兼容端点（`https://api.deepseek.com/anthropic`）真实联调——基础对话、思考强度（budget）、工具调用与思考签名回放均通过。

@@ -866,7 +866,7 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
 
 要点：
 
-- **API 接入类型（`apiType`）**：`openai-chat`（Chat Completions）、`openai-responses`（Responses API）、`anthropic-messages`（Anthropic Messages API）；大多数厂商支持前两者之一，在模型设置中按供应商选择。适配层负责消息结构、工具定义、流式事件与思考强度的协议差异（ADR 0003）。
+- **API 接入类型（`apiType`）**：`openai-chat`（Chat Completions）、`openai-responses`（Responses API）、`anthropic-messages`（Anthropic Messages API）；大多数厂商支持前两者之一，在模型设置中按供应商选择。适配层负责消息结构、工具定义、流式事件与思考强度的协议差异（ADR 0003）。部分厂商同时提供多种协议（如 DeepSeek 的 Anthropic 兼容入口为 `https://api.deepseek.com/anthropic`），可用同一模型配置切换 apiType 验证。
 - Provider 类型：三种 apiType 均内置于网关；`openai-chat` 自动兼容 OpenAI / Azure / vLLM / Ollama / DeepSeek 等；"是否支持 tools/vision"由用户在模型能力中声明，客户端只做能力提示。
 - 密钥存储（阶段 1 已实现）：`apiKeyRef` 指向客户端密钥库；实现为 Electron safeStorage（加密密钥由 Windows DPAPI / macOS Keychain 保护）加密后写入 `~/.hu-agent/secrets.enc.json`，配置文件、日志与上报中永不出现明文（ADR 0002）。
 - "快速模型"用于会话标题、历史压缩、ask_guide 生成等低价值调用（也计入用量上报，标记 `purpose: fast`）。
