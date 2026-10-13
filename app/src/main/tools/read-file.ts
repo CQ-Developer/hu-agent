@@ -16,6 +16,7 @@ interface Input {
 
 export const readFileTool = defineTool<Input>({
   name: 'read_file',
+  category: 'read',
   description: '读取工作空间内的文本文件，返回带行号的内容。单次最多 1MB / 2000 行。',
   parameters: {
     type: 'object',

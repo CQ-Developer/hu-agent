@@ -92,6 +92,19 @@ describe('SessionStore', () => {
     expect(list[0]?.messageCount).toBe(1)
   })
 
+  it('全文搜索命中会话内容并返回片段', async () => {
+    const first = await store.create('会话一')
+    await store.append(first.id, message('m1', 'user', '帮我重构 utils.ts 的错误处理'))
+    const second = await store.create('会话二')
+    await store.append(second.id, message('m2', 'assistant', '今天的天气不错'))
+
+    const hits = await store.search('utils.ts')
+    expect(hits).toHaveLength(1)
+    expect(hits[0]?.sessionId).toBe(first.id)
+    expect(hits[0]?.snippet).toContain('utils.ts')
+    expect(await store.search('不存在的关键字')).toHaveLength(0)
+  })
+
   it('会话选项按最后一条 session_options 生效', async () => {
     const meta = await store.create()
     await store.setOptions(meta.id, { model: 'a/x', reasoningEffort: 'low' })

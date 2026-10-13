@@ -17,6 +17,8 @@ import { runTurn } from '../../src/main/agent/loop'
 import { ModelGateway } from '../../src/main/model/gateway'
 import type { ModelSettings } from '../../src/main/model/types'
 import { ArtifactStore } from '../../src/main/session/artifacts'
+import type { InteractionBroker } from '../../src/main/permissions/broker'
+import type { PermissionEngine } from '../../src/main/permissions/engine'
 import { SessionStore } from '../../src/main/session/store'
 import { createDefaultToolRegistry } from '../../src/main/tools/registry'
 import { UsageLedger } from '../../src/main/usage/ledger'
@@ -43,6 +45,9 @@ const settings: ModelSettings = {
   ],
   defaults: { primary: `deepseek/${modelName}`, fast: `deepseek/${modelName}` },
 }
+
+const ALLOW_ALL = { check: async () => ({ action: 'allow' as const }) } as unknown as PermissionEngine
+const NO_INTERACTIONS = {} as unknown as InteractionBroker
 
 const gateway = new ModelGateway({
   getSettings: () => settings,
@@ -101,6 +106,8 @@ describe.skipIf(!apiKey)('DeepSeek 真实模型集成', () => {
             tools: createDefaultToolRegistry(),
             sessions,
             artifacts: new ArtifactStore(join(root, '.hu', 'sessions', 'artifacts')),
+            permissions: ALLOW_ALL,
+            interactions: NO_INTERACTIONS,
             ledger,
             emit: (event) => events.push(event.type),
             workspaceRoot: root,

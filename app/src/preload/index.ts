@@ -19,10 +19,13 @@ const api: HuAgentApi = {
     options: (sessionId) => ipcRenderer.invoke('sessions:options', sessionId),
     setOptions: (sessionId, options) => ipcRenderer.invoke('sessions:set-options', sessionId, options),
     stats: (sessionId) => ipcRenderer.invoke('sessions:stats', sessionId),
+    search: (query) => ipcRenderer.invoke('sessions:search', query),
   },
   agent: {
     send: (sessionId, text) => ipcRenderer.invoke('agent:send', sessionId, text),
     cancel: (sessionId) => ipcRenderer.invoke('agent:cancel', sessionId),
+    decideApproval: (requestId, choice) => ipcRenderer.invoke('agent:decide-approval', requestId, choice),
+    answerGuide: (requestId, value) => ipcRenderer.invoke('agent:answer-guide', requestId, value),
     onEvent: (listener) => {
       const handler = (_event: unknown, payload: AgentEvent): void => listener(payload)
       ipcRenderer.on('agent:event', handler)
@@ -33,7 +36,10 @@ const api: HuAgentApi = {
     stats: () => ipcRenderer.invoke('usage:stats'),
   },
   workspace: {
-    info: () => ipcRenderer.invoke('workspace:info'),
+    list: () => ipcRenderer.invoke('workspace:list'),
+    active: () => ipcRenderer.invoke('workspace:active'),
+    setActive: (id) => ipcRenderer.invoke('workspace:set-active', id),
+    pick: () => ipcRenderer.invoke('workspace:pick'),
   },
 }
 

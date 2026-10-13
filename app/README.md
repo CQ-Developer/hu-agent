@@ -32,10 +32,9 @@ src/renderer/   # 渲染进程（React 界面）
 - 外链一律经系统浏览器打开，禁止应用内导航到外部页面；
 - 渲染进程只能通过 `window.huAgent` 的白名单方法访问主进程能力。
 
-## 当前状态（阶段 0-05）
+## 当前状态
 
-- [x] 三进程结构与类型化 IPC（`app:get-version` 示例）
-- [x] electron-builder 打包配置（NSIS / dmg）
+- [x] **阶段 0：骨架**（三进程结构、类型化 IPC、打包配置）
 - [x] **阶段 1：Agent MVP**
   - [x] Agent Loop + 事件流 + 取消/最大轮次（`src/main/agent`）
   - [x] 模型网关：OpenAI 兼容流式 + function calling + 重试（`src/main/model`）
@@ -46,8 +45,19 @@ src/renderer/   # 渲染进程（React 界面）
   - [x] 思考内容展示：可折叠思考块（流式默认展开，历史默认折叠），随消息落盘但不回传模型
   - [x] 模型配置支持 API 类型：OpenAI Chat Completions / OpenAI Responses / Anthropic Messages（含思考强度映射与签名回放）
   - [x] 本地用量账本 + 侧边栏统计
-  - [x] 40 个单测（`npm run test`）
-  - [x] 真实模型联调：DeepSeek `deepseek-flash` 流式对话 + 工具调用（集成测试见下）
+  - [x] 真实模型联调：DeepSeek 三种协议（8 个集成用例，见下）
+  - [x] 66 个单测（`npm run test`）
+
+### 阶段 2：Workspace 与安全（进行中）
+
+- [x] 工作空间：目录选择/切换、`.hu` 初始化、多工作空间索引（`~/.hu-agent/workspaces.json`）
+- [x] 权限引擎：决策矩阵（工作空间内 allow / 越界 ask / 敏感与保护文件 deny）、realpath 防逃逸、符号链接、Windows 保留名与 UNC
+- [x] 授权卡片：允许一次 / 本会话 / 始终（持久化到工作空间策略）；保护文件拦截
+- [x] 审计：`.hu/logs/audit.jsonl`
+- [x] ask_guide 引导卡片
+- [x] Shell 加固：超时/取消终止进程树、输出限量与截断标注
+- [x] 会话全文搜索
+- [ ] 历史压缩（summary 行）与 macOS 平台实测
 
 ## 真实模型集成测试（需要密钥，默认跳过）
 

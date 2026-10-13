@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import type { AgentEvent } from '@shared/events'
+import type { AgentEvent, ApprovalRequestView, GuideRequestView } from '@shared/events'
 import type {
   ModelOptionView,
   SessionItemView,
   SessionMetaView,
   SessionOptionsView,
+  SessionSearchHitView,
   SessionUsageView,
   UsageStatsView,
   WorkspaceInfoView,
@@ -26,9 +27,13 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [usage, setUsage] = useState<UsageStatsView | null>(null)
   const [workspace, setWorkspace] = useState<WorkspaceInfoView | null>(null)
+  const [workspaces, setWorkspaces] = useState<WorkspaceInfoView[]>([])
+  const [searchHits, setSearchHits] = useState<SessionSearchHitView[]>([])
   const [models, setModels] = useState<ModelOptionView[]>([])
   const [options, setOptions] = useState<SessionOptionsView | null>(null)
   const [stats, setStats] = useState<SessionUsageView | null>(null)
+  const [approval, setApproval] = useState<ApprovalRequestView | null>(null)
+  const [guide, setGuide] = useState<GuideRequestView | null>(null)
   const streamingRef = useRef('')
   const reasoningRef = useRef('')
 
@@ -45,6 +50,8 @@ export default function App() {
     setStreamingText('')
     setStreamingReasoning('')
     setError(null)
+    setApproval(null)
+    setGuide(null)
     setItems(await window.huAgent.sessions.items(sessionId))
     setOptions(await window.huAgent.sessions.options(sessionId))
     setStats(await window.huAgent.sessions.stats(sessionId))
@@ -56,25 +63,45 @@ export default function App() {
     await openSession(created.id)
   }, [openSession, refreshSessions])
 
-  useEffect(() => {
-    void (async () => {
+  /** 加载当前工作空间下的会话（无会话时新建一个）。 */
+  const loadWorkspaceState = useCallback(
+    async (target: WorkspaceInfoView): Promise<void> => {
+      setWorkspace(target)
       const list = await refreshSessions()
       if (list.length === 0) {
         const created = await window.huAgent.sessions.create()
         await refreshSessions()
         await openSession(created.id)
       } else {
-        await openSession(list[0].id)
+        await openSession(list[0]?.id ?? '')
       }
-      setWorkspace(await window.huAgent.workspace.info())
+      setSearchHits([])
+    },
+    [openSession, refreshSessions],
+  )
+
+  useEffect(() => {
+    void (async () => {
+      const [list, active] = await Promise.all([window.huAgent.workspace.list(), window.huAgent.workspace.active()])
+      setWorkspaces(list)
+      await loadWorkspaceState(active)
       setUsage(await window.huAgent.usage.stats())
       const view = await window.huAgent.settings.get()
       setModels(view.availableModels)
     })()
-  }, [openSession, refreshSessions])
+  }, [loadWorkspaceState])
 
   useEffect(() => {
     const off = window.huAgent.agent.onEvent((event: AgentEvent) => {
+      // 授权/提问不按当前会话过滤：后台会话的请求也要能应答，否则会一直挂起
+      if (event.type === 'tool.approval_required') {
+        setApproval(event.request)
+        return
+      }
+      if (event.type === 'ask_guide') {
+        setGuide(event.request)
+        return
+      }
       if (event.sessionId !== currentId) return
       switch (event.type) {
         case 'turn.start':
@@ -151,6 +178,8 @@ export default function App() {
           setStreamingText('')
           setStreamingReasoning('')
           setRunning(false)
+          setApproval((prev) => (prev && prev.sessionId === event.sessionId ? null : prev))
+          setGuide((prev) => (prev && prev.sessionId === event.sessionId ? null : prev))
           if (text || reasoning) {
             setItems((prev) => [
               ...prev,
@@ -188,13 +217,7 @@ export default function App() {
       if (!currentId || !text.trim() || running) return
       setItems((prev) => [
         ...prev,
-        {
-          kind: 'message',
-          id: `user_${Date.now()}`,
-          role: 'user',
-          text,
-          createdAt: new Date().toISOString(),
-        },
+        { kind: 'message', id: `user_${Date.now()}`, role: 'user', text, createdAt: new Date().toISOString() },
       ])
       setRunning(true)
       setError(null)
@@ -212,6 +235,49 @@ export default function App() {
     if (currentId) void window.huAgent.agent.cancel(currentId)
   }, [currentId])
 
+  const decideApproval = useCallback(
+    (choice: 'allow_once' | 'allow_session' | 'allow_always' | 'deny'): void => {
+      if (!approval) return
+      void window.huAgent.agent.decideApproval(approval.id, choice)
+      setApproval(null)
+    },
+    [approval],
+  )
+
+  const answerGuide = useCallback(
+    (value: string): void => {
+      if (!guide) return
+      void window.huAgent.agent.answerGuide(guide.id, value)
+      setGuide(null)
+    },
+    [guide],
+  )
+
+  const switchWorkspace = useCallback(
+    async (id: string): Promise<void> => {
+      if (!id || id === workspace?.id) return
+      const target = await window.huAgent.workspace.setActive(id)
+      setWorkspaces(await window.huAgent.workspace.list())
+      await loadWorkspaceState(target)
+    },
+    [loadWorkspaceState, workspace?.id],
+  )
+
+  const pickWorkspace = useCallback(async (): Promise<void> => {
+    const picked = await window.huAgent.workspace.pick()
+    if (!picked) return
+    setWorkspaces(await window.huAgent.workspace.list())
+    await loadWorkspaceState(picked)
+  }, [loadWorkspaceState])
+
+  const search = useCallback(async (query: string): Promise<void> => {
+    if (!query.trim()) {
+      setSearchHits([])
+      return
+    }
+    setSearchHits(await window.huAgent.sessions.search(query))
+  }, [])
+
   return (
     <div className="flex h-screen w-screen bg-neutral-100 text-neutral-900">
       <Sidebar
@@ -219,9 +285,15 @@ export default function App() {
         currentId={currentId}
         usage={usage}
         workspace={workspace}
+        workspaces={workspaces}
+        searchHits={searchHits}
         onSelect={(id) => void openSession(id)}
         onNew={() => void createSession()}
         onOpenSettings={() => setSettingsOpen(true)}
+        onSwitchWorkspace={(id) => void switchWorkspace(id)}
+        onPickWorkspace={() => void pickWorkspace()}
+        onSearch={(query) => void search(query)}
+        onOpenHit={(sessionId) => void openSession(sessionId)}
       />
       <ChatView
         items={items}
@@ -232,9 +304,13 @@ export default function App() {
         models={models}
         options={options}
         stats={stats}
+        approval={approval}
+        guide={guide}
         onOptionsChange={(next) => void changeOptions(next)}
         onSend={(text) => void send(text)}
         onStop={stop}
+        onDecideApproval={decideApproval}
+        onAnswerGuide={answerGuide}
       />
       {settingsOpen && (
         <SettingsDrawer

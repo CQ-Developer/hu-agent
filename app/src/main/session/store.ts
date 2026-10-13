@@ -7,6 +7,13 @@ import type { LlmMessage, ReasoningEffort, ToolCall } from '../model/types'
 import type { MessageLine, SessionIndex, SessionLine, SessionMeta, ToolResultLine } from './types'
 import { ulid } from './ulid'
 
+export interface SessionSearchHit {
+  sessionId: string
+  title: string
+  snippet: string
+  updatedAt: string
+}
+
 const INDEX_FILE = 'index.json'
 
 export class SessionStore {
@@ -136,6 +143,36 @@ export class SessionStore {
     meta.updatedAt = new Date().toISOString()
     meta.messageCount += messageDelta
     await this.saveIndex(index)
+  }
+
+  /** 会话内全文搜索（design 2-05）：扫描 JSONL 文本部分，返回命中片段。 */
+  async search(query: string, limit = 20): Promise<SessionSearchHit[]> {
+    const keyword = query.trim().toLowerCase()
+    if (!keyword) return []
+    const index = await this.loadIndex()
+    const hits: SessionSearchHit[] = []
+    for (const meta of index.sessions) {
+      const { lines } = await this.readLines(meta.id)
+      for (const line of lines) {
+        if (line.type !== 'message') continue
+        const text = line.parts
+          .filter((part) => part.type === 'text')
+          .map((part) => part.text)
+          .join('')
+        const position = text.toLowerCase().indexOf(keyword)
+        if (position < 0) continue
+        const start = Math.max(0, position - 40)
+        hits.push({
+          sessionId: meta.id,
+          title: meta.title,
+          snippet: text.slice(start, position + keyword.length + 120),
+          updatedAt: meta.updatedAt,
+        })
+        break
+      }
+      if (hits.length >= limit) break
+    }
+    return hits
   }
 
   /** 会话级模型 / 思考强度；取最后一条 session_options 行（design 5.2.6）。 */

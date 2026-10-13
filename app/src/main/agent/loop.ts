@@ -8,6 +8,8 @@ import type { SessionStore } from '../session/store'
 import { ulid } from '../session/ulid'
 import type { MessagePart, ToolStatus } from '../session/types'
 import type { UsageLedger } from '../usage/ledger'
+import type { InteractionBroker } from '../permissions/broker'
+import type { PermissionEngine } from '../permissions/engine'
 import { OUTPUT_LIMIT, truncateMiddle } from '../tools/truncate'
 import { ToolInputError } from '../tools/path-guard'
 import type { ToolRegistry } from '../tools/registry'
@@ -21,6 +23,8 @@ export interface LoopDeps {
   sessions: SessionStore
   artifacts: ArtifactStore
   ledger: UsageLedger
+  permissions: PermissionEngine
+  interactions: InteractionBroker
   emit: (event: AgentEvent) => void
   workspaceRoot: string
   maxSteps?: number
@@ -266,6 +270,26 @@ async function executeTool(
     turnId: scope.turnId,
     signal: scope.signal,
     artifacts: deps.artifacts,
+    interactions: deps.interactions,
+  }
+
+  // 所有工具调用先过权限引擎（design 5.5）
+  const permission = await deps.permissions.check({
+    workspaceRoot: deps.workspaceRoot,
+    sessionId: scope.sessionId,
+    turnId: scope.turnId,
+    toolCallId: call.id,
+    toolName: call.name,
+    category: tool.category,
+    input: (call.input ?? {}) as Record<string, unknown>,
+  })
+  if (permission.action !== 'allow') {
+    return {
+      status: 'denied',
+      output: permission.reason ?? '权限拒绝',
+      durationMs: Date.now() - startedAt,
+      truncated: false,
+    }
   }
 
   let status: ToolStatus = 'ok'

@@ -1,9 +1,10 @@
 /** 工具注册表（design 5.4.1）。 */
 
 import type { ToolDefinitionForModel } from '../model/types'
-import { bashTool, powershellTool } from './shell'
+import { askGuideTool } from './ask-guide'
 import { editFileTool } from './edit-file'
 import { readFileTool } from './read-file'
+import { bashTool, powershellTool } from './shell'
 import { toModelTool, type AnyTool } from './types'
 import { writeFileTool } from './write-file'
 
@@ -28,5 +29,5 @@ export class ToolRegistry {
 }
 
 export function createDefaultToolRegistry(): ToolRegistry {
-  return new ToolRegistry([readFileTool, writeFileTool, editFileTool, bashTool, powershellTool])
+  return new ToolRegistry([readFileTool, writeFileTool, editFileTool, bashTool, powershellTool, askGuideTool])
 }

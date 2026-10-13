@@ -631,7 +631,7 @@ flowchart TB
 
 以下文件只能由用户在 UI 中修改，防止 Agent 自我提权：
 
-`<workspace>/.hu/settings.json`、`<workspace>/.hu/mcp.json`、`<workspace>/.hu/skills.json`、`<workspace>/.hu/sync/state.json`、`~/.hu-agent/config.json`、`installed.json`。
+`<workspace>/.hu/settings.json`、`<workspace>/.hu/mcp.json`、`<workspace>/.hu/skills.json`、`<workspace>/.hu/workspace.json`、`<workspace>/.hu/sync/**`、`<workspace>/.hu/logs/**`（含审计）、`<workspace>/.hu/backups/**`、`~/.hu-agent/config.json`、`~/.hu-agent/workspaces.json`、`~/.hu-agent/installed.json`、`~/.hu-agent/secrets.enc.json`。
 
 工具调用命中这些路径时直接返回 `denied`，错误信息说明"该文件受保护，请在设置界面修改"。
 
@@ -658,7 +658,7 @@ flowchart TB
 #### 5.6.1 生命周期
 
 1. **选择目录**：用户从客户端选择本地目录；若目录下无 `.hu/`，初始化（生成 `workspace.json`、目录骨架、`.gitignore` 类排除提示）。
-2. **打开**：应用可维护多个已知工作空间（最近列表），同一时刻只有一个活跃工作空间（v1 不支持多工作空间并行会话）。
+2. **打开**：应用维护多个已知工作空间，索引存于 `~/.hu-agent/workspaces.json`（工作空间列表 + `activeId`）；同一时刻只有一个活跃工作空间（v1 不支持多工作空间并行会话）。
 3. **关闭/切换**：切走时结束活跃 session；允许运行中会话被取消。
 
 `workspace.json` 示例：
@@ -678,6 +678,8 @@ flowchart TB
   "syncExclude": [".hu/sync", ".hu/logs", "node_modules", ".git", "dist", ".venv"]
 }
 ```
+
+> 阶段 2 实现字段为 `{ id, name, root, createdAt }`；`server`（云同步状态）与 `syncExclude` 在阶段 6 加入。已存在的目录若已含 `.hu/workspace.json`，则沿用其中的 `id` 与名称。
 
 #### 5.6.2 上传文件与引用
 

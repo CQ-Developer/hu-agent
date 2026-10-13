@@ -110,7 +110,15 @@ export interface UsageStatsView {
 
 export interface WorkspaceInfoView {
   id: string
+  name: string
   root: string
+}
+
+export interface SessionSearchHitView {
+  sessionId: string
+  title: string
+  snippet: string
+  updatedAt: string
 }
 
 export interface HuAgentApi {
@@ -129,16 +137,23 @@ export interface HuAgentApi {
     options(sessionId: string): Promise<SessionOptionsView>
     setOptions(sessionId: string, options: SessionOptionsView): Promise<SessionOptionsView>
     stats(sessionId: string): Promise<SessionUsageView>
+    search(query: string): Promise<SessionSearchHitView[]>
   }
   agent: {
     send(sessionId: string, text: string): Promise<void>
     cancel(sessionId: string): Promise<void>
+    decideApproval(requestId: string, choice: 'allow_once' | 'allow_session' | 'allow_always' | 'deny'): Promise<void>
+    answerGuide(requestId: string, value: string): Promise<void>
     onEvent(listener: (event: AgentEvent) => void): () => void
   }
   usage: {
     stats(): Promise<UsageStatsView>
   }
   workspace: {
-    info(): Promise<WorkspaceInfoView>
+    list(): Promise<WorkspaceInfoView[]>
+    active(): Promise<WorkspaceInfoView>
+    setActive(id: string): Promise<WorkspaceInfoView>
+    /** 打开目录选择框；取消返回 null */
+    pick(): Promise<WorkspaceInfoView | null>
   }
 }

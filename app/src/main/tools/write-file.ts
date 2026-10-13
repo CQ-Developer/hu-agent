@@ -14,6 +14,7 @@ interface Input {
 
 export const writeFileTool = defineTool<Input>({
   name: 'write_file',
+  category: 'write',
   description: '写入文本文件（自动创建父目录）。目标已存在时必须显式 overwrite=true。',
   parameters: {
     type: 'object',

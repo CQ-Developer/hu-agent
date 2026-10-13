@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { editFileTool } from '../src/main/tools/edit-file'
+import type { InteractionBroker } from '../src/main/permissions/broker'
 import type { ArtifactStore } from '../src/main/session/artifacts'
 import type { ToolContext } from '../src/main/tools/types'
 
@@ -15,6 +16,7 @@ function context(root: string): ToolContext {
     turnId: 't1',
     signal: new AbortController().signal,
     artifacts: {} as ArtifactStore,
+    interactions: {} as InteractionBroker,
   }
 }
 

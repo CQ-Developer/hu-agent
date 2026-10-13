@@ -1,6 +1,12 @@
-/** bash / powershell：执行命令行（阶段 2 接入命令审批与进程组终止）。 */
+/** bash / powershell：执行命令行。
+ *
+ * 加固点（design 2-04）：
+ * - 超时/取消时终止整个进程树（Windows 用 taskkill /T，POSIX 用进程组信号）
+ * - 输出按流限量，超出后标注截断（模型侧还有统一截断 + artifact）
+ * - UTF-8 解码失败以替换字符呈现，不因编码中断执行
+ */
 
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 
 import { resolveInWorkspace } from './path-guard'
 import { defineTool, type AnyTool, type ToolResult } from './types'
@@ -14,9 +20,31 @@ interface Input {
   description?: string
 }
 
+function terminateTree(child: ChildProcess): void {
+  if (!child.pid) return
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })
+    return
+  }
+  try {
+    process.kill(-child.pid, 'SIGKILL')
+  } catch {
+    child.kill('SIGKILL')
+  }
+}
+
+function appendChunk(buffer: { text: string; truncated: boolean }, chunk: Buffer): void {
+  if (buffer.text.length >= MAX_STREAM_BYTES) {
+    buffer.truncated = true
+    return
+  }
+  buffer.text += chunk.toString('utf8')
+}
+
 function runCommand(file: string, args: (command: string) => string[], shellName: string): AnyTool {
   return defineTool<Input>({
     name: shellName,
+    category: 'exec',
     description: `执行 ${shellName} 命令。工作目录默认为工作空间根目录。`,
     parameters: {
       type: 'object',
@@ -36,43 +64,39 @@ function runCommand(file: string, args: (command: string) => string[], shellName
         const child = spawn(file, args(input.command), {
           cwd,
           windowsHide: true,
+          // POSIX 下独立进程组，便于整组终止；Windows 用 taskkill /T
+          detached: process.platform !== 'win32',
           env: { ...process.env, GIT_PAGER: 'cat', PAGER: 'cat' },
         })
 
-        let stdout = ''
-        let stderr = ''
+        const stdout = { text: '', truncated: false }
+        const stderr = { text: '', truncated: false }
         let settled = false
-        const timer = setTimeout(() => {
-          if (!settled) {
-            settled = true
-            child.kill()
-            resolveResult({ status: 'timeout', output: `命令超时（${timeout}ms）：${input.command}` })
-          }
-        }, timeout)
-
-        const onAbort = (): void => {
-          if (!settled) {
-            settled = true
-            clearTimeout(timer)
-            child.kill()
-            resolveResult({ status: 'timeout', output: '命令已取消' })
-          }
-        }
-        ctx.signal.addEventListener('abort', onAbort, { once: true })
-
-        child.stdout.on('data', (chunk: Buffer) => {
-          if (stdout.length < MAX_STREAM_BYTES) stdout += chunk.toString('utf8')
-        })
-        child.stderr.on('data', (chunk: Buffer) => {
-          if (stderr.length < MAX_STREAM_BYTES) stderr += chunk.toString('utf8')
-        })
-
-        child.on('error', (error: NodeJS.ErrnoException) => {
+        const finish = (result: ToolResult): void => {
           if (settled) return
           settled = true
           clearTimeout(timer)
+          ctx.signal.removeEventListener('abort', onAbort)
+          resolveResult(result)
+        }
+
+        const timer = setTimeout(() => {
+          terminateTree(child)
+          finish({ status: 'timeout', output: `命令超时（${timeout}ms）已终止：${input.command}` })
+        }, timeout)
+
+        const onAbort = (): void => {
+          terminateTree(child)
+          finish({ status: 'timeout', output: '命令已取消' })
+        }
+        ctx.signal.addEventListener('abort', onAbort, { once: true })
+
+        child.stdout?.on('data', (chunk: Buffer) => appendChunk(stdout, chunk))
+        child.stderr?.on('data', (chunk: Buffer) => appendChunk(stderr, chunk))
+
+        child.on('error', (error: NodeJS.ErrnoException) => {
           if (error.code === 'ENOENT') {
-            resolveResult({
+            finish({
               status: 'error',
               output:
                 shellName === 'bash'
@@ -80,20 +104,17 @@ function runCommand(file: string, args: (command: string) => string[], shellName
                   : '未找到 powershell 可执行文件。',
             })
           } else {
-            resolveResult({ status: 'error', output: `命令启动失败：${error.message}` })
+            finish({ status: 'error', output: `命令启动失败：${error.message}` })
           }
         })
 
         child.on('close', (code) => {
-          if (settled) return
-          settled = true
-          clearTimeout(timer)
-          ctx.signal.removeEventListener('abort', onAbort)
           const parts = [`$ ${input.command}`]
-          if (stdout.trim()) parts.push(stdout.trimEnd())
-          if (stderr.trim()) parts.push(`[stderr]\n${stderr.trimEnd()}`)
+          if (stdout.text.trim()) parts.push(stdout.text.trimEnd())
+          if (stderr.text.trim()) parts.push(`[stderr]\n${stderr.text.trimEnd()}`)
+          if (stdout.truncated || stderr.truncated) parts.push('[输出超过 1MB，已截断]')
           parts.push(`[exit ${code ?? -1}]`)
-          resolveResult({
+          finish({
             status: code === 0 ? 'ok' : 'error',
             output: parts.join('\n'),
             metadata: { exitCode: code ?? -1 },

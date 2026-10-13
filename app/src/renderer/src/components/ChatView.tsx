@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react'
 
+import type { ApprovalRequestView, GuideRequestView } from '@shared/events'
 import type { ModelOptionView, SessionItemView, SessionOptionsView, SessionUsageView } from '@shared/ipc'
 
+import ApprovalCard from './ApprovalCard'
 import Composer from './Composer'
+import GuideCard from './GuideCard'
 import MessageBubble from './MessageBubble'
 import ToolCard from './ToolCard'
 
@@ -15,9 +18,13 @@ interface Props {
   models: ModelOptionView[]
   options: SessionOptionsView | null
   stats: SessionUsageView | null
+  approval: ApprovalRequestView | null
+  guide: GuideRequestView | null
   onOptionsChange: (options: SessionOptionsView) => void
   onSend: (text: string) => void
   onStop: () => void
+  onDecideApproval: (choice: 'allow_once' | 'allow_session' | 'allow_always' | 'deny') => void
+  onAnswerGuide: (value: string) => void
 }
 
 export default function ChatView({
@@ -29,15 +36,19 @@ export default function ChatView({
   models,
   options,
   stats,
+  approval,
+  guide,
   onOptionsChange,
   onSend,
   onStop,
+  onDecideApproval,
+  onAnswerGuide,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [items, streamingText, streamingReasoning, error])
+  }, [items, streamingText, streamingReasoning, approval, guide, error])
 
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col">
@@ -62,6 +73,14 @@ export default function ChatView({
         {error && <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
         <div ref={bottomRef} />
       </div>
+
+      {(approval || guide) && (
+        <div className="px-6 pb-2">
+          {approval && <ApprovalCard request={approval} onDecide={onDecideApproval} />}
+          {guide && <GuideCard request={guide} onAnswer={onAnswerGuide} />}
+        </div>
+      )}
+
       <Composer
         running={running}
         models={models}

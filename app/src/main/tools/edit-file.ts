@@ -15,6 +15,7 @@ interface Input {
 
 export const editFileTool = defineTool<Input>({
   name: 'edit_file',
+  category: 'write',
   description: '在文件中精确替换一段文本。匹配必须唯一（否则请提供更多上下文或 replace_all=true）。',
   parameters: {
     type: 'object',

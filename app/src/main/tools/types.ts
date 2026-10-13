@@ -1,6 +1,8 @@
 /** 工具接口（design 5.4.1）。 */
 
 import type { ToolDefinitionForModel } from '../model/types'
+import type { InteractionBroker } from '../permissions/broker'
+import type { ToolCategory } from '../permissions/types'
 import type { ArtifactStore } from '../session/artifacts'
 import type { ToolStatus } from '../session/types'
 
@@ -10,6 +12,7 @@ export interface ToolContext {
   turnId: string
   signal: AbortSignal
   artifacts: ArtifactStore
+  interactions: InteractionBroker
 }
 
 export interface ToolResult {
@@ -21,6 +24,7 @@ export interface ToolResult {
 export interface ToolDef<I = Record<string, unknown>> {
   name: string
   description: string
+  category: ToolCategory
   parameters: Record<string, unknown>
   run(input: I, ctx: ToolContext): Promise<ToolResult>
 }
@@ -29,6 +33,7 @@ export interface ToolDef<I = Record<string, unknown>> {
 export interface AnyTool {
   name: string
   description: string
+  category: ToolCategory
   parameters: Record<string, unknown>
   run(input: unknown, ctx: ToolContext): Promise<ToolResult>
 }
@@ -37,6 +42,7 @@ export function defineTool<I>(tool: ToolDef<I>): AnyTool {
   return {
     name: tool.name,
     description: tool.description,
+    category: tool.category,
     parameters: tool.parameters,
     run: (input, ctx) => tool.run(input as I, ctx),
   }

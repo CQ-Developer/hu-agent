@@ -5,6 +5,8 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { runTurn } from '../src/main/agent/loop'
+import type { InteractionBroker } from '../src/main/permissions/broker'
+import type { PermissionEngine } from '../src/main/permissions/engine'
 import type { ModelGateway } from '../src/main/model/gateway'
 import type { StreamEvent } from '../src/main/model/types'
 import { ArtifactStore } from '../src/main/session/artifacts'
@@ -12,6 +14,9 @@ import { SessionStore } from '../src/main/session/store'
 import { createDefaultToolRegistry } from '../src/main/tools/registry'
 import { UsageLedger } from '../src/main/usage/ledger'
 import type { AgentEvent } from '../src/shared/events'
+
+const permissions = { check: async () => ({ action: 'allow' as const }) } as unknown as PermissionEngine
+const interactions = {} as unknown as InteractionBroker
 
 /** 脚本化假模型：按调用次数依次播放预设事件流。 */
 function fakeGateway(script: StreamEvent[][]): ModelGateway {
@@ -75,6 +80,8 @@ describe('Agent Loop 冒烟', () => {
         sessions,
         artifacts: new ArtifactStore(join(root, '.hu', 'sessions', 'artifacts')),
         ledger,
+        permissions,
+        interactions,
         emit: (event) => events.push(event),
         workspaceRoot: root,
       },
@@ -130,6 +137,8 @@ describe('Agent Loop 冒烟', () => {
         sessions,
         artifacts: new ArtifactStore(join(root, '.hu', 'sessions', 'artifacts')),
         ledger: new UsageLedger(join(root, '.hu', 'usage.jsonl')),
+        permissions,
+        interactions,
         emit: (event) => events.push(event),
         workspaceRoot: root,
       },

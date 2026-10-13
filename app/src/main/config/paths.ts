@@ -23,3 +23,8 @@ export function usageLedgerPath(): string {
 export function defaultWorkspaceDir(): string {
   return join(globalDir(), 'workspaces', 'default')
 }
+
+/** 多工作空间索引（design 5.6）：列表与当前激活项 */
+export function workspacesIndexFile(): string {
+  return join(globalDir(), 'workspaces.json')
+}
