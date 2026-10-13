@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -40,10 +41,8 @@ class S3ObjectStore:
         try:
             client.head_bucket(Bucket=self._bucket)
         except Exception:  # noqa: BLE001 —— 不存在或无权限时尝试创建
-            try:
+            with contextlib.suppress(Exception):
                 client.create_bucket(Bucket=self._bucket)
-            except Exception:  # noqa: BLE001 —— 并发创建/已存在则忽略
-                pass
         self._bucket_ready = True
 
     def put(self, key: str, data: bytes, content_type: str = "application/zip") -> None:
