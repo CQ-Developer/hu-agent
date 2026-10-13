@@ -58,6 +58,8 @@ async def client(database_url: str, monkeypatch: pytest.MonkeyPatch) -> AsyncIte
     async_url = database_url.replace("postgresql://", "postgresql+psycopg://")
     monkeypatch.setenv("HUAGENT_DATABASE_URL", async_url)
     monkeypatch.setenv("HUAGENT_SCHEMA_CHECK_ENABLED", "false")
+    monkeypatch.setenv("HUAGENT_LOGIN_IP_LIMIT", "1000")
+    monkeypatch.setenv("HUAGENT_LOGIN_FAIL_THRESHOLD", "1000")
     monkeypatch.setenv("HUAGENT_RATE_LIMIT_STRICT", "false")
 
     from huagent.common.config import get_settings

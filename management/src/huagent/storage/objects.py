@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -26,6 +27,9 @@ class ObjectStore(Protocol):
     def exists(self, key: str) -> bool: ...
     def delete(self, key: str) -> None: ...
     def presign_get(self, key: str, ttl_seconds: int = 300) -> str: ...
+    def presign_put(self, key: str, ttl_seconds: int = 3600, content_type: str = "application/zip") -> str: ...
+    def size(self, key: str) -> int | None: ...
+    def digest(self, key: str) -> tuple[str, int]: ...
 
 
 class S3ObjectStore:
@@ -71,12 +75,42 @@ class S3ObjectStore:
         )
         return url
 
+    def presign_put(self, key: str, ttl_seconds: int = 3600, content_type: str = "application/zip") -> str:
+        self._ensure_bucket()
+        url: str = get_s3_client().generate_presigned_url(
+            "put_object",
+            Params={"Bucket": self._bucket, "Key": key, "ContentType": content_type},
+            ExpiresIn=ttl_seconds,
+        )
+        return url
+
+    def size(self, key: str) -> int | None:
+        try:
+            response: Any = get_s3_client().head_object(Bucket=self._bucket, Key=key)
+            return int(response["ContentLength"])
+        except Exception:  # noqa: BLE001 —— 不存在或权限错误均视为未知
+            return None
+
+    def digest(self, key: str) -> tuple[str, int]:
+        """流式计算对象 sha256，避免一次性载入内存。"""
+        hasher = hashlib.sha256()
+        size = 0
+        body: Any = get_s3_client().get_object(Bucket=self._bucket, Key=key)["Body"]
+        while True:
+            chunk = body.read(1024 * 1024)
+            if not chunk:
+                break
+            hasher.update(chunk)
+            size += len(chunk)
+        return f"sha256:{hasher.hexdigest()}", size
+
 
 class MemoryObjectStore:
     """测试用：进程内字典，预签名返回固定前缀 URL。"""
 
     def __init__(self) -> None:
         self.objects: dict[str, bytes] = {}
+        self.puts: dict[str, str] = {}
 
     def put(self, key: str, data: bytes, content_type: str = "application/zip") -> None:
         self.objects[key] = data
@@ -94,6 +128,17 @@ class MemoryObjectStore:
 
     def presign_get(self, key: str, ttl_seconds: int = 300) -> str:
         return f"memory://{key}?ttl={ttl_seconds}"
+
+    def presign_put(self, key: str, ttl_seconds: int = 3600, content_type: str = "application/zip") -> str:
+        self.puts[key] = content_type
+        return f"memory-put://{key}?ttl={ttl_seconds}"
+
+    def size(self, key: str) -> int | None:
+        return len(self.objects[key]) if key in self.objects else None
+
+    def digest(self, key: str) -> tuple[str, int]:
+        data = self.get(key)
+        return f"sha256:{hashlib.sha256(data).hexdigest()}", len(data)
 
 
 _memory_store: MemoryObjectStore | None = None
