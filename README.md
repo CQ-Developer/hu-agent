@@ -23,7 +23,9 @@
   - [x] `db/ddl/V0001__init.sql` 初版（已在 PG18 验证：建库 / 幂等 / 种子 / 回滚）
   - [x] 服务端 Python 骨架（FastAPI + SQLAlchemy + worker + 测试）
   - [ ] 服务端依赖安装与 spike（`uv sync` + 实测，见 `management/README.md`）
-  - [ ] Electron 骨架
+  - [x] Electron 骨架（electron-vite + 类型化 IPC + electron-builder 配置）
+  - [ ] 客户端依赖安装与验证（`npm install` 后 `npm run dev` / `npm run dist`）
+  - [x] CI 流水线（management / app / management-ui）
   - [ ] 管理台骨架
 
 ## 环境要求
@@ -58,6 +60,13 @@ curl http://localhost:8080/api/v1/system/health
 ```
 
 > 本机端口：PostgreSQL `5432`、Redis `6379`、MinIO `9000/9001`、Keycloak `8081`、Mailpit `1025/8025`、服务端 `8080`。
+
+客户端：
+
+```bash
+cd app && npm install   # 首次安装（生成 package-lock.json，请提交）
+npm run dev             # 开窗验证
+```
 
 ## 常用脚本
 

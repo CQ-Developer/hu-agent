@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  management:
+    name: management (Python)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: management
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+          enable-cache: true
+      # 首次提交 uv.lock 后改为 uv sync --frozen，保证 CI 与本地一致
+      - run: uv sync
+      - run: uv run ruff check .
+      - run: uv run mypy src
+      - run: uv run pytest -q
+
+  app:
+    name: app (Electron)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+  management-ui:
+    name: management-ui
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('management-ui/package.json') != '' }}
+    defaults:
+      run:
+        working-directory: management-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: management-ui/package-lock.json
+      - run: npm ci
+      - run: npm run --if-present check
