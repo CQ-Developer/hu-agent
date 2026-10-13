@@ -35,6 +35,14 @@ const api: HuAgentApi = {
   usage: {
     stats: () => ipcRenderer.invoke('usage:stats'),
   },
+  skills: {
+    list: () => ipcRenderer.invoke('skills:list'),
+    setEnabled: (name, scope, enabled) => ipcRenderer.invoke('skills:set-enabled', name, scope, enabled),
+  },
+  permissions: {
+    rules: () => ipcRenderer.invoke('permissions:rules'),
+    audit: (limit?: number) => ipcRenderer.invoke('permissions:audit', limit),
+  },
   workspace: {
     list: () => ipcRenderer.invoke('workspace:list'),
     active: () => ipcRenderer.invoke('workspace:active'),

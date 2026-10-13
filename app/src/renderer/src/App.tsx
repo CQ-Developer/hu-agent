@@ -13,7 +13,7 @@ import type {
 } from '@shared/ipc'
 
 import ChatView from './components/ChatView'
-import SettingsDrawer from './components/SettingsDrawer'
+import SettingsDialog, { type SettingsSection } from './components/SettingsDialog'
 import Sidebar from './components/Sidebar'
 
 export default function App() {
@@ -24,7 +24,7 @@ export default function App() {
   const [streamingReasoning, setStreamingReasoning] = useState('')
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settings, setSettings] = useState<{ open: boolean; section: SettingsSection } | null>(null)
   const [usage, setUsage] = useState<UsageStatsView | null>(null)
   const [workspace, setWorkspace] = useState<WorkspaceInfoView | null>(null)
   const [workspaces, setWorkspaces] = useState<WorkspaceInfoView[]>([])
@@ -283,13 +283,13 @@ export default function App() {
       <Sidebar
         sessions={sessions}
         currentId={currentId}
-        usage={usage}
         workspace={workspace}
         workspaces={workspaces}
         searchHits={searchHits}
         onSelect={(id) => void openSession(id)}
         onNew={() => void createSession()}
-        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenProfile={() => setSettings({ open: true, section: 'profile' })}
+        onOpenSettings={() => setSettings({ open: true, section: 'models' })}
         onSwitchWorkspace={(id) => void switchWorkspace(id)}
         onPickWorkspace={() => void pickWorkspace()}
         onSearch={(query) => void search(query)}
@@ -312,9 +312,15 @@ export default function App() {
         onDecideApproval={decideApproval}
         onAnswerGuide={answerGuide}
       />
-      {settingsOpen && (
-        <SettingsDrawer
-          onClose={() => setSettingsOpen(false)}
+      {settings?.open && (
+        <SettingsDialog
+          initialSection={settings.section}
+          workspaces={workspaces}
+          activeWorkspace={workspace}
+          usage={usage}
+          onSwitchWorkspace={(id) => void switchWorkspace(id)}
+          onPickWorkspace={() => void pickWorkspace()}
+          onClose={() => setSettings(null)}
           onChanged={() => {
             void window.huAgent.usage.stats().then(setUsage)
             void window.huAgent.settings.get().then((view) => setModels(view.availableModels))

@@ -28,6 +28,8 @@ export interface LoopDeps {
   interactions: InteractionBroker
   emit: (event: AgentEvent) => void
   workspaceRoot: string
+  /** 已启用 Skill 的元数据（design 5.7.3，注入系统提示） */
+  skillSection?: string
   /** 历史压缩使用的快速模型（缺省用当前会话模型） */
   fastTarget?: string
   keepRecentMessages?: number
@@ -73,7 +75,7 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
 
     for (let step = 0; step < maxSteps; step += 1) {
       let modelMessages: LlmMessage[] = [
-        { role: 'system', content: buildSystemPrompt(deps.workspaceRoot) },
+        { role: 'system', content: buildSystemPrompt(deps.workspaceRoot, deps.skillSection) },
         ...messages,
       ]
 
@@ -94,7 +96,7 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
         messages = compacted
           ? await deps.sessions.loadContextMessages(sessionId)
           : messages.slice(-(deps.keepRecentMessages ?? 8) * 4)
-        modelMessages = [{ role: 'system', content: buildSystemPrompt(deps.workspaceRoot) }, ...messages]
+        modelMessages = [{ role: 'system', content: buildSystemPrompt(deps.workspaceRoot, deps.skillSection) }, ...messages]
         deps.emit({ type: 'session.compacted', sessionId, turnId })
       }
 

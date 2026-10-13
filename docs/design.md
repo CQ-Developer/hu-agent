@@ -734,27 +734,28 @@ min_app_version: 0.5.0
 ```
 ~/.hu-agent/                     # Global
   installed.json                 # { "skills": [{"name","version","source":"market","skillId","installedAt"}] }
-  skills/<name>/<version>/       # 各版本并存，可回滚
+  skills.json                    # Global 启用状态
+  skills/<name>/<version>/       # 各版本并存，可回滚；也支持无版本的 skills/<name>/SKILL.md
 <workspace>/.hu/                 # Workspace
-  skills/<name>/<version>/
-  skills.json                    # 启用状态
+  skills/<name>/<version>/       # 同上
+  skills.json                    # Workspace 启用状态（优先级高于 Global）
 ```
 
-启用状态文件：
+启用状态文件（每个作用域各一份，scope 由文件位置隐含）：
 
 ```json
 {
   "enabled": [
-    { "name": "pdf-report", "version": "1.2.0", "scope": "workspace" }
+    { "name": "pdf-report", "version": "1.2.0" }
   ]
 }
 ```
 
 优先级与冲突：
 
-- Workspace 同名 Skill 覆盖 Global（记录并提示）；
+- Workspace 同名 Skill 覆盖 Global（扫描时以工作空间为准）；
 - 同作用域内同名的多个版本：默认激活最高 semver，用户可固定版本（"使用该版本"）；
-- 未启用的 Skill 只参与市场列表，不进上下文。
+- 未启用的 Skill 只参与列表，不进上下文（不注入系统提示）。
 
 #### 5.7.3 加载与激活
 

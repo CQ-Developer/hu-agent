@@ -1,16 +1,16 @@
 import { useState } from 'react'
 
-import type { SessionMetaView, SessionSearchHitView, UsageStatsView, WorkspaceInfoView } from '@shared/ipc'
+import type { SessionMetaView, SessionSearchHitView, WorkspaceInfoView } from '@shared/ipc'
 
 interface Props {
   sessions: SessionMetaView[]
   currentId: string | null
-  usage: UsageStatsView | null
   workspace: WorkspaceInfoView | null
   workspaces: WorkspaceInfoView[]
   searchHits: SessionSearchHitView[]
   onSelect: (id: string) => void
   onNew: () => void
+  onOpenProfile: () => void
   onOpenSettings: () => void
   onSwitchWorkspace: (id: string) => void
   onPickWorkspace: () => void
@@ -21,12 +21,12 @@ interface Props {
 export default function Sidebar({
   sessions,
   currentId,
-  usage,
   workspace,
   workspaces,
   searchHits,
   onSelect,
   onNew,
+  onOpenProfile,
   onOpenSettings,
   onSwitchWorkspace,
   onPickWorkspace,
@@ -117,24 +117,23 @@ export default function Sidebar({
         )}
       </div>
 
-      <div className="border-t border-neutral-200 px-4 py-3 text-[11px] text-neutral-500">
-        {usage && (
-          <div className="mb-2">
-            累计 {usage.calls} 次调用 / {usage.inputTokens + usage.outputTokens} tokens
-            {usage.errors > 0 ? ` / ${usage.errors} 次失败` : ''}
-          </div>
-        )}
-        {workspace && (
-          <div className="mb-2 truncate" title={workspace.root}>
-            工作空间：{workspace.root}
-          </div>
-        )}
+      <div className="border-t border-neutral-200 p-2">
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-100"
+        >
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-neutral-200 text-xs">👤</span>
+          <span className="flex-1">个人中心</span>
+          <span className="text-[10px] text-neutral-400">未登录</span>
+        </button>
         <button
           type="button"
           onClick={onOpenSettings}
-          className="rounded-md border border-neutral-300 px-2.5 py-1 text-xs text-neutral-700 hover:bg-neutral-100"
+          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-100"
         >
-          模型设置
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-neutral-100 text-xs">⚙️</span>
+          <span className="flex-1">本地配置</span>
         </button>
       </div>
     </aside>

@@ -1,7 +1,7 @@
 /** 权限决策审计（design 5.5.7）：追加写入 <workspace>/.hu/logs/audit.jsonl。 */
 
 import { createHash } from 'node:crypto'
-import { appendFile, mkdir } from 'node:fs/promises'
+import { appendFile, mkdir, readFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 export interface AuditEntry {
@@ -33,5 +33,24 @@ export class AuditLog {
     }
     await mkdir(dirname(this.file), { recursive: true })
     await appendFile(this.file, `${JSON.stringify(line)}\n`, 'utf8')
+  }
+}
+
+/** 读取最近 N 条审计记录（用于设置页展示）。 */
+export async function readAuditTail(file: string, limit = 50): Promise<AuditEntry[]> {
+  try {
+    const raw = await readFile(file, 'utf8')
+    const lines = raw.trim().split('\n').slice(-Math.max(1, limit))
+    const entries: AuditEntry[] = []
+    for (const line of lines) {
+      try {
+        entries.push(JSON.parse(line) as AuditEntry)
+      } catch {
+        // 跳过损坏行
+      }
+    }
+    return entries.reverse()
+  } catch {
+    return []
   }
 }

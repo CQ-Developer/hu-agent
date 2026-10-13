@@ -114,6 +114,31 @@ export interface WorkspaceInfoView {
   root: string
 }
 
+export interface SkillView {
+  name: string
+  description: string
+  version?: string
+  whenToUse?: string
+  requires?: { tools?: string[]; bins?: string[]; network?: boolean }
+  scope: 'global' | 'workspace'
+  path: string
+  enabled: boolean
+}
+
+export interface PolicyRuleView {
+  tools: string[]
+  paths?: string[]
+  action: 'allow' | 'ask' | 'deny'
+}
+
+export interface AuditEntryView {
+  ts: string
+  tool: string
+  summary: string
+  decision: string
+  scope: string
+}
+
 export interface SessionSearchHitView {
   sessionId: string
   title: string
@@ -148,6 +173,14 @@ export interface HuAgentApi {
   }
   usage: {
     stats(): Promise<UsageStatsView>
+  }
+  skills: {
+    list(): Promise<SkillView[]>
+    setEnabled(name: string, scope: 'global' | 'workspace', enabled: boolean): Promise<SkillView[]>
+  }
+  permissions: {
+    rules(): Promise<{ workspace: PolicyRuleView[]; global: PolicyRuleView[] }>
+    audit(limit?: number): Promise<AuditEntryView[]>
   }
   workspace: {
     list(): Promise<WorkspaceInfoView[]>

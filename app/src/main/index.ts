@@ -8,6 +8,7 @@ import { SecretStore } from './config/secrets'
 import { SettingsStore } from './config/settings-store'
 import { configFilePath, secretsFilePath, usageLedgerPath, workspacesIndexFile } from './config/paths'
 import { InteractionBroker } from './permissions/broker'
+import { SkillManager } from './skills/manager'
 import { createDefaultToolRegistry } from './tools/registry'
 import { UsageLedger } from './usage/ledger'
 import { WorkspaceManager } from './workspace'
@@ -72,6 +73,7 @@ async function bootstrap(): Promise<void> {
     tools: createDefaultToolRegistry(),
     ledger,
     interactions,
+    skills: new SkillManager(),
     grants: new Map(),
     sessionStores: new Map(),
     artifactStores: new Map(),

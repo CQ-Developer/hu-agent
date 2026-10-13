@@ -8,7 +8,7 @@ import { runTurn } from './agent/loop'
 import type { SecretStore } from './config/secrets'
 import type { SettingsStore } from './config/settings-store'
 import { configFilePath } from './config/paths'
-import { AuditLog } from './permissions/audit'
+import { AuditLog, readAuditTail } from './permissions/audit'
 import type { InteractionBroker } from './permissions/broker'
 import { PermissionEngine } from './permissions/engine'
 import type { ApprovalChoice } from './permissions/types'
@@ -16,6 +16,7 @@ import { ArtifactStore } from './session/artifacts'
 import { buildSessionItems } from './session/items'
 import { SessionStore } from './session/store'
 import { computeSessionUsage } from './session/stats'
+import type { SkillManager } from './skills/manager'
 import type { SessionOptionsView } from '../shared/ipc'
 import type { AgentEvent, ApprovalRequestView, GuideRequestView } from '../shared/events'
 import type { ToolRegistry } from './tools/registry'
@@ -31,6 +32,7 @@ export interface AppContext {
   tools: ToolRegistry
   ledger: UsageLedger
   interactions: InteractionBroker
+  skills: SkillManager
   /** sessionId -> 本会话授权 scope */
   grants: Map<string, Set<string>>
   sessionStores: Map<string, SessionStore>
@@ -190,6 +192,7 @@ export function registerIpc(context: AppContext): void {
           emit: broadcastEvent,
           workspaceRoot: ws.root,
           fastTarget: settings.defaults.fast ?? settings.defaults.primary,
+          skillSection: await context.skills.systemPromptSection(ws),
         },
         { sessionId, userText: text, signal: controller.signal },
       )
@@ -233,6 +236,34 @@ export function registerIpc(context: AppContext): void {
 
   // ---------- 其他 ----------
   ipcMain.handle('usage:stats', () => context.ledger.stats())
+
+  // ---------- Skill ----------
+  ipcMain.handle('skills:list', async () => {
+    const { ws } = await scoped(context)
+    return context.skills.list(ws)
+  })
+  ipcMain.handle(
+    'skills:set-enabled',
+    async (_event, name: string, scope: 'global' | 'workspace', enabled: boolean) => {
+      const { ws } = await scoped(context)
+      if (enabled) await context.skills.setEnabled(ws, name, scope)
+      else await context.skills.setDisabled(ws, name, scope)
+      return context.skills.list(ws)
+    },
+  )
+
+  // ---------- 权限策略与审计 ----------
+  ipcMain.handle('permissions:rules', async () => {
+    const { ws } = await scoped(context)
+    return {
+      workspace: await loadWorkspaceRules(ws.settingsFile),
+      global: await loadGlobalRules(configFilePath()),
+    }
+  })
+  ipcMain.handle('permissions:audit', async (_event, limit?: number) => {
+    const { ws } = await scoped(context)
+    return readAuditTail(ws.auditFile, limit ?? 50)
+  })
 }
 
 interface SaveProviderInputWire {
