@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react'
-
 import type { UsageStatsView, WorkspaceInfoView } from '@shared/ipc'
 
 interface Props {
@@ -9,12 +7,6 @@ interface Props {
 }
 
 export default function ProfileSection({ usage, workspaces, activeWorkspace }: Props) {
-  const [version, setVersion] = useState('-')
-
-  useEffect(() => {
-    void window.huAgent.getVersion().then(setVersion)
-  }, [])
-
   return (
     <div className="space-y-5">
       <section className="flex items-center gap-3 rounded-lg border border-neutral-200 p-4">
@@ -85,14 +77,6 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace }: P
             共 {workspaces.length} 个，当前：{activeWorkspace?.name ?? '-'}
           </div>
           {activeWorkspace && <div className="mt-1 truncate text-neutral-400">{activeWorkspace.root}</div>}
-        </div>
-      </section>
-
-      <section>
-        <h3 className="mb-2 text-xs font-semibold text-neutral-500">关于</h3>
-        <div className="rounded-lg border border-neutral-200 p-3 text-xs text-neutral-600">
-          <div>hu-agent 客户端 v{version}</div>
-          <div className="mt-1 text-neutral-400">设计文档见仓库 docs/design.md；执行计划见 docs/plan.md。</div>
         </div>
       </section>
     </div>

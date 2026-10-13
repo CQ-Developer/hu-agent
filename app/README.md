@@ -59,7 +59,7 @@ src/renderer/   # 渲染进程（React 界面）
 - [x] 会话全文搜索
 - [x] 历史压缩（summary 行 + 快速模型 + `session.compacted` 事件）
 - [x] 移除 Electron 默认应用菜单栏
-- [x] 设置中心（个人中心 + 本地配置分区）
+- [x] 界面导航：顶部配置 Tab + 左下角个人中心
 - [ ] macOS 平台实测
 
 ### 阶段 3：本地 Skill / MCP 机制（进行中）

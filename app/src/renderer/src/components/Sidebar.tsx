@@ -11,7 +11,6 @@ interface Props {
   onSelect: (id: string) => void
   onNew: () => void
   onOpenProfile: () => void
-  onOpenSettings: () => void
   onSwitchWorkspace: (id: string) => void
   onPickWorkspace: () => void
   onSearch: (query: string) => void
@@ -27,7 +26,6 @@ export default function Sidebar({
   onSelect,
   onNew,
   onOpenProfile,
-  onOpenSettings,
   onSwitchWorkspace,
   onPickWorkspace,
   onSearch,
@@ -126,14 +124,6 @@ export default function Sidebar({
           <span className="grid h-6 w-6 place-items-center rounded-full bg-neutral-200 text-xs">👤</span>
           <span className="flex-1">个人中心</span>
           <span className="text-[10px] text-neutral-400">未登录</span>
-        </button>
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-100"
-        >
-          <span className="grid h-6 w-6 place-items-center rounded-full bg-neutral-100 text-xs">⚙️</span>
-          <span className="flex-1">本地配置</span>
         </button>
       </div>
     </aside>

@@ -13,8 +13,15 @@ import type {
 } from '@shared/ipc'
 
 import ChatView from './components/ChatView'
-import SettingsDialog, { type SettingsSection } from './components/SettingsDialog'
+import ProfileDialog from './components/ProfileDialog'
 import Sidebar from './components/Sidebar'
+import TopTabs, { type AppTab } from './components/TopTabs'
+import AboutSection from './components/settings/AboutSection'
+import McpSection from './components/settings/McpSection'
+import ModelSection from './components/settings/ModelSection'
+import PermissionSection from './components/settings/PermissionSection'
+import SkillsSection from './components/settings/SkillsSection'
+import WorkspaceSection from './components/settings/WorkspaceSection'
 
 export default function App() {
   const [sessions, setSessions] = useState<SessionMetaView[]>([])
@@ -24,7 +31,8 @@ export default function App() {
   const [streamingReasoning, setStreamingReasoning] = useState('')
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [settings, setSettings] = useState<{ open: boolean; section: SettingsSection } | null>(null)
+  const [tab, setTab] = useState<AppTab>('chat')
+  const [profileOpen, setProfileOpen] = useState(false)
   const [usage, setUsage] = useState<UsageStatsView | null>(null)
   const [workspace, setWorkspace] = useState<WorkspaceInfoView | null>(null)
   const [workspaces, setWorkspaces] = useState<WorkspaceInfoView[]>([])
@@ -278,6 +286,13 @@ export default function App() {
     setSearchHits(await window.huAgent.sessions.search(query))
   }, [])
 
+  /** 配置变更后同步用量、可选模型与会话统计。 */
+  const refreshDerived = useCallback((): void => {
+    void window.huAgent.usage.stats().then(setUsage)
+    void window.huAgent.settings.get().then((view) => setModels(view.availableModels))
+    if (currentId) void window.huAgent.sessions.stats(currentId).then(setStats)
+  }, [currentId])
+
   return (
     <div className="flex h-screen w-screen bg-neutral-100 text-neutral-900">
       <Sidebar
@@ -288,44 +303,63 @@ export default function App() {
         searchHits={searchHits}
         onSelect={(id) => void openSession(id)}
         onNew={() => void createSession()}
-        onOpenProfile={() => setSettings({ open: true, section: 'profile' })}
-        onOpenSettings={() => setSettings({ open: true, section: 'models' })}
+        onOpenProfile={() => setProfileOpen(true)}
         onSwitchWorkspace={(id) => void switchWorkspace(id)}
         onPickWorkspace={() => void pickWorkspace()}
         onSearch={(query) => void search(query)}
         onOpenHit={(sessionId) => void openSession(sessionId)}
       />
-      <ChatView
-        items={items}
-        streamingText={streamingText}
-        streamingReasoning={streamingReasoning}
-        running={running}
-        error={error}
-        models={models}
-        options={options}
-        stats={stats}
-        approval={approval}
-        guide={guide}
-        onOptionsChange={(next) => void changeOptions(next)}
-        onSend={(text) => void send(text)}
-        onStop={stop}
-        onDecideApproval={decideApproval}
-        onAnswerGuide={answerGuide}
-      />
-      {settings?.open && (
-        <SettingsDialog
-          initialSection={settings.section}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <TopTabs active={tab} onChange={setTab} />
+
+        {/* 对话页始终挂载，仅隐藏：避免切换 tab 丢失流式状态 */}
+        <div className={tab === 'chat' ? 'flex min-h-0 min-w-0 flex-1 flex-col' : 'hidden'}>
+          <ChatView
+            items={items}
+            streamingText={streamingText}
+            streamingReasoning={streamingReasoning}
+            running={running}
+            error={error}
+            models={models}
+            options={options}
+            stats={stats}
+            approval={approval}
+            guide={guide}
+            onOptionsChange={(next) => void changeOptions(next)}
+            onSend={(text) => void send(text)}
+            onStop={stop}
+            onDecideApproval={decideApproval}
+            onAnswerGuide={answerGuide}
+          />
+        </div>
+
+        {tab !== 'chat' && (
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="mx-auto max-w-3xl">
+              {tab === 'models' && <ModelSection onChanged={refreshDerived} />}
+              {tab === 'skills' && <SkillsSection onChanged={refreshDerived} />}
+              {tab === 'mcp' && <McpSection />}
+              {tab === 'workspace' && (
+                <WorkspaceSection
+                  workspaces={workspaces}
+                  activeWorkspace={workspace}
+                  onSwitch={(id) => void switchWorkspace(id)}
+                  onPick={() => void pickWorkspace()}
+                />
+              )}
+              {tab === 'permissions' && <PermissionSection />}
+              {tab === 'about' && <AboutSection />}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {profileOpen && (
+        <ProfileDialog
+          usage={usage}
           workspaces={workspaces}
           activeWorkspace={workspace}
-          usage={usage}
-          onSwitchWorkspace={(id) => void switchWorkspace(id)}
-          onPickWorkspace={() => void pickWorkspace()}
-          onClose={() => setSettings(null)}
-          onChanged={() => {
-            void window.huAgent.usage.stats().then(setUsage)
-            void window.huAgent.settings.get().then((view) => setModels(view.availableModels))
-            if (currentId) void window.huAgent.sessions.stats(currentId).then(setStats)
-          }}
+          onClose={() => setProfileOpen(false)}
         />
       )}
     </div>
