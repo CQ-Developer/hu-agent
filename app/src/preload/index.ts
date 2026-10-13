@@ -53,6 +53,8 @@ const api: HuAgentApi = {
   cloud: {
     status: () => ipcRenderer.invoke('cloud:status'),
     login: (serverUrl, email, password) => ipcRenderer.invoke('cloud:login', serverUrl, email, password),
+    register: (serverUrl, email, displayName, password) =>
+      ipcRenderer.invoke('cloud:register', serverUrl, email, displayName, password),
     logout: (allDevices) => ipcRenderer.invoke('cloud:logout', allDevices),
     devices: () => ipcRenderer.invoke('cloud:devices'),
     revokeDevice: (deviceId) => ipcRenderer.invoke('cloud:revoke-device', deviceId),

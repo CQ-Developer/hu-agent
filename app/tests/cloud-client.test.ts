@@ -135,6 +135,28 @@ describe('CloudClient', () => {
     expect(config.serverUrl).toBe('http://127.0.0.1:8080')
   })
 
+  it('注册：先注册再自动登录', async () => {
+    fetchMock
+      .mockResolvedValueOnce(json({ id: 'u1', email: 'a@b.com', displayName: '用户' }, 201))
+      .mockResolvedValueOnce(
+        json({
+          accessToken: 'access-1',
+          refreshToken: 'refresh-1',
+          expiresIn: 900,
+          user: { id: 'u1', email: 'a@b.com', displayName: '用户', locale: 'zh-CN', isSystemAdmin: false },
+        }),
+      )
+
+    const user = await client.register('http://127.0.0.1:8080', 'a@b.com', '用户', 'password-123')
+    expect(user.id).toBe('u1')
+    const urls = fetchMock.mock.calls.map((call) => String((call as [string])[0]))
+    expect(urls).toEqual([
+      'http://127.0.0.1:8080/api/v1/auth/register',
+      'http://127.0.0.1:8080/api/v1/auth/login',
+    ])
+    expect(await client.isLoggedIn()).toBe(true)
+  })
+
   it('未登录时请求抛 UNAUTHENTICATED', async () => {
     await expect(client.me()).rejects.toMatchObject({ code: 'UNAUTHENTICATED' })
   })

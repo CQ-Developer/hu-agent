@@ -266,6 +266,7 @@ export interface HuAgentApi {
   cloud: {
     status(): Promise<CloudStatusView>
     login(serverUrl: string, email: string, password: string): Promise<CloudStatusView>
+    register(serverUrl: string, email: string, displayName: string, password: string): Promise<CloudStatusView>
     logout(allDevices?: boolean): Promise<CloudStatusView>
     devices(): Promise<CloudDeviceView[]>
     revokeDevice(deviceId: string): Promise<CloudDeviceView[]>

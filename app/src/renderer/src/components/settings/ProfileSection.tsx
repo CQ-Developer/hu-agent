@@ -12,7 +12,7 @@ interface Props {
 export default function ProfileSection({ usage, workspaces, activeWorkspace, onChanged }: Props) {
   const [status, setStatus] = useState<CloudStatusView | null>(null)
   const [devices, setDevices] = useState<CloudDeviceView[]>([])
-  const [form, setForm] = useState({ serverUrl: 'http://127.0.0.1:8080', email: '', password: '' })
+  const [form, setForm] = useState({ serverUrl: 'http://127.0.0.1:8080', email: '', password: '', displayName: '' })
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -52,6 +52,18 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
   const login = (): Promise<void> =>
     run(async () => {
       setStatus(await window.huAgent.cloud.login(form.serverUrl, form.email, form.password))
+      setForm((prev) => ({ ...prev, password: '' }))
+    })
+
+  const register = (): Promise<void> =>
+    run(async () => {
+      if (!form.displayName.trim()) {
+        setMessage('注册需要填写昵称')
+        return
+      }
+      setStatus(
+        await window.huAgent.cloud.register(form.serverUrl, form.email, form.displayName.trim(), form.password),
+      )
       setForm((prev) => ({ ...prev, password: '' }))
     })
 
@@ -134,15 +146,21 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
                 />
                 <input
                   className="flex-1 rounded border border-neutral-300 px-2 py-1.5 text-sm"
-                  type="password"
-                  placeholder="密码"
-                  value={form.password}
-                  onChange={(event) => setForm({ ...form, password: event.target.value })}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') void login()
-                  }}
+                  placeholder="昵称（注册时用）"
+                  value={form.displayName}
+                  onChange={(event) => setForm({ ...form, displayName: event.target.value })}
                 />
               </div>
+              <input
+                className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
+                type="password"
+                placeholder="密码（至少 10 位，不能是常见弱口令）"
+                value={form.password}
+                onChange={(event) => setForm({ ...form, password: event.target.value })}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void login()
+                }}
+              />
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -151,6 +169,14 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
                   className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-40"
                 >
                   {busy ? '登录中…' : '登录'}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void register()}
+                  className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 disabled:opacity-40"
+                >
+                  注册并登录
                 </button>
                 <span className="text-[11px] text-neutral-400">
                   设备指纹 {status?.deviceId.slice(0, 8) ?? '-'}…（首启动生成，登录时绑定）

@@ -75,8 +75,7 @@ export class CloudClient {
     return this.store.load()
   }
 
-  async login(serverUrl: string, email: string, password: string): Promise<CloudUser> {
-    const base = normalizeServerUrl(serverUrl)
+  async login(serverUrl: string, email: string, password: string): Promise<CloudUser> {    const base = normalizeServerUrl(serverUrl)
     if (!base) throw new CloudError('VALIDATION_FAILED', '请填写服务器地址', 0)
     const config = await this.store.load()
     const response = await this.fetchJson(`${base}/api/v1/auth/login`, {
@@ -106,6 +105,18 @@ export class CloudClient {
       locale: user.locale,
     })
     return user
+  }
+
+  /** 邮箱注册（服务端可通过配置关闭，此时返回 FORBIDDEN）。 */
+  async register(serverUrl: string, email: string, displayName: string, password: string): Promise<CloudUser> {
+    const base = normalizeServerUrl(serverUrl)
+    if (!base) throw new CloudError('VALIDATION_FAILED', '请填写服务器地址', 0)
+    await this.fetchJson(`${base}/api/v1/auth/register`, {
+      method: 'POST',
+      body: { email, password, displayName },
+      timeoutMs: 15_000,
+    })
+    return this.login(base, email, password)
   }
 
   async logout(allDevices = false): Promise<void> {

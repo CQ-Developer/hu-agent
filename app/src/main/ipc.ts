@@ -362,6 +362,15 @@ export function registerIpc(context: AppContext): void {
     await context.reporter.flush(ws, { force: true }).catch(() => undefined)
     return buildCloudStatus(context)
   })
+  ipcMain.handle(
+    'cloud:register',
+    async (_event, serverUrl: string, email: string, displayName: string, password: string) => {
+      await context.cloud.register(serverUrl, email, displayName, password)
+      const { ws } = await scoped(context)
+      await context.reporter.flush(ws, { force: true }).catch(() => undefined)
+      return buildCloudStatus(context)
+    },
+  )
   ipcMain.handle('cloud:logout', async (_event, allDevices: boolean) => {
     await context.cloud.logout(Boolean(allDevices))
     return buildCloudStatus(context)
