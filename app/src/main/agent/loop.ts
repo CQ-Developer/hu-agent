@@ -6,7 +6,7 @@ import type { LlmMessage, StopReason, TokenUsage, ToolCall } from '../model/type
 import type { ArtifactStore } from '../session/artifacts'
 import type { SessionStore } from '../session/store'
 import { ulid } from '../session/ulid'
-import type { ToolStatus } from '../session/types'
+import type { MessagePart, ToolStatus } from '../session/types'
 import type { UsageLedger } from '../usage/ledger'
 import { OUTPUT_LIMIT, truncateMiddle } from '../tools/truncate'
 import { ToolInputError } from '../tools/path-guard'
@@ -70,6 +70,7 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
       ]
 
       let assistantText = ''
+      let reasoningText = ''
       const toolCalls: ToolCall[] = []
       let usage: TokenUsage | undefined
       let modelStop: StopReason = 'stop'
@@ -86,6 +87,7 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
             assistantText += event.text
             deps.emit({ type: 'assistant.delta', sessionId, turnId, text: event.text })
           } else if (event.type === 'reasoning_delta') {
+            reasoningText += event.text
             deps.emit({ type: 'reasoning.delta', sessionId, turnId, text: event.text })
           } else if (event.type === 'tool_call') {
             toolCalls.push(event.call)
@@ -152,11 +154,14 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
         content: assistantText,
         toolCalls: toolCalls.length ? toolCalls : undefined,
       })
+      const parts: MessagePart[] = []
+      if (reasoningText) parts.push({ type: 'reasoning', text: reasoningText })
+      parts.push({ type: 'text', text: assistantText })
       await deps.sessions.append(sessionId, {
         type: 'message',
         id: ulid(),
         role: 'assistant',
-        parts: [{ type: 'text', text: assistantText }],
+        parts,
         createdAt: now(),
       })
       await deps.sessions.touch(sessionId, 1)

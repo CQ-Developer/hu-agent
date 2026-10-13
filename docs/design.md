@@ -327,6 +327,7 @@ flowchart TB
 type Role = 'system' | 'user' | 'assistant' | 'tool'
 type Part =
   | { type: 'text'; text: string }
+  | { type: 'reasoning'; text: string }                        // 思考内容：仅存档展示，不回传模型
   | { type: 'image'; mimeType: string; dataRef: string }   // 本地文件引用，不内联进 JSONL
   | { type: 'tool_use'; id: string; name: string; input: unknown }
   | { type: 'tool_result'; toolUseId: string; status: 'ok' | 'error' | 'denied' | 'timeout'; output: string }
@@ -420,6 +421,7 @@ flowchart TB
   - **模型**：跨供应商的 `provider/model` 列表，默认取 `defaults.primary`；
   - **思考强度**：关闭 / 低 / 中 / 高；仅当模型声明 `capabilities.reasoningEffort` 时可选，否则置灰并强制关闭。
 - 同一位置实时显示本会话累计：**输入 tokens、输出 tokens、缓存命中率、上下文剩余百分比**。
+- **思考内容展示**：`reasoning.delta` 渲染为可折叠的"思考过程"块（流式时默认展开，历史消息默认折叠）；思考内容随消息落盘（`parts[].type = 'reasoning'`），但构建模型上下文时仅取 text 部分，不回传模型。
 - 缓存命中率 = `cacheRead / input`（input 含缓存部分）；
 - 上下文剩余 = 1 −（最近一次调用的输入 + 输出）/ 模型 `contextWindow`，下限 0；turn 结束后由主进程重新统计校准，避免流式事件误差累积。
 
@@ -454,7 +456,7 @@ flowchart TB
 | `type` | 关键字段 | 说明 |
 | --- | --- | --- |
 | `meta` | `v, sessionId, workspaceId, createdAt, appVersion` | 文件首行，版本化 |
-| `message` | `id, role, parts[], createdAt` | 用户/助手消息 |
+| `message` | `id, role, parts[], createdAt` | 用户/助手消息；assistant 的 parts 可含 `reasoning`（思考内容，仅存档展示，不回传模型） |
 | `tool_call` | `id, name, args, turnId` | 工具调用 |
 | `tool_result` | `id, status, output, durationMs, truncated, artifactPath?` | 工具结果 |
 | `approval` | `id, toolCallId, decision(allow_once\|allow_session\|allow_always\|deny), scope, actor` | 授权决策留痕 |

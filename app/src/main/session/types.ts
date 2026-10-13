@@ -17,11 +17,19 @@ export interface TextPart {
   text: string
 }
 
+/** 思考内容（design 5.3.2）：仅存档展示，不回传给模型 */
+export interface ReasoningPart {
+  type: 'reasoning'
+  text: string
+}
+
+export type MessagePart = TextPart | ReasoningPart
+
 export interface MessageLine {
   type: 'message'
   id: string
   role: 'user' | 'assistant' | 'system'
-  parts: TextPart[]
+  parts: MessagePart[]
   createdAt: string
 }
 

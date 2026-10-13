@@ -99,4 +99,22 @@ describe('SessionStore', () => {
 
     expect(await store.loadOptions(meta.id)).toEqual({ model: 'b/y', reasoningEffort: 'low' })
   })
+
+  it('loadMessages 不把 reasoning 部分回传给模型', async () => {
+    const meta = await store.create()
+    await store.append(meta.id, {
+      type: 'message',
+      id: 'a1',
+      role: 'assistant',
+      parts: [
+        { type: 'reasoning', text: '内部思考' },
+        { type: 'text', text: '正式回答' },
+      ],
+      createdAt: now(),
+    })
+
+    const messages = await store.loadMessages(meta.id)
+    expect(messages).toHaveLength(1)
+    expect(messages[0]).toMatchObject({ role: 'assistant', content: '正式回答' })
+  })
 })

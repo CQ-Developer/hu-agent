@@ -70,6 +70,15 @@ describe.skipIf(!apiKey)('DeepSeek 真实模型集成', () => {
       expect(text.length).toBeGreaterThan(0)
       expect(events.at(-1)?.type).toBe('done')
 
+      // deepseek-flash 会输出思考内容（reasoning_content）；换用无思考的模型时可设 DEEPSEEK_EXPECT_REASONING=0
+      const reasoning = events
+        .filter((event) => event.type === 'reasoning_delta')
+        .map((event) => (event.type === 'reasoning_delta' ? event.text : ''))
+        .join('')
+      if (process.env.DEEPSEEK_EXPECT_REASONING !== '0') {
+        expect(reasoning.length).toBeGreaterThan(0)
+      }
+
       const usage = events.find((event) => event.type === 'usage')
       expect(usage && usage.type === 'usage' ? usage.usage.inputTokens : 0).toBeGreaterThan(0)
     },
@@ -109,9 +118,10 @@ describe.skipIf(!apiKey)('DeepSeek 真实模型集成', () => {
         const { lines } = await sessions.readLines(meta.id)
         const toolCallLine = lines.find((line) => line.type === 'tool_call')
         const toolResultLine = lines.find((line) => line.type === 'tool_result')
-        expect(toolCallLine && toolCallLine.type === 'tool_call' ? toolCallLine.name : undefined, `tool_call=${JSON.stringify(toolCallLine)}`).toBe(
-          'write_file',
-        )
+        const toolName = toolCallLine && toolCallLine.type === 'tool_call' ? toolCallLine.name : undefined
+        // 真实模型不保证总选同一个工具（write_file 或 bash 都能达成目标）；
+        // 确定性覆盖由单测 agent-loop.test.ts 承担。
+        expect(['write_file', 'bash'], `tool_call=${JSON.stringify(toolCallLine)}`).toContain(toolName)
         expect(
           toolResultLine && toolResultLine.type === 'tool_result' ? toolResultLine.status : undefined,
           `tool_result=${JSON.stringify(toolResultLine)}`,

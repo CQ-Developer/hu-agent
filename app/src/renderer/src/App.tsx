@@ -20,6 +20,7 @@ export default function App() {
   const [currentId, setCurrentId] = useState<string | null>(null)
   const [items, setItems] = useState<SessionItemView[]>([])
   const [streamingText, setStreamingText] = useState('')
+  const [streamingReasoning, setStreamingReasoning] = useState('')
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -29,6 +30,7 @@ export default function App() {
   const [options, setOptions] = useState<SessionOptionsView | null>(null)
   const [stats, setStats] = useState<SessionUsageView | null>(null)
   const streamingRef = useRef('')
+  const reasoningRef = useRef('')
 
   const refreshSessions = useCallback(async (): Promise<SessionMetaView[]> => {
     const list = await window.huAgent.sessions.list()
@@ -39,7 +41,9 @@ export default function App() {
   const openSession = useCallback(async (sessionId: string): Promise<void> => {
     setCurrentId(sessionId)
     streamingRef.current = ''
+    reasoningRef.current = ''
     setStreamingText('')
+    setStreamingReasoning('')
     setError(null)
     setItems(await window.huAgent.sessions.items(sessionId))
     setOptions(await window.huAgent.sessions.options(sessionId))
@@ -77,27 +81,35 @@ export default function App() {
           setRunning(true)
           setError(null)
           streamingRef.current = ''
+          reasoningRef.current = ''
           setStreamingText('')
+          setStreamingReasoning('')
           break
         case 'assistant.delta':
           streamingRef.current += event.text
           setStreamingText(streamingRef.current)
           break
         case 'reasoning.delta':
+          reasoningRef.current += event.text
+          setStreamingReasoning(reasoningRef.current)
           break
         case 'tool.call': {
           const text = streamingRef.current
+          const reasoning = reasoningRef.current
           streamingRef.current = ''
+          reasoningRef.current = ''
           setStreamingText('')
+          setStreamingReasoning('')
           setItems((prev) => [
             ...prev,
-            ...(text
+            ...(text || reasoning
               ? [
                   {
                     kind: 'message' as const,
                     id: `stream_${event.turnId}`,
                     role: 'assistant' as const,
                     text,
+                    reasoning: reasoning || undefined,
                     createdAt: new Date().toISOString(),
                   },
                 ]
@@ -133,10 +145,13 @@ export default function App() {
           break
         case 'turn.end': {
           const text = streamingRef.current
+          const reasoning = reasoningRef.current
           streamingRef.current = ''
+          reasoningRef.current = ''
           setStreamingText('')
+          setStreamingReasoning('')
           setRunning(false)
-          if (text) {
+          if (text || reasoning) {
             setItems((prev) => [
               ...prev,
               {
@@ -144,6 +159,7 @@ export default function App() {
                 id: `stream_end_${event.turnId}`,
                 role: 'assistant',
                 text,
+                reasoning: reasoning || undefined,
                 createdAt: new Date().toISOString(),
               },
             ])
@@ -210,6 +226,7 @@ export default function App() {
       <ChatView
         items={items}
         streamingText={streamingText}
+        streamingReasoning={streamingReasoning}
         running={running}
         error={error}
         models={models}

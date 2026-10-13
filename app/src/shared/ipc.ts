@@ -74,7 +74,15 @@ export interface SessionUsageView {
 }
 
 export type SessionItemView =
-  | { kind: 'message'; id: string; role: 'user' | 'assistant' | 'system'; text: string; createdAt: string }
+  | {
+      kind: 'message'
+      id: string
+      role: 'user' | 'assistant' | 'system'
+      text: string
+      /** 思考内容（design 5.2.6）：仅展示，不回传模型 */
+      reasoning?: string
+      createdAt: string
+    }
   | {
       kind: 'tool'
       id: string

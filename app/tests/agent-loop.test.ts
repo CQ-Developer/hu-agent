@@ -48,6 +48,7 @@ describe('Agent Loop 冒烟', () => {
   it('模型调用工具后继续，直至无工具调用并写入会话与账本', async () => {
     const gateway = fakeGateway([
       [
+        { type: 'reasoning_delta', text: '先想一下：' },
         { type: 'text_delta', text: '我来写入文件。' },
         {
           type: 'tool_call',
@@ -90,6 +91,11 @@ describe('Agent Loop 冒烟', () => {
     expect(types).toEqual(['meta', 'message', 'usage', 'message', 'tool_call', 'tool_result', 'usage', 'message'])
     const toolResult = lines.find((line) => line.type === 'tool_result')
     expect(toolResult && toolResult.type === 'tool_result' ? toolResult.status : undefined).toBe('ok')
+
+    // 思考内容作为独立的 reasoning 部分落盘（design 5.3.2）
+    const firstAssistant = lines.find((line) => line.type === 'message' && line.role === 'assistant')
+    const partTypes = firstAssistant?.type === 'message' ? firstAssistant.parts.map((part) => part.type) : []
+    expect(partTypes).toEqual(['reasoning', 'text'])
 
     // 事件流顺序
     expect(events[0]?.type).toBe('turn.start')

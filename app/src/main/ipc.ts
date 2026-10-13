@@ -9,9 +9,9 @@ import type { SecretStore } from './config/secrets'
 import type { SettingsStore } from './config/settings-store'
 import type { ArtifactStore } from './session/artifacts'
 import type { SessionStore } from './session/store'
+import { buildSessionItems } from './session/items'
 import { computeSessionUsage } from './session/stats'
-import type { SessionItemView, SessionOptionsView } from '../shared/ipc'
-import type { SessionLine } from './session/types'
+import type { SessionOptionsView } from '../shared/ipc'
 import type { ToolRegistry } from './tools/registry'
 import type { UsageLedger } from './usage/ledger'
 import type { WorkspacePaths } from './workspace'
@@ -166,43 +166,4 @@ async function buildSettingsView(context: AppContext): Promise<import('../shared
     secretsConfigured,
     availableModels,
   }
-}
-
-export function buildSessionItems(lines: SessionLine[]): SessionItemView[] {
-  const items: SessionItemView[] = []
-  const toolIndex = new Map<string, number>()
-
-  for (const line of lines) {
-    if (line.type === 'message') {
-      items.push({
-        kind: 'message',
-        id: line.id,
-        role: line.role,
-        text: line.parts.map((part) => part.text).join(''),
-        createdAt: line.createdAt,
-      })
-    } else if (line.type === 'tool_call') {
-      toolIndex.set(line.id, items.length)
-      items.push({
-        kind: 'tool',
-        id: line.id,
-        name: line.name,
-        input: line.args,
-        createdAt: line.createdAt,
-      })
-    } else if (line.type === 'tool_result') {
-      const index = toolIndex.get(line.id)
-      if (index !== undefined) {
-        const item = items[index]
-        if (item.kind === 'tool') {
-          item.status = line.status
-          item.output = line.output
-          item.durationMs = line.durationMs
-          item.truncated = line.truncated
-          item.artifactPath = line.artifactPath
-        }
-      }
-    }
-  }
-  return items
 }

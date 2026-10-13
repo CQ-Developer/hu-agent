@@ -77,7 +77,11 @@ export class SessionStore {
 
     for (const line of lines) {
       if (line.type === 'message') {
-        const content = line.parts.map((part) => part.text).join('')
+        // 思考内容（reasoning 部分）不回传模型，只取 text 部分（design 5.3.2）
+        const content = line.parts
+          .filter((part) => part.type === 'text')
+          .map((part) => part.text)
+          .join('')
         if (line.role === 'assistant') {
           messages.push({ role: 'assistant', content })
           currentAssistant = messages.length - 1
@@ -195,7 +199,10 @@ export class SessionStore {
 }
 
 export function textOf(message: MessageLine): string {
-  return message.parts.map((part) => part.text).join('')
+  return message.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text)
+    .join('')
 }
 
 export function isToolResultOk(line: SessionLine): line is ToolResultLine {

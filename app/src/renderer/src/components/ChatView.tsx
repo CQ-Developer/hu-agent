@@ -9,6 +9,7 @@ import ToolCard from './ToolCard'
 interface Props {
   items: SessionItemView[]
   streamingText: string
+  streamingReasoning: string
   running: boolean
   error: string | null
   models: ModelOptionView[]
@@ -22,6 +23,7 @@ interface Props {
 export default function ChatView({
   items,
   streamingText,
+  streamingReasoning,
   running,
   error,
   models,
@@ -35,27 +37,28 @@ export default function ChatView({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [items, streamingText, error])
+  }, [items, streamingText, streamingReasoning, error])
 
   return (
     <main className="flex h-full min-w-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
-        {items.length === 0 && !streamingText && (
+        {items.length === 0 && !streamingText && !streamingReasoning && (
           <div className="mt-16 text-center text-sm text-neutral-400">
             新建会话后，描述一个任务试试：比如「读取 package.json 并总结项目脚本」
           </div>
         )}
         {items.map((item) =>
           item.kind === 'message' ? (
-            item.text ? (
-              <MessageBubble key={item.id} role={item.role} text={item.text} />
+            item.text || item.reasoning ? (
+              <MessageBubble key={item.id} role={item.role} text={item.text} reasoning={item.reasoning} />
             ) : null
           ) : (
             <ToolCard key={item.id} item={item} />
           ),
         )}
-        {streamingText && <MessageBubble role="assistant" text={streamingText} />}
-        {running && !streamingText && <div className="text-xs text-neutral-400">思考中…</div>}
+        {(running || streamingText || streamingReasoning) && (
+          <MessageBubble role="assistant" text={streamingText} reasoning={streamingReasoning} streaming />
+        )}
         {error && <div className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
         <div ref={bottomRef} />
       </div>
