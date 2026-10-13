@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 
-import { BrowserWindow, app, ipcMain, shell } from 'electron'
+import { BrowserWindow, app, shell } from 'electron'
 
 import { ModelGateway } from './model/gateway'
 import { registerIpc, type AppContext } from './ipc'
@@ -69,8 +69,7 @@ async function bootstrap(): Promise<void> {
   registerIpc(context)
 }
 
-// 类型化 IPC 示例：渲染进程通过 window.huAgent.getVersion() 调用
-ipcMain.handle('app:get-version', () => app.getVersion())
+// 所有 IPC 在 bootstrap() -> registerIpc() 中统一注册（见 main/ipc.ts）
 
 void app.whenReady().then(async () => {
   await bootstrap()
