@@ -139,6 +139,47 @@ export interface AuditEntryView {
   scope: string
 }
 
+export interface McpServerView {
+  name: string
+  transport: 'stdio' | 'http' | 'sse'
+  summary: string
+  command?: string
+  args: string[]
+  url?: string
+  env: Record<string, string>
+  headers: Record<string, string>
+  scope: 'global' | 'workspace' | 'both'
+  enabledGlobal: boolean
+  enabledWorkspace: boolean
+  enabled: boolean
+  approval: 'ask' | 'session' | 'always'
+  status: 'disabled' | 'idle' | 'connecting' | 'connected' | 'error'
+  toolCount: number
+  lastError?: string
+  envKeys: string[]
+  headerKeys: string[]
+  tools: { name: string; description: string }[]
+}
+
+export interface McpSaveInput {
+  name: string
+  transport: 'stdio' | 'http' | 'sse'
+  command?: string
+  args?: string[]
+  url?: string
+  env?: Record<string, string>
+  headers?: Record<string, string>
+  approval?: 'ask' | 'session' | 'always'
+  scope: 'global' | 'workspace'
+}
+
+export interface McpTestResultView {
+  ok: boolean
+  toolCount: number
+  error?: string
+  tools: { name: string; description: string }[]
+}
+
 export interface SessionSearchHitView {
   sessionId: string
   title: string
@@ -181,6 +222,13 @@ export interface HuAgentApi {
   permissions: {
     rules(): Promise<{ workspace: PolicyRuleView[]; global: PolicyRuleView[] }>
     audit(limit?: number): Promise<AuditEntryView[]>
+  }
+  mcp: {
+    list(): Promise<McpServerView[]>
+    save(input: McpSaveInput): Promise<McpServerView[]>
+    remove(name: string, scope: 'global' | 'workspace'): Promise<McpServerView[]>
+    setEnabled(name: string, scope: 'global' | 'workspace', enabled: boolean): Promise<McpServerView[]>
+    test(name: string): Promise<McpTestResultView>
   }
   workspace: {
     list(): Promise<WorkspaceInfoView[]>

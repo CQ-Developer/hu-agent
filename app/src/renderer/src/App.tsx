@@ -338,7 +338,7 @@ export default function App() {
             <div className="mx-auto max-w-3xl">
               {tab === 'models' && <ModelSection onChanged={refreshDerived} />}
               {tab === 'skills' && <SkillsSection onChanged={refreshDerived} />}
-              {tab === 'mcp' && <McpSection />}
+              {tab === 'mcp' && <McpSection onChanged={refreshDerived} />}
               {tab === 'workspace' && (
                 <WorkspaceSection
                   workspaces={workspaces}

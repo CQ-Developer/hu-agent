@@ -13,7 +13,7 @@ import type { PermissionEngine } from '../permissions/engine'
 import { OUTPUT_LIMIT, truncateMiddle } from '../tools/truncate'
 import { ToolInputError } from '../tools/path-guard'
 import type { ToolRegistry } from '../tools/registry'
-import type { ToolContext } from '../tools/types'
+import { toModelTool, type AnyTool, type ToolContext } from '../tools/types'
 import type { AgentEvent, TurnStopReason } from '../../shared/events'
 import { COMPACT_THRESHOLD, compactHistory, estimateTokens } from './compaction'
 import { buildSystemPrompt } from './prompt'
@@ -21,6 +21,8 @@ import { buildSystemPrompt } from './prompt'
 export interface LoopDeps {
   gateway: ModelGateway
   tools: ToolRegistry
+  /** 动态工具（如 MCP），每轮随工作空间连接状态注入 */
+  extraTools?: AnyTool[]
   sessions: SessionStore
   artifacts: ArtifactStore
   ledger: UsageLedger
@@ -112,7 +114,7 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
         for await (const event of deps.gateway.chat(
           { target: sessionOptions.model, reasoningEffort: sessionOptions.reasoningEffort },
           modelMessages,
-          deps.tools.toModelTools(),
+          deps.tools.toModelTools().concat((deps.extraTools ?? []).map(toModelTool)),
           signal,
         )) {
           if (event.type === 'text_delta') {
@@ -286,7 +288,7 @@ async function executeTool(
   scope: { sessionId: string; turnId: string; signal: AbortSignal },
 ): Promise<ToolExecution> {
   const startedAt = Date.now()
-  const tool = deps.tools.get(call.name)
+  const tool = deps.tools.get(call.name) ?? deps.extraTools?.find((item) => item.name === call.name)
   if (!tool) {
     return { status: 'error', output: `未知工具：${call.name}`, durationMs: 0, truncated: false }
   }

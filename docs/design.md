@@ -795,7 +795,7 @@ min_app_version: 0.5.0
 
 #### 5.8.1 配置格式
 
-Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Workspace 同名 server 覆盖 Global，可按作用域单独启用/禁用：
+Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Workspace 同名 server **按字段覆盖** Global（只写 `enabled` 字段即可单独启停，`enabled.workspaces` 取并集）：
 
 ```json
 {
@@ -825,9 +825,16 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
 #### 5.8.2 连接与工具发现
 
 - 会话启动或用户首次触发时建立连接：stdio 拉起子进程；SSE/HTTP 直连；连接失败则该 server 工具不可用并在 UI 告警。
-- 握手后 `tools/list` 获取工具清单，统一命名 `mcp__<server>__<tool>`，注入模型工具定义；工具描述过长时截断到 1000 字符。
+- 握手后 `tools/list` 获取工具清单（支持 cursor 分页，最多 20 页），统一命名 `mcp__<server>__<tool>`，注入模型工具定义；工具描述过长时截断到 1000 字符。
 - MCP 工具调用同样经过权限引擎（默认策略：每个工具本会话首次调用询问 + 结果脱敏提示）。
-- 生命周期：空闲 10 分钟断开 stdio 子进程；崩溃自动重连最多 3 次并退避；会话结束统一回收。
+- 生命周期：空闲 10 分钟断开 stdio 子进程；崩溃自动重连最多 3 次并退避（500ms/1s/2s）；会话结束统一回收。
+
+实现要点（阶段 3-03/3-04）：
+
+- 传输为换行分隔 JSON-RPC 2.0；`initialize` 握手超时 60s（`npx -y` 首次拉包可能较慢），`tools/call` 超时 120s，超时错误带上 stderr 末尾便于定位。
+- Windows 下 `npx`/`uvx` 等为 `.cmd` 包装，子进程经 `cmd.exe /d /s /c` 拉起；参数做 Windows 引号转义；回收时终止整个进程树（`taskkill /T`）。
+- `secret://keychain/<service>/<account>` 在连接前解析为真实值；UI 输入的明文密钥写入密钥库后配置里只留引用。
+- 应用启动与工作空间切换时后台预热连接；MCP 页面展示每个 server 的状态、工具数、最后错误与「测试连接」结果。
 
 #### 5.8.3 市场交互
 

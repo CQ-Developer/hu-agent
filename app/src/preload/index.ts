@@ -43,6 +43,13 @@ const api: HuAgentApi = {
     rules: () => ipcRenderer.invoke('permissions:rules'),
     audit: (limit?: number) => ipcRenderer.invoke('permissions:audit', limit),
   },
+  mcp: {
+    list: () => ipcRenderer.invoke('mcp:list'),
+    save: (input) => ipcRenderer.invoke('mcp:save', input),
+    remove: (name, scope) => ipcRenderer.invoke('mcp:remove', name, scope),
+    setEnabled: (name, scope, enabled) => ipcRenderer.invoke('mcp:set-enabled', name, scope, enabled),
+    test: (name) => ipcRenderer.invoke('mcp:test', name),
+  },
   workspace: {
     list: () => ipcRenderer.invoke('workspace:list'),
     active: () => ipcRenderer.invoke('workspace:active'),

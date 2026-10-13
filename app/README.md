@@ -66,8 +66,10 @@ src/renderer/   # 渲染进程（React 界面）
 
 - [x] Skill：目录扫描（全局/工作空间，支持无版本与版本目录）、双作用域启停、系统提示注入
 - [x] Skill 信任提示（启用前展示声明的工具/依赖/网络权限）
-- [ ] MCP 客户端（stdio）与工具接入
-- [ ] MCP 配置分区与连接测试
+- [x] MCP stdio 客户端：initialize 握手、tools/list 分页、tools/call、超时/取消、重连退避、空闲回收
+- [x] MCP 工具注入 `mcp__<server>__<tool>`，经权限引擎（默认本会话首次询问）
+- [x] MCP 配置 tab：增删改、全局/工作空间启停、测试连接、状态与错误展示（密钥只留 secret:// 引用）
+- [ ] MCP HTTP/SSE 传输（3-05）
 
 ## 真实模型集成测试（需要密钥，默认跳过）
 

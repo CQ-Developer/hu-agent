@@ -8,6 +8,7 @@ import { SecretStore } from './config/secrets'
 import { SettingsStore } from './config/settings-store'
 import { configFilePath, secretsFilePath, usageLedgerPath, workspacesIndexFile } from './config/paths'
 import { InteractionBroker } from './permissions/broker'
+import { McpManager } from './mcp/manager'
 import { SkillManager } from './skills/manager'
 import { createDefaultToolRegistry } from './tools/registry'
 import { UsageLedger } from './usage/ledger'
@@ -74,12 +75,24 @@ async function bootstrap(): Promise<void> {
     ledger,
     interactions,
     skills: new SkillManager(),
+    mcp: new McpManager(secrets, app.getVersion()),
     grants: new Map(),
     sessionStores: new Map(),
     artifactStores: new Map(),
     auditLogs: new Map(),
   }
   registerIpc(context)
+
+  // 后台预热当前工作空间的 MCP 连接（npx 首次拉包可能较慢，不阻塞首轮对话）
+  void context.workspaces
+    .active()
+    .then((ws) => context.mcp.tools(ws))
+    .catch(() => undefined)
+
+  // 退出时回收所有 MCP 子进程（design 5.8.2）
+  app.on('before-quit', () => {
+    void context.mcp.closeAll()
+  })
 }
 
 // 所有 IPC 在 bootstrap() -> registerIpc() 中统一注册（见 main/ipc.ts）

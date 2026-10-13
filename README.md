@@ -56,8 +56,11 @@
 - [ ] **阶段 3：本地 Skill / MCP 机制（进行中）**
   - [x] Skill：目录扫描（全局/工作空间+版本目录）、双作用域启停、系统提示注入
   - [x] Skill 信任提示（启用前展示声明的工具/依赖/网络权限）
-  - [ ] MCP 客户端（stdio）与工具接入
-  - [ ] MCP 配置分区与连接测试
+  - [x] MCP 客户端（stdio）：握手、分页 tools/list、tools/call、重连与空闲回收
+  - [x] MCP 工具注入（mcp__server__tool）与权限引擎对接（本会话首次询问）
+  - [x] MCP 配置 tab：增删改、双作用域启停、测试连接、状态/错误展示
+  - [ ] MCP HTTP/SSE 传输（3-05）
+  - [ ] 真实 MCP server 端到端会话验证（已用 filesystem server 验证工具发现与调用）
 
 ## 环境要求
 
