@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Java / Maven
+target/
+*.class
+*.jar
+!.mvn/wrapper/*.jar
+
+# Node
+node_modules/
+dist/
+out/
+.vite/
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# 日志与运行产物
+*.log
+logs/
+
+# 环境与密钥（模型密钥只存系统钥匙串，仓库只留 secret:// 引用）
+.env
+.env.local
+
+# 生成物
+openapi/generated/
+
+# 客户端本地运行时目录（若在仓库内测试工作空间）
+.hu/
