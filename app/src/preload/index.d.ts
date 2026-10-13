@@ -1,4 +1,4 @@
-import type { HuAgentApi } from './index'
+import type { HuAgentApi } from '../shared/ipc'
 
 declare global {
   interface Window {

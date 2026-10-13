@@ -281,7 +281,7 @@ flowchart TB
     McpMgr["MCP 管理器"]
     SyncEng["同步引擎"]
     Reporter["用量上报器"]
-    KV["系统钥匙串" ]
+    KV["safeStorage 密钥库"]
   end
 
   subgraph Child["子进程"]
@@ -798,7 +798,7 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
 }
 ```
 
-密钥**永不落配置文件**：`secret://keychain/<service>/<account>` 引用系统钥匙串；上报/同步均不包含密钥。
+密钥**永不落配置文件**：`secret://keychain/<service>/<account>` 引用客户端密钥库（阶段 1 实现为 Electron safeStorage 加密文件，见 5.9 与 ADR 0002）；上报/同步均不包含密钥。
 
 #### 5.8.2 连接与工具发现
 
@@ -812,7 +812,7 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
 | 操作 | 流程 |
 | --- | --- |
 | 浏览 | `GET /marketplace/mcp-servers`，展示描述、传输方式、环境变量要求、变更记录 |
-| 安装 | 获取配置模板 → 本地生成 `mcp.json` 条目 → 引导填写密钥（写入钥匙串） |
+| 安装 | 获取配置模板 → 本地生成 `mcp.json` 条目 → 引导填写密钥（写入 safeStorage 密钥库） |
 | 启用/禁用 | Global 与 Workspace 可独立配置（Workspace 同名覆盖 Global）；写 `enabled` 字段，下一会话生效；已运行会话提示重启工具连接 |
 | 更新 | 拉取新版本描述与配置模板；若 `env_schema` 新增必填项，强制引导补齐；保留旧配置快照便于回滚 |
 
@@ -855,6 +855,7 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
 要点：
 
 - Provider 类型：`openai-compatible`（覆盖 OpenAI / Azure / vLLM / Ollama / DeepSeek 等）、`anthropic`。`openai-compatible` 下"是否支持 tools/vision"由用户声明，客户端只做能力探测提示。
+- 密钥存储（阶段 1 已实现）：`apiKeyRef` 指向客户端密钥库；实现为 Electron safeStorage（加密密钥由 Windows DPAPI / macOS Keychain 保护）加密后写入 `~/.hu-agent/secrets.enc.json`，配置文件、日志与上报中永不出现明文（ADR 0002）。
 - "快速模型"用于会话标题、历史压缩、ask_guide 生成等低价值调用（也计入用量上报，标记 `purpose: fast`）。
 - 模型不可用时的降级：按配置顺序回落，全部失败则提示用户（不静默切到本地小模型）。
 - 中转/代理：支持 `baseUrl` 指向企业网关；不支持客户端级 HTTP 代理配置（v1 直接用系统代理）。
@@ -1306,7 +1307,7 @@ MCP 资源不包含代码包，只有**连接描述**与**配置模板**：
 ```
 
 - 版本化与状态机与 Skill 一致（`mcp_servers` + `mcp_server_versions` + 同一审批流）。
-- `env_schema.secret = true` 的项：服务端只存声明，**永远不接收、不存储值**；客户端引导用户写入系统钥匙串。
+- `env_schema.secret = true` 的项：服务端只存声明，**永远不接收、不存储值**；客户端引导用户写入 safeStorage 密钥库。
 - 审核要点：外部域名是否可信、是否要求敏感权限（如全仓库 token）、是否声明了超出描述范围的权限。
 - 上线后管理员可随时下架或停用；状态变更、定向通知与客户端硬停用机制与 Skill 共用（见 6.4.5、5.12）。
 

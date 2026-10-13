@@ -30,7 +30,16 @@
   - [x] 管理台骨架（Vite + AntD + 路由 + i18n + 健康检查联调）
   - [x] 管理台验证：typecheck、build、经 dev 代理调 API 均通过
   - [x] CI 流水线（management / app / management-ui）
-- [ ] **阶段 1：Agent MVP（待开始）**
+- [ ] **阶段 1：Agent MVP（进行中）**
+  - [x] 模型网关（OpenAI 兼容：流式 + function calling + 错误分类/重试）
+  - [x] Agent Loop（事件流、取消、max_steps、上下文重建）
+  - [x] 会话 JSONL 持久化（append-only、索引可重建、崩溃容错、artifact）
+  - [x] 内置工具：read_file / write_file / edit_file / bash / powershell
+  - [x] 最小聊天 UI（流式渲染、工具卡片、会话列表、模型设置、Markdown 消毒）
+  - [x] 本地用量账本与统计
+  - [x] 单测 17 个 + typecheck + 构建全绿
+  - [ ] 配置真实供应商后跑一次完整任务（真机联调）
+  - [ ] Anthropic 适配（1-07，延后）
 
 ## 环境要求
 
