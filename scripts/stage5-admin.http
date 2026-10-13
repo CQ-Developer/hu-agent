@@ -1,0 +1,152 @@
+# 阶段 5 管理工作流（管理台 5-09 延后时的临时代办路径，design 5-10）
+#
+# 用法：VS Code 安装 "REST Client" 扩展后逐条点击执行；
+# 或直接用 curl（每条请求等价，见文件末尾示例）。
+#
+# 前置：服务端已启动（默认 http://127.0.0.1:8080），且当前账号具备对应权限：
+#   - 系统管理员：审批组织创建
+#   - 组织管理员：审批团队创建、越权管理团队资源
+#   - 团队管理员：审批 Skill 版本发布、上下架/停用/撤回/删除
+
+@host = http://127.0.0.1:8080
+@email = sysadmin@example.com
+@password = Str0ng-Passphrase-2026
+
+### 0. 登录，拿到 accessToken（把返回值粘到 @token）
+POST {{host}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{email}}",
+  "password": "{{password}}",
+  "device": { "deviceId": "cli-admin", "platform": "win32", "appVersion": "0.1.0" }
+}
+
+@token = PASTE_ACCESS_TOKEN_HERE
+@auth = Bearer {{token}}
+
+### 1. 我发起的申请（scope=mine）
+GET {{host}}/api/v1/approvals?scope=mine
+Authorization: {{auth}}
+
+### 2. 待我审批：系统管理员视角（组织创建）
+GET {{host}}/api/v1/approvals?scope=system&status=pending
+Authorization: {{auth}}
+
+### 3. 待我审批：组织管理员视角（团队创建；把 org_id 换成组织 UUID）
+@org_id = PASTE_ORG_UUID
+GET {{host}}/api/v1/approvals?scope=org&org_id={{org_id}}&status=pending
+Authorization: {{auth}}
+
+### 4. 待我审批：团队管理员视角（Skill 版本发布）
+@team_id = PASTE_TEAM_UUID
+GET {{host}}/api/v1/approvals?scope=team&team_id={{team_id}}&status=pending
+Authorization: {{auth}}
+
+### 5. 审批详情（含 payload 快照：文件数、脚本清单、权限声明）
+@approval_id = PASTE_APPROVAL_UUID
+GET {{host}}/api/v1/approvals/{{approval_id}}
+Authorization: {{auth}}
+
+### 6. 通过（可带意见；skill_version_publish 通过后版本立即发布）
+POST {{host}}/api/v1/approvals/{{approval_id}}:approve
+Authorization: {{auth}}
+Content-Type: application/json
+
+{ "comment": "审核通过" }
+
+### 7. 驳回（意见必填）
+POST {{host}}/api/v1/approvals/{{approval_id}}:reject
+Authorization: {{auth}}
+Content-Type: application/json
+
+{ "comment": "SKILL.md 缺少使用说明，请补充后重提" }
+
+### 8. 撤回自己的申请（仅申请人，pending 状态）
+POST {{host}}/api/v1/approvals/{{approval_id}}:cancel
+Authorization: {{auth}}
+
+### 9. 资源上下架（团队管理员）
+@skill_id = PASTE_SKILL_UUID
+POST {{host}}/api/v1/skills/{{skill_id}}:delist
+Authorization: {{auth}}
+
+###
+POST {{host}}/api/v1/skills/{{skill_id}}:publish
+Authorization: {{auth}}
+
+### 10. 停用（硬停用，必须填写原因；会向已启用用户发站内通知）
+POST {{host}}/api/v1/skills/{{skill_id}}:disable?reason=存在安全问题，暂停使用
+Authorization: {{auth}}
+
+### 11. 恢复启用
+POST {{host}}/api/v1/skills/{{skill_id}}:enable
+Authorization: {{auth}}
+
+### 12. 撤回指定版本（安全事件；reason 必填）
+POST {{host}}/api/v1/skills/{{skill_id}}/versions/1.0.0:revoke?reason=依赖库存在漏洞
+Authorization: {{auth}}
+
+### 13. 软删除
+DELETE {{host}}/api/v1/skills/{{skill_id}}
+Authorization: {{auth}}
+
+### 14. 资源状态核对（客户端同款接口；≤100 条）
+POST {{host}}/api/v1/resources/status:check
+Authorization: {{auth}}
+Content-Type: application/json
+
+{
+  "items": [
+    { "type": "skill", "refId": "{{skill_id}}", "version": "1.0.0" }
+  ]
+}
+
+### 15. 邀请与成员（组织管理员 / 团队管理员）
+POST {{host}}/api/v1/orgs/{{org_id}}/invitations
+Authorization: {{auth}}
+Content-Type: application/json
+
+{ "email": "newbie@example.com", "role": "member" }
+
+###
+POST {{host}}/api/v1/teams/{{team_id}}/invitations
+Authorization: {{auth}}
+Content-Type: application/json
+
+{ "email": "newbie@example.com", "role": "member" }
+
+###
+GET {{host}}/api/v1/orgs/{{org_id}}/members?limit=50
+Authorization: {{auth}}
+
+###
+GET {{host}}/api/v1/teams/{{team_id}}/members?limit=50
+Authorization: {{auth}}
+
+### 16. 站内通知（审批结果、停用/撤回提醒）
+GET {{host}}/api/v1/me/notifications?unread_only=true
+Authorization: {{auth}}
+
+###
+PATCH {{host}}/api/v1/me/notifications
+Authorization: {{auth}}
+Content-Type: application/json
+
+{ "all": true }
+
+# ---------------------------------------------------------------------------
+# curl 等价示例（Windows PowerShell 单行可执行）：
+#
+# $TOKEN = (Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8080/api/v1/auth/login `
+#   -ContentType application/json `
+#   -Body '{"email":"sysadmin@example.com","password":"Str0ng-Passphrase-2026","device":{"deviceId":"cli-admin","platform":"win32","appVersion":"0.1.0"}}').accessToken
+#
+# Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/v1/approvals?scope=system&status=pending" `
+#   -Headers @{ Authorization = "Bearer $TOKEN" }
+#
+# Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:8080/api/v1/approvals/<id>:approve" `
+#   -Headers @{ Authorization = "Bearer $TOKEN" } -ContentType application/json -Body '{"comment":"通过"}'
+#
+# 注意：查询参数使用 snake_case（org_id / team_id），请求体与响应字段使用 camelCase。
+# ---------------------------------------------------------------------------

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +48,26 @@ class DeviceOut(ApiModel):
 
 class DevicesOut(ApiModel):
     devices: list[DeviceOut]
+
+
+class NotificationOut(ApiModel):
+    id: UUID
+    type: str
+    title: str
+    body: str
+    payload: dict[str, object]
+    read_at: datetime | None
+    created_at: datetime
+
+
+class NotificationsOut(ApiModel):
+    items: list[NotificationOut]
+    unread: int
+
+
+class NotificationPatch(ApiModel):
+    ids: list[UUID] | None = None
+    all: bool = False
 
 
 SELECT_PROFILE = text(
@@ -151,3 +171,72 @@ async def revoke_device(
     )
     await session.commit()
     return {"deviceId": device_id, "revokedTokens": int(getattr(result, "rowcount", 0) or 0)}
+
+
+SELECT_NOTIFICATIONS = text(
+    """
+    SELECT id, type, title, body, payload, read_at, created_at
+    FROM notifications WHERE user_id = :user_id AND (:unread_only = false OR read_at IS NULL)
+    ORDER BY created_at DESC LIMIT :limit
+    """
+)
+
+COUNT_UNREAD = text("SELECT count(*) FROM notifications WHERE user_id = :user_id AND read_at IS NULL")
+
+MARK_READ = text(
+    """
+    UPDATE notifications SET read_at = now()
+    WHERE user_id = :user_id AND read_at IS NULL AND (CAST(:all AS boolean) OR id = ANY(:ids))
+    """
+)
+
+
+@router.get("/notifications", response_model=NotificationsOut)
+async def list_notifications(
+    actor: ActorDep,
+    session: SessionDep,
+    unread_only: bool = Query(default=False),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> NotificationsOut:
+    rows = (
+        await session.execute(
+            SELECT_NOTIFICATIONS,
+            {"user_id": actor.user_id, "unread_only": unread_only, "limit": limit},
+        )
+    ).mappings().all()
+    unread = int((await session.execute(COUNT_UNREAD, {"user_id": actor.user_id})).scalar_one())
+    items = []
+    for row in rows:
+        payload = row["payload"]
+        items.append(
+            NotificationOut(
+                id=row["id"],
+                type=str(row["type"]),
+                title=str(row["title"]),
+                body=str(row["body"]),
+                payload=dict(payload) if isinstance(payload, dict) else {},
+                read_at=row["read_at"],
+                created_at=row["created_at"],
+            )
+        )
+    return NotificationsOut(items=items, unread=unread)
+
+
+@router.patch("/notifications")
+async def mark_notifications(
+    payload: NotificationPatch,
+    actor: ActorDep,
+    session: SessionDep,
+) -> dict[str, int]:
+    if not payload.all and not payload.ids:
+        raise AppError(ErrorCode.VALIDATION_FAILED, "请提供 ids 或 all=true")
+    result = await session.execute(
+        MARK_READ,
+        {
+            "user_id": actor.user_id,
+            "ids": payload.ids or [],
+            "all": payload.all,
+        },
+    )
+    await session.commit()
+    return {"updated": int(getattr(result, "rowcount", 0) or 0)}

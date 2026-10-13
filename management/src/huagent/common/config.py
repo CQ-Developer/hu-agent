@@ -37,9 +37,9 @@ class Settings(BaseSettings):
     # 弱口令名单文件（每行一个；生产可挂载到 top-10k 名单）
     weak_password_file: str = ""
 
-    # 启动时校验数据库 schema 版本（design 6.8.3）；阶段 0 期望 V0001
+    # 启动时校验数据库 schema 版本（design 6.8.3）；阶段 5 期望 V0002
     schema_check_enabled: bool = True
-    schema_expected_version: str = "V0001"
+    schema_expected_version: str = "V0002"
 
     # 对象存储（阶段 5/6 使用）
     s3_endpoint: str = "http://localhost:9000"
@@ -48,6 +48,15 @@ class Settings(BaseSettings):
     s3_secret_key: str = "huagent_dev_minio"  # noqa: S105 —— 仅本地开发默认值，生产由环境变量覆盖
     s3_bucket_skills: str = "hu-agent-skills"
     s3_bucket_snapshots: str = "hu-agent-snapshots"
+    # 对象存储实现：s3（生产）/ memory（测试）
+    object_store: str = "s3"
+    # 技能包上传限制（design 6.4.2）
+    skill_package_max_bytes: int = 20 * 1024 * 1024
+    skill_unpack_max_bytes: int = 100 * 1024 * 1024
+    skill_max_files: int = 500
+    skill_max_compression_ratio: int = 200
+    # 最低支持的客户端版本（design 8.3；阶段 6 可由 system_settings 覆盖）
+    min_client_version: str = "0.1.0"
 
 
 @lru_cache(maxsize=1)

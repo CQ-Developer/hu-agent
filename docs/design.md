@@ -1291,7 +1291,10 @@ stateDiagram-v2
 
 #### 6.4.2 上传与校验
 
-`POST /teams/{id}/skills`（new-skill，multipart）或 `POST /skills/{id}/versions`（new-version）：
+`POST /teams/{id}/skills`（new-skill）或 `POST /skills/{id}/versions`（new-version）：
+
+> 实现说明（阶段 5）：上传使用**原始 zip 请求体**（`Content-Type: application/zip`，流式读取并限制 20MB），
+> 元数据由包内 `SKILL.md` front matter 提供，`changelog` 走查询参数；比 multipart 少一个依赖且同样流式安全。
 
 1. 流式接收，边收边算 sha256，同时限制最大 20 MB。
 2. 结构校验：能被 zip 解析；根目录或单一顶层目录下存在 `SKILL.md`；拒绝绝对路径 / `..` / 反斜杠 / 符号链接条目；文件数 ≤ 500；解压后总大小 ≤ 100 MB；压缩比 ≤ 200:1（防 zip 炸弹）。
@@ -1322,6 +1325,7 @@ stateDiagram-v2
 #### 6.4.5 资源状态变更与通知（Skill / MCP 通用）
 
 - **修订号**：`skills.status_revision` / `mcp_servers.status_revision` 由全局序列递增，任何状态变更（发布/下架/停用/删除、版本撤回、团队归档、组织冻结）都会增长，用于客户端缓存判断与审计对账。
+- **latest 指针回退**（实现约定）：撤回最新已发布版本时，`latest_published_version_id` 回退到上一可用版本（`published`/`superseded`），客户端仍按自己安装的版本查询，得到 `revoked` + `replacementVersion`。
 - **生效状态推导**（`POST /resources/status:check` 内部逻辑，按优先级）：资源删除或不可见（被移出团队等）→ `not_found`；组织冻结 / 团队归档 / 管理员停用 → `disabled`；指定版本撤回 → `revoked`；资源下架 → `delisted`；否则 `active`。
 - **可见性校验**：只返回调用者所属团队的资源；不在范围内的 refId 返回 `not_found`（兼容“被移出团队”场景）。
 - **停用必填原因**：`disabled` / `revoked` 必须填写 `reason`（管理员在 UI 输入），随状态下发给客户端展示。
