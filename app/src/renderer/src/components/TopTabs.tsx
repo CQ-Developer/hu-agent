@@ -6,6 +6,7 @@ export type AppTab =
   | 'mcp'
   | 'workspace'
   | 'sync'
+  | 'stats'
   | 'permissions'
   | 'about'
 
@@ -17,6 +18,7 @@ export const APP_TABS: { id: AppTab; label: string }[] = [
   { id: 'mcp', label: 'MCP 配置' },
   { id: 'workspace', label: '工作空间' },
   { id: 'sync', label: '云同步' },
+  { id: 'stats', label: '用量统计' },
   { id: 'permissions', label: '权限与审计' },
   { id: 'about', label: '关于' },
 ]

@@ -197,6 +197,13 @@ export type SyncStatusCode =
   | 'conflict'
   | 'error'
 
+export interface SyncSettingsView {
+  schedule: 'off' | '15m' | '30m' | '1h' | '6h' | '24h'
+  includeSessions: boolean
+  /** 连续自动同步失败次数（≥3 时 UI 提醒） */
+  consecutiveFailures: number
+}
+
 export interface SyncConflictView {
   detectedAt: string
   remoteVersion: number
@@ -231,6 +238,73 @@ export interface SyncVersionView {
   createdAt: string
   digest: string | null
   latest: boolean
+}
+
+export type StatsScope = 'self' | 'team' | 'org' | 'global'
+export type UsageGroupBy = 'day' | 'model' | 'member' | 'team' | 'org'
+
+export interface UsageTotalsView {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  requests: number
+  errors: number
+  estimatedCost: number
+}
+
+export interface UsageRowView {
+  key: string
+  day?: string | null
+  userId?: string | null
+  teamId?: string | null
+  orgId?: string | null
+  provider?: string | null
+  model?: string | null
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  requests: number
+  errors: number
+  estimatedCost: number
+}
+
+export interface UsageStatsViewResult {
+  scope: string
+  dateFrom: string
+  dateTo: string
+  groupBy: string
+  currency: string
+  totals: UsageTotalsView
+  rows: UsageRowView[]
+}
+
+export interface ActivationView {
+  userId: string
+  email: string
+  resourceType: string
+  refId: string | null
+  name: string
+  version: string | null
+  enabled: boolean
+  deviceCount: number
+  lastReportedAt: string
+  serverState: string | null
+}
+
+export interface StatsTeamOption {
+  id: string
+  name: string
+  orgId: string
+  myRole: string | null
+}
+
+export interface StatsOrgOption {
+  id: string
+  name: string
+  slug: string
+  role: string | null
 }
 
 export interface PolicyRuleView {
@@ -385,6 +459,28 @@ export interface HuAgentApi {
     resolve(choice: 'keep-local' | 'cancel' | 'export-diff'): Promise<SyncStatusView>
     pin(snapshotId: string): Promise<void>
     remove(snapshotId: string): Promise<void>
+    settings(): Promise<SyncSettingsView>
+    setSettings(settings: { schedule: SyncSettingsView['schedule']; includeSessions: boolean }): Promise<SyncSettingsView>
+    /** 定时同步结果（自动触发的同步状态推送） */
+    onEvent(listener: (view: SyncStatusView) => void): () => void
+  }
+  stats: {
+    usage(params: {
+      scope: StatsScope
+      from: string
+      to: string
+      groupBy: UsageGroupBy
+      teamId?: string
+      orgId?: string
+    }): Promise<UsageStatsViewResult>
+    activations(params: {
+      scope: StatsScope
+      teamId?: string
+      orgId?: string
+      type?: 'skill' | 'mcp'
+    }): Promise<ActivationView[]>
+    teams(): Promise<StatsTeamOption[]>
+    orgs(): Promise<StatsOrgOption[]>
   }
   permissions: {
     rules(): Promise<{ workspace: PolicyRuleView[]; global: PolicyRuleView[] }>

@@ -55,6 +55,19 @@ const api: HuAgentApi = {
     resolve: (choice) => ipcRenderer.invoke('sync:resolve', choice),
     pin: (snapshotId) => ipcRenderer.invoke('sync:pin', snapshotId),
     remove: (snapshotId) => ipcRenderer.invoke('sync:remove', snapshotId),
+    settings: () => ipcRenderer.invoke('sync:get-settings'),
+    setSettings: (settings) => ipcRenderer.invoke('sync:set-settings', settings),
+    onEvent: (listener) => {
+      const handler = (_event: unknown, view: Parameters<typeof listener>[0]): void => listener(view)
+      ipcRenderer.on('sync:event', handler)
+      return () => ipcRenderer.removeListener('sync:event', handler)
+    },
+  },
+  stats: {
+    usage: (params) => ipcRenderer.invoke('stats:usage', params),
+    activations: (params) => ipcRenderer.invoke('stats:activations', params),
+    teams: () => ipcRenderer.invoke('stats:teams'),
+    orgs: () => ipcRenderer.invoke('stats:orgs'),
   },
   permissions: {
     rules: () => ipcRenderer.invoke('permissions:rules'),

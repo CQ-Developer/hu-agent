@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type { SyncStatusView, SyncVersionView } from '@shared/ipc'
+import type { SyncSettingsView, SyncStatusView, SyncVersionView } from '@shared/ipc'
 
 const STATUS_LABEL: Record<string, string> = {
   unlinked: '未关联服务端工作空间',
@@ -10,6 +10,15 @@ const STATUS_LABEL: Record<string, string> = {
   conflict: '存在冲突，需人工处理',
   error: '同步异常',
 }
+
+const SCHEDULE_OPTIONS: { value: SyncSettingsView['schedule']; label: string }[] = [
+  { value: 'off', label: '关闭' },
+  { value: '15m', label: '每 15 分钟' },
+  { value: '30m', label: '每 30 分钟' },
+  { value: '1h', label: '每 1 小时' },
+  { value: '6h', label: '每 6 小时' },
+  { value: '24h', label: '每 24 小时' },
+]
 
 function formatBytes(value: number): string {
   if (value >= 1024 * 1024 * 1024) return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`
@@ -21,6 +30,7 @@ function formatBytes(value: number): string {
 export default function SyncSection({ onChanged }: { onChanged: () => void }) {
   const [status, setStatus] = useState<SyncStatusView | null>(null)
   const [versions, setVersions] = useState<SyncVersionView[]>([])
+  const [settings, setSettings] = useState<SyncSettingsView | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
 
@@ -28,11 +38,22 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
     const next = await window.huAgent.sync.status()
     setStatus(next)
     setVersions(await window.huAgent.sync.versions())
+    setSettings(await window.huAgent.sync.settings())
   }, [])
 
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // 定时同步结果推送：自动同步完成后实时更新状态（design 5.11.5）
+  useEffect(
+    () =>
+      window.huAgent.sync.onEvent((view) => {
+        setStatus(view)
+        void window.huAgent.sync.versions().then(setVersions)
+      }),
+    [],
+  )
 
   const run = async (action: () => Promise<void>): Promise<void> => {
     setBusy(true)
@@ -71,7 +92,14 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
           {status?.remoteVersion !== undefined && <span className="text-neutral-400">服务端 v{status.remoteVersion}</span>}
         </div>
 
-        {status?.lastError && <div className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{status.lastError}</div>}
+        {status?.lastError && (
+          <div className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">
+            {status.lastError}
+            {(settings?.consecutiveFailures ?? 0) >= 3 && (
+              <span className="ml-1 font-medium">（已连续失败 {settings?.consecutiveFailures} 次，请检查网络或服务端）</span>
+            )}
+          </div>
+        )}
 
         {quota && (
           <div className="mt-3">
@@ -87,7 +115,7 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
           </div>
         )}
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
             disabled={busy}
@@ -109,6 +137,29 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
           >
             刷新状态
           </button>
+          <label className="flex items-center gap-2 text-xs text-neutral-600">
+            定时同步
+            <select
+              className="rounded border border-neutral-300 px-2 py-1"
+              value={settings?.schedule ?? 'off'}
+              onChange={(event) =>
+                void run(async () => {
+                  setSettings(
+                    await window.huAgent.sync.setSettings({
+                      schedule: event.target.value as SyncSettingsView['schedule'],
+                      includeSessions: settings?.includeSessions !== false,
+                    }),
+                  )
+                })
+              }
+            >
+              {SCHEDULE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         {message && <p className="mt-2 text-xs text-neutral-500">{message}</p>}
       </section>

@@ -21,6 +21,10 @@ logger = logging.getLogger("huagent.worker")
 
 
 async def run() -> None:
+    # 启动时先补偿一次：服务停机期间积压的用量与分区（design 6.11 任务幂等）
+    await job_aggregate_usage()
+    await job_maintain_partitions()
+
     scheduler = AsyncIOScheduler(timezone="UTC")
     scheduler.add_job(heartbeat, "interval", minutes=5, id="heartbeat", max_instances=1)
     # design 6.11：用量聚合每小时；分区维护每日 02:00；快照清理每日 03:00；邀请/审批每小时

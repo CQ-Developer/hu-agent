@@ -23,6 +23,7 @@ import McpSection from './components/settings/McpSection'
 import ModelSection from './components/settings/ModelSection'
 import PermissionSection from './components/settings/PermissionSection'
 import SkillsSection from './components/settings/SkillsSection'
+import StatsSection from './components/settings/StatsSection'
 import SyncSection from './components/settings/SyncSection'
 import WorkspaceSection from './components/settings/WorkspaceSection'
 
@@ -417,6 +418,7 @@ export default function App() {
                 />
               )}
               {tab === 'sync' && <SyncSection onChanged={refreshDerived} />}
+              {tab === 'stats' && <StatsSection />}
               {tab === 'permissions' && <PermissionSection />}
               {tab === 'about' && <AboutSection />}
             </div>

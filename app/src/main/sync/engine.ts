@@ -77,6 +77,9 @@ const EXTRACT_LIMITS = {
 }
 
 export class SyncEngine {
+  /** 单飞锁：同一工作空间同时只允许一次同步（design 5.11.5） */
+  private static readonly inFlight = new Set<string>()
+
   constructor(
     private readonly backend: SyncBackend,
     private readonly workspace: WorkspacePaths,
@@ -133,8 +136,19 @@ export class SyncEngine {
     return base
   }
 
-  /** 手动同步：拉取最新 → 上传/下载/冲突（design 5.11.5）。 */
+  /** 手动/定时同步：拉取最新 → 上传/下载/冲突（design 5.11.5）。 */
   async syncNow(): Promise<SyncStatusView> {
+    const key = this.workspace.root
+    if (SyncEngine.inFlight.has(key)) return this.status() // 单飞：不排队、不报错
+    SyncEngine.inFlight.add(key)
+    try {
+      return await this.runSync()
+    } finally {
+      SyncEngine.inFlight.delete(key)
+    }
+  }
+
+  private async runSync(): Promise<SyncStatusView> {
     let state = await this.loadState()
     if (!state.serverWorkspaceId) {
       const workspaceId = await this.backend.ensureWorkspace(this.workspace.name)

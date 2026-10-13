@@ -28,6 +28,9 @@ import { isHardDisabled, type ResourceStatusService, type StatusCache } from './
 import { reportActivationSnapshot } from './market/activations'
 import { SyncEngine } from './sync/engine'
 import { CloudSyncBackend } from './sync/backend'
+import { SyncScheduler, loadSyncSettings, saveSyncSettings, type SyncSchedule } from './sync/scheduler'
+import { StatsClient } from './stats/client'
+import type { SyncStatusView } from '../shared/ipc'
 import type { SessionOptionsView } from '../shared/ipc'
 import type { SkillView } from '../shared/ipc'
 import type { MarketSkill } from './market/client'
@@ -50,6 +53,8 @@ export interface AppContext {
   market: MarketClient
   installer: SkillInstaller
   statuses: ResourceStatusService
+  syncScheduler: SyncScheduler
+  stats: StatsClient
   cloud: CloudClient
   reporter: UsageReporter
   /** sessionId -> 本会话授权 scope */
@@ -62,6 +67,13 @@ export interface AppContext {
 export function broadcastEvent(event: AgentEvent): void {
   for (const window of BrowserWindow.getAllWindows()) {
     window.webContents.send('agent:event', event)
+  }
+}
+
+/** 定时同步结果推送给渲染进程（design 5.11.5）。 */
+export function broadcastSyncEvent(view: SyncStatusView): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    window.webContents.send('sync:event', view)
   }
 }
 
@@ -261,6 +273,8 @@ export function registerIpc(context: AppContext): void {
     const ws = await context.workspaces.setActive(id)
     // 切换后后台预热 MCP（失败不影响会话，状态在 MCP 页面可见）
     void context.mcp.tools(ws).catch(() => undefined)
+    // 重新武装定时同步（每个工作空间有独立档位）
+    context.syncScheduler.configure((await loadSyncSettings(ws)).schedule)
     return { id: ws.id, name: ws.name, root: ws.root }
   })
   ipcMain.handle('workspace:pick', async () => {
@@ -392,10 +406,48 @@ export function registerIpc(context: AppContext): void {
   )
   ipcMain.handle(
     'sync:resolve',
-    async (_event, choice: 'keep-local' | 'cancel' | 'export-diff') => (await syncEngine()).resolve(choice),
+    async (_event, choice: 'keep-local' | 'cancel' | 'export-diff') => {
+      const view = await (await syncEngine()).resolve(choice)
+      // 冲突解除后重新武装定时同步（design 5.11.5）
+      if (view.status !== 'conflict') {
+        const { ws } = await scoped(context)
+        context.syncScheduler.configure((await loadSyncSettings(ws)).schedule)
+      }
+      return view
+    },
   )
   ipcMain.handle('sync:pin', async (_event, snapshotId: string) => (await syncEngine()).pin(snapshotId))
   ipcMain.handle('sync:remove', async (_event, snapshotId: string) => (await syncEngine()).remove(snapshotId))
+
+  ipcMain.handle('sync:get-settings', async () => {
+    const { ws } = await scoped(context)
+    const settings = await loadSyncSettings(ws)
+    return { ...settings, consecutiveFailures: context.syncScheduler.failures }
+  })
+  ipcMain.handle(
+    'sync:set-settings',
+    async (_event, settings: { schedule: SyncSchedule; includeSessions: boolean }) => {
+      const { ws } = await scoped(context)
+      await saveSyncSettings(ws, {
+        schedule: settings.schedule ?? 'off',
+        includeSessions: settings.includeSessions !== false,
+      })
+      context.syncScheduler.configure(settings.schedule ?? 'off')
+      return { ...(await loadSyncSettings(ws)), consecutiveFailures: context.syncScheduler.failures }
+    },
+  )
+
+  // ---------- 统计（design 6.7.2） ----------
+  ipcMain.handle(
+    'stats:usage',
+    async (_event, params: Parameters<StatsClient['usage']>[0]) => context.stats.usage(params),
+  )
+  ipcMain.handle(
+    'stats:activations',
+    async (_event, params: Parameters<StatsClient['activations']>[0]) => context.stats.activations(params),
+  )
+  ipcMain.handle('stats:teams', () => context.stats.teams())
+  ipcMain.handle('stats:orgs', () => context.stats.orgs())
 
   // ---------- 权限策略与审计 ----------
   ipcMain.handle('permissions:rules', async () => {

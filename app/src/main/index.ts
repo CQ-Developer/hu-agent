@@ -4,7 +4,7 @@ import { appendFile, mkdir } from 'node:fs/promises'
 import { BrowserWindow, Menu, app, shell } from 'electron'
 
 import { ModelGateway } from './model/gateway'
-import { broadcastInteraction, broadcastSessionLost, registerIpc, type AppContext } from './ipc'
+import { broadcastInteraction, broadcastSessionLost, broadcastSyncEvent, registerIpc, type AppContext } from './ipc'
 import { SecretStore } from './config/secrets'
 import { SettingsStore } from './config/settings-store'
 import { configFilePath, cloudConfigFile, globalDir, secretsFilePath, usageLedgerPath, workspacesIndexFile } from './config/paths'
@@ -14,6 +14,10 @@ import { UsageReporter } from './cloud/reporter'
 import { MarketClient } from './market/client'
 import { SkillInstaller } from './market/installer'
 import { ResourceStatusService } from './market/status'
+import { SyncEngine } from './sync/engine'
+import { CloudSyncBackend } from './sync/backend'
+import { SyncScheduler, loadSyncSettings } from './sync/scheduler'
+import { StatsClient } from './stats/client'
 import { InteractionBroker } from './permissions/broker'
 import { McpManager } from './mcp/manager'
 import { SkillManager } from './skills/manager'
@@ -94,6 +98,22 @@ async function bootstrap(): Promise<void> {
     },
   })
 
+  // 定时同步（design 5.11.5）：每次 tick 现取当前工作空间与档位，冲突时自动暂停
+  const syncScheduler = new SyncScheduler({
+    run: async () => {
+      const ws = await workspaces.active()
+      const syncSettings = await loadSyncSettings(ws)
+      const engine = new SyncEngine(new CloudSyncBackend(cloud), ws, {
+        includeSessions: syncSettings.includeSessions,
+      })
+      return engine.syncNow()
+    },
+    onResult: (view) => {
+      broadcastSyncEvent(view)
+      if (view.status === 'error') console.warn('[sync] 自动同步失败：', view.lastError)
+    },
+  })
+
   const context: AppContext = {
     workspaces,
     settings,
@@ -107,6 +127,8 @@ async function bootstrap(): Promise<void> {
     market,
     installer,
     statuses,
+    syncScheduler,
+    stats: new StatsClient(cloud),
     cloud,
     reporter,
     grants: new Map(),
@@ -136,10 +158,17 @@ async function bootstrap(): Promise<void> {
   // 资源状态同步：启动后 30s 首次检查，之后每 6 小时（design 5.12.3）
   context.statuses.start()
 
+  // 定时同步：按当前工作空间的档位启动（默认关闭）
+  void context.workspaces
+    .active()
+    .then(async (ws) => syncScheduler.configure((await loadSyncSettings(ws)).schedule))
+    .catch(() => undefined)
+
   // 退出时回收所有 MCP 子进程（design 5.8.2）
   app.on('before-quit', () => {
     clearInterval(reporterTimer)
     context.statuses.stop()
+    syncScheduler.stop()
     void context.mcp.closeAll()
   })
 }
