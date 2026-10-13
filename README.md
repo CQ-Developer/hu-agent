@@ -14,6 +14,8 @@
 - [`docs/plan.md`](docs/plan.md)：执行计划（阶段 0-7、完成标准、延后清单）
 - [`docs/adr/`](docs/adr/)：关键决策记录（ADR）
 
+> 硬性纪律：任何设计与决策变动，必须在同一次提交内同步更新 `docs/` 下的文档（见 `docs/plan.md` 附录 F）。
+
 ## 当前进度
 
 - [x] 设计冻结（design.md v1.2，D1-D15 已确认）

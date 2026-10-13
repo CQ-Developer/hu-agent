@@ -1,0 +1,11 @@
+# ruff 配置（独立于 pyproject.toml，便于单独审查）
+target-version = "py314"
+line-length = 120
+src = ["src", "tests"]
+
+[lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "S"]
+ignore = ["S101"]  # 测试中允许 assert
+
+[lint.per-file-ignores]
+"tests/**" = ["S", "B008"]

@@ -1096,8 +1096,10 @@ stateDiagram-v2
 
 ```
 management/                     # Python 3.14 单包项目（uv 管理）
-  pyproject.toml                # 依赖、入口脚本、ruff/mypy/pytest 配置
+  pyproject.toml                # 项目元数据、依赖、入口脚本、mypy 配置
   uv.lock                       # 锁定依赖版本（提交入库）
+  ruff.toml                     # ruff（lint）独立配置
+  pytest.ini                    # pytest 独立配置
   src/huagent/
     common/                     # 错误码 / 配置 / 通用工具
     api/                        # FastAPI 应用与路由（auth/orgs/teams/skills/...）
