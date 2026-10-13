@@ -85,6 +85,19 @@ def test_safe_member_path_rejects_unsafe() -> None:
             safe_member_path(bad)
 
 
+def test_reject_backslash_entries_smuggled_via_zipfile_normalization() -> None:
+    """PowerShell Compress-Archive 会写出 `scripts\\run.sh` 这类原始名；
+    Python zipfile 的 filename 会归一化为 /（orig_filename 保留原样），必须按 orig_filename 校验。"""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr(zipfile.ZipInfo("SKILL.md"), SKILL_MD)
+        entry = zipfile.ZipInfo("scripts/run.sh")
+        entry.filename = "scripts\\run.sh"  # 绕过构造函数归一化，模拟 Windows 压缩工具产物
+        archive.writestr(entry, "#!/bin/sh\n")
+    with pytest.raises(PackageInvalidError):
+        validate_skill_package(buffer.getvalue(), **LIMITS)
+
+
 def test_validate_valid_package() -> None:
     data = make_zip({"SKILL.md": SKILL_MD, "scripts/run.sh": "#!/bin/sh\necho hi\n", "assets/logo.png": b"\x89PNG"})
     package = validate_skill_package(data, **LIMITS)

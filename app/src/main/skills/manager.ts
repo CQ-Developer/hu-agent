@@ -5,7 +5,7 @@ import { join } from 'node:path'
 
 import { globalDir } from '../config/paths'
 import type { WorkspacePaths } from '../workspace'
-import { parseSkillFile, type SkillRequires } from './parser'
+import { compareSemver, parseSkillFile, type SkillRequires } from './parser'
 
 export type SkillScope = 'global' | 'workspace'
 
@@ -109,18 +109,21 @@ export class SkillManager {
         skills.push(direct)
         continue
       }
-      // 版本化目录：<name>/<version>/SKILL.md
+      // 版本化目录：<name>/<version>/SKILL.md；同作用域同名的多版本默认激活最高 semver（design 5.7.2）
       let versions: string[]
       try {
         versions = await readdir(dir)
       } catch {
         continue
       }
+      const candidates: SkillInfo[] = []
       for (const version of versions) {
         if (!SEMVER.test(version)) continue
         const parsed = await this.tryLoad(join(dir, version, 'SKILL.md'), scope)
-        if (parsed) skills.push({ ...parsed, version: parsed.version ?? version })
+        if (parsed) candidates.push({ ...parsed, version: parsed.version ?? version })
       }
+      const best = candidates.sort((a, b) => compareSemver(b.version ?? '0.0.0', a.version ?? '0.0.0'))[0]
+      if (best) skills.push(best)
     }
     return skills
   }

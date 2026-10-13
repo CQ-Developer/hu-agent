@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { appendFile, mkdir } from 'node:fs/promises'
 
 import { BrowserWindow, Menu, app, shell } from 'electron'
 
@@ -6,10 +7,13 @@ import { ModelGateway } from './model/gateway'
 import { broadcastInteraction, broadcastSessionLost, registerIpc, type AppContext } from './ipc'
 import { SecretStore } from './config/secrets'
 import { SettingsStore } from './config/settings-store'
-import { configFilePath, cloudConfigFile, secretsFilePath, usageLedgerPath, workspacesIndexFile } from './config/paths'
+import { configFilePath, cloudConfigFile, globalDir, secretsFilePath, usageLedgerPath, workspacesIndexFile } from './config/paths'
 import { CloudStore } from './cloud/store'
 import { CloudClient } from './cloud/client'
 import { UsageReporter } from './cloud/reporter'
+import { MarketClient } from './market/client'
+import { SkillInstaller } from './market/installer'
+import { ResourceStatusService } from './market/status'
 import { InteractionBroker } from './permissions/broker'
 import { McpManager } from './mcp/manager'
 import { SkillManager } from './skills/manager'
@@ -75,6 +79,20 @@ async function bootstrap(): Promise<void> {
     onSessionLost: (reason) => broadcastSessionLost(reason),
   })
   const reporter = new UsageReporter(cloud, app.getVersion())
+  const market = new MarketClient(cloud)
+  const installer = new SkillInstaller(market)
+  const statuses = new ResourceStatusService(market, installer, undefined, {
+    // 硬停用写本地审计（design 5.12.4）
+    onHardDisabled: async (entry) => {
+      const file = join(globalDir(), 'logs', 'resource-status.jsonl')
+      await mkdir(join(globalDir(), 'logs'), { recursive: true })
+      await appendFile(
+        file,
+        `${JSON.stringify({ ts: new Date().toISOString(), action: 'resource.hard_disabled', ...entry })}\n`,
+        'utf8',
+      )
+    },
+  })
 
   const context: AppContext = {
     workspaces,
@@ -86,6 +104,9 @@ async function bootstrap(): Promise<void> {
     interactions,
     skills: new SkillManager(),
     mcp: new McpManager(secrets, app.getVersion()),
+    market,
+    installer,
+    statuses,
     cloud,
     reporter,
     grants: new Map(),
@@ -112,9 +133,13 @@ async function bootstrap(): Promise<void> {
   void tickReporter()
   const reporterTimer = setInterval(() => void tickReporter(), 60_000)
 
+  // 资源状态同步：启动后 30s 首次检查，之后每 6 小时（design 5.12.3）
+  context.statuses.start()
+
   // 退出时回收所有 MCP 子进程（design 5.8.2）
   app.on('before-quit', () => {
     clearInterval(reporterTimer)
+    context.statuses.stop()
     void context.mcp.closeAll()
   })
 }

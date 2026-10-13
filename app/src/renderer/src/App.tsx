@@ -18,6 +18,7 @@ import ProfileDialog from './components/ProfileDialog'
 import Sidebar from './components/Sidebar'
 import TopTabs, { type AppTab } from './components/TopTabs'
 import AboutSection from './components/settings/AboutSection'
+import MarketSection from './components/settings/MarketSection'
 import McpSection from './components/settings/McpSection'
 import ModelSection from './components/settings/ModelSection'
 import PermissionSection from './components/settings/PermissionSection'
@@ -403,6 +404,7 @@ export default function App() {
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-5">
             <div className="mx-auto max-w-3xl">
               {tab === 'models' && <ModelSection onChanged={refreshDerived} />}
+              {tab === 'market' && <MarketSection onChanged={refreshDerived} />}
               {tab === 'skills' && <SkillsSection onChanged={refreshDerived} />}
               {tab === 'mcp' && <McpSection onChanged={refreshDerived} />}
               {tab === 'workspace' && (

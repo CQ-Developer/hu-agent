@@ -786,6 +786,11 @@ min_app_version: 0.5.0
 | 浏览 | `GET /marketplace/skills`（默认范围：我所在团队；支持关键字/标签/组织筛选）；结果本地缓存 1h |
 | 详情 | 展示 front matter + README/`SKILL.md` 预览、版本列表、更新日志、声明权限 |
 | 下载/安装 | 下载 zip → 校验 sha256 与签名 → 安全解压（防 zip-slip / zip 炸弹）→ 写入 Global 目录 → 记 `installed.json`（默认不自动启用） |
+
+> 实现说明（阶段 5-05）：客户端使用自研最小 ZIP 读取器（`node:zlib`，不新增依赖）：只支持 stored/deflate，
+> 拒绝加密条目、Zip64、绝对路径/`..`/反斜杠/盘符、符号链接，限制文件数/单文件体积/解压总量/压缩比，
+> 并对每个条目做 CRC 校验；安装落 `~/.hu-agent/skills/<name>/<version>/`（先写临时目录再原子重命名），
+> `installed.json` 记录 `skillId/name/version/digest/installedAt`；同作用域同名多版本默认激活最高 semver。
 | 更新 | 拉取最新 semver → 展示变更日志 → 下载新版本并存（不删旧版）→ 用户确认后切换激活版本 |
 | 启用/禁用 | 独立选择作用域：Global 或当前 Workspace（可同时启用，Workspace 优先），写对应 `skills.json`；上报激活状态（见 5.10） |
 | 卸载 | 从启用列表移除 + 删除目录；已有会话不受影响 |
@@ -1081,6 +1086,12 @@ sequenceDiagram
 | `not_found` | 已删除，或已不在可见范围（被移出团队等） | 硬停用 |
 | `unknown` | 检查失败（网络等） | 不改状态，沿用上次已知值并标记“状态未同步” |
 
+> 实现说明（阶段 5-07）：客户端缓存 `~/.hu-agent/resource-status.json`（按 `skillId` 存 status/reason/
+> replacementVersion/revision/checkedAt）；检查时机：启动后 30s、每 6 小时、打开市场页与启用前（手动触发），
+> 本地缓存 15 分钟内不重复请求；状态进入硬停用时追加本地审计
+> `~/.hu-agent/logs/resource-status.jsonl`；**硬停用不修改用户意图**（`skills.json` 不动），
+> 仅使 `enabled = 意图 ∧ 状态允许`，恢复后自动回到原意图。
+
 #### 5.12.3 感知机制
 
 客户端批量上报本地市场资源清单，服务端逐项返回状态（`POST /resources/status:check`，≤ 100 条）：
@@ -1296,6 +1307,10 @@ stateDiagram-v2
 > 实现说明（阶段 5）：上传使用**原始 zip 请求体**（`Content-Type: application/zip`，流式读取并限制 20MB），
 > 元数据由包内 `SKILL.md` front matter 提供，`changelog` 走查询参数；比 multipart 少一个依赖且同样流式安全。
 > 对象存储经 `storage/objects.py` 抽象（生产 S3/MinIO，测试内存实现），首次写入自动确保桶存在。
+>
+> **必须按 `ZipInfo.orig_filename` 校验路径**：Python `zipfile` 的 `filename` 会把反斜杠归一化为 `/`
+> （`orig_filename` 保留原样），只查 `filename` 会放过 Windows 压缩工具（如 PowerShell `Compress-Archive`）
+> 产出的 `scripts\run.sh` 类包；已加单测固定该行为。
 
 1. 流式接收，边收边算 sha256，同时限制最大 20 MB。
 2. 结构校验：能被 zip 解析；根目录或单一顶层目录下存在 `SKILL.md`；拒绝绝对路径 / `..` / 反斜杠 / 符号链接条目；文件数 ≤ 500；解压后总大小 ≤ 100 MB；压缩比 ≤ 200:1（防 zip 炸弹）。

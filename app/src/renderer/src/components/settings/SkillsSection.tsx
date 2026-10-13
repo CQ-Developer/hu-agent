@@ -57,30 +57,50 @@ export default function SkillsSection({ onChanged }: { onChanged: () => void }) 
                 <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
                   {skill.scope === 'workspace' ? '工作空间' : '全局'}
                 </span>
+                {skill.market && (
+                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700">市场</span>
+                )}
                 <span
                   className={`rounded px-1.5 py-0.5 text-[10px] ${
                     skill.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-neutral-100 text-neutral-500'
                   }`}
                 >
-                  {skill.enabled ? '已启用' : '未启用'}
+                  {skill.enabled ? '已启用' : skill.intentEnabled ? '已启用（被服务端暂停）' : '未启用'}
                 </span>
+                {skill.state && skill.state !== 'active' && (
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">
+                    {skill.state === 'delisted'
+                      ? '已下架'
+                      : skill.state === 'disabled'
+                        ? '服务端已停用'
+                        : skill.state === 'revoked'
+                          ? '版本已撤回'
+                          : skill.state === 'not_found'
+                            ? '服务端已删除'
+                            : '状态未知'}
+                  </span>
+                )}
               </div>
               <div className="mt-1 text-xs text-neutral-600">{skill.description}</div>
               {skill.whenToUse && <div className="mt-0.5 text-[11px] text-neutral-400">适用：{skill.whenToUse}</div>}
+              {skill.stateReason && <div className="mt-0.5 text-[11px] text-amber-700">{skill.stateReason}</div>}
+              {skill.replacementVersion && (
+                <div className="text-[11px] text-neutral-500">建议升级到 v{skill.replacementVersion}</div>
+              )}
               <div className="mt-1 truncate text-[11px] text-neutral-400" title={skill.path}>
                 {skill.path}
               </div>
             </div>
             <button
               type="button"
-              onClick={() => (skill.enabled ? void toggle(skill, false) : requestEnable(skill))}
+              onClick={() => (skill.intentEnabled ? void toggle(skill, false) : requestEnable(skill))}
               className={`shrink-0 rounded-md px-3 py-1.5 text-xs ${
-                skill.enabled
+                skill.intentEnabled
                   ? 'border border-neutral-300 text-neutral-700 hover:bg-neutral-100'
                   : 'bg-neutral-900 text-white hover:bg-neutral-700'
               }`}
             >
-              {skill.enabled ? '停用' : '启用'}
+              {skill.intentEnabled ? '停用' : '启用'}
             </button>
           </div>
 

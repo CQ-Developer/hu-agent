@@ -105,8 +105,12 @@ def validate_skill_package(
 
     total_uncompressed = 0
     files: list[PackageFile] = []
+    entries: dict[str, zipfile.ZipInfo] = {}
     for info in infos:
-        path = safe_member_path(info.filename)
+        # 必须用 orig_filename：Python zipfile 会把反斜杠归一化为 /（filename），
+        # 直接用 filename 会放过 `scripts\run.sh` 这类包（其他解压器可能按反斜杠解释路径）。
+        raw_name = info.orig_filename or info.filename
+        path = safe_member_path(raw_name)
         if (info.external_attr >> 16) & 0o170000 == 0o120000:
             raise PackageInvalidError(f"包含符号链接：{path}")
         total_uncompressed += info.file_size
@@ -115,6 +119,7 @@ def validate_skill_package(
         suffix = path.lower().rsplit(".", 1)[-1] if "." in path else ""
         script = f".{suffix}" in SCRIPT_SUFFIXES if suffix else False
         files.append(PackageFile(path=path, size=info.file_size, script=script))
+        entries[path] = info
 
     if total_uncompressed / max(len(data), 1) > max_compression_ratio:
         raise PackageInvalidError("压缩比过高，疑似 zip 炸弹")
@@ -122,7 +127,7 @@ def validate_skill_package(
     skill_md_path = _locate_skill_md([item.path for item in files])
     root_prefix = skill_md_path[: -len(SKILL_MD)] if skill_md_path.endswith(SKILL_MD) else ""
     try:
-        content = archive.read(skill_md_path).decode("utf-8")
+        content = archive.read(entries[skill_md_path]).decode("utf-8")
     except UnicodeDecodeError as exc:
         raise PackageInvalidError("SKILL.md 不是 UTF-8 编码") from exc
 

@@ -21,7 +21,14 @@ import { computeSessionUsage } from './session/stats'
 import { globalMcpFile, loadMcpFile, materializeSecrets, saveMcpServer, workspaceMcpFile, type McpServerConfig } from './mcp/config'
 import type { McpManager } from './mcp/manager'
 import type { SkillManager } from './skills/manager'
+import { compareSemver } from './skills/parser'
+import { MarketClient } from './market/client'
+import type { InstalledSkill, SkillInstaller } from './market/installer'
+import { isHardDisabled, type ResourceStatusService, type StatusCache } from './market/status'
+import { reportActivationSnapshot } from './market/activations'
 import type { SessionOptionsView } from '../shared/ipc'
+import type { SkillView } from '../shared/ipc'
+import type { MarketSkill } from './market/client'
 import type { AgentEvent, ApprovalRequestView, GuideRequestView } from '../shared/events'
 import type { ToolRegistry } from './tools/registry'
 import type { UsageLedger } from './usage/ledger'
@@ -38,6 +45,9 @@ export interface AppContext {
   interactions: InteractionBroker
   skills: SkillManager
   mcp: McpManager
+  market: MarketClient
+  installer: SkillInstaller
+  statuses: ResourceStatusService
   cloud: CloudClient
   reporter: UsageReporter
   /** sessionId -> 本会话授权 scope */
@@ -268,7 +278,7 @@ export function registerIpc(context: AppContext): void {
   // ---------- Skill ----------
   ipcMain.handle('skills:list', async () => {
     const { ws } = await scoped(context)
-    return context.skills.list(ws)
+    return buildSkillViews(context, ws)
   })
   ipcMain.handle(
     'skills:set-enabled',
@@ -276,9 +286,96 @@ export function registerIpc(context: AppContext): void {
       const { ws } = await scoped(context)
       if (enabled) await context.skills.setEnabled(ws, name, scope)
       else await context.skills.setDisabled(ws, name, scope)
-      return context.skills.list(ws)
+      await reportScope(context, ws, scope)
+      return buildSkillViews(context, ws)
     },
   )
+
+  // ---------- 市场（design 5.7.4 / 5.12） ----------
+  ipcMain.handle('market:list', async (_event, params?: Record<string, string>) => {
+    const [result, installed, cache] = await Promise.all([
+      context.market.listSkills({
+        q: params?.q,
+        tag: params?.tag,
+        sort: params?.sort as 'updated' | 'name' | 'downloads' | undefined,
+      }),
+      context.installer.list(),
+      context.statuses.load(),
+    ])
+    return result.items.map((item) => toMarketView(item, installed, cache))
+  })
+  ipcMain.handle('market:detail', async (_event, skillId: string) => {
+    const [detail, installed, cache] = await Promise.all([
+      context.market.skillDetail(skillId),
+      context.installer.list(),
+      context.statuses.load(),
+    ])
+    const view = toMarketView(detail, installed, cache)
+    const front = detail.manifest?.frontMatter ?? {}
+    return {
+      ...view,
+      disabledReason: detail.disabledReason ?? null,
+      skillMd: detail.skillMd ?? '',
+      scripts: detail.manifest?.scripts ?? [],
+      requires: {
+        tools: front.requires?.tools ?? [],
+        bins: front.requires?.bins ?? [],
+        network: front.requires?.network ?? false,
+      },
+      versions: detail.versions.map((version) => ({
+        version: version.version,
+        status: version.status,
+        digest: version.digest,
+        sizeBytes: version.sizeBytes,
+        fileCount: version.fileCount,
+        changelog: version.changelog,
+        createdAt: version.createdAt,
+      })),
+    }
+  })
+  ipcMain.handle('market:install', async (_event, skillId: string, version: string) => {
+    const { ws } = await scoped(context)
+    const result = await context.installer.install(skillId, version)
+    await context.statuses.check({ force: true })
+    await reportScope(context, ws, 'global')
+    return { name: result.skill.name, version: result.skill.version, files: result.files }
+  })
+  ipcMain.handle('market:uninstall', async (_event, skillId: string) => {
+    const { ws } = await scoped(context)
+    const installed = (await context.installer.list()).filter((item) => item.skillId === skillId)
+    for (const item of installed) {
+      // 先从启用列表移除（design 5.7.4：卸载 = 从启用列表移除 + 删除目录）
+      for (const scope of ['global', 'workspace'] as const) {
+        try {
+          await context.skills.setDisabled(ws, item.name, scope)
+        } catch {
+          // 未启用或不存在：忽略
+        }
+      }
+    }
+    const removed = await context.installer.uninstall(skillId)
+    await reportScope(context, ws, 'global')
+    return removed
+  })
+  ipcMain.handle('market:installed', async () => {
+    const [installed, cache] = await Promise.all([context.installer.list(), context.statuses.load()])
+    return installed.map((item) => {
+      const entry = cache.skills[item.skillId]
+      return {
+        skillId: item.skillId,
+        name: item.name,
+        version: item.version,
+        digest: item.digest,
+        installedAt: item.installedAt,
+        state: entry?.status,
+        stateReason: entry?.reason,
+        replacementVersion: entry?.replacementVersion,
+      }
+    })
+  })
+  ipcMain.handle('market:check-status', async (_event, force?: boolean) => {
+    return context.statuses.check({ force: force ?? true })
+  })
 
   // ---------- 权限策略与审计 ----------
   ipcMain.handle('permissions:rules', async () => {
@@ -376,6 +473,9 @@ export function registerIpc(context: AppContext): void {
     await context.cloud.login(serverUrl, email, password)
     const { ws } = await scoped(context)
     await context.reporter.flush(ws, { force: true }).catch(() => undefined)
+    // 登录后立即同步资源状态与激活快照（design 5.12.3）
+    await context.statuses.check({ force: true }).catch(() => undefined)
+    await reportScope(context, ws, 'global')
     return buildCloudStatus(context)
   })
   ipcMain.handle(
@@ -481,5 +581,91 @@ async function buildCloudStatus(context: AppContext): Promise<import('../shared/
           }
         : undefined,
     pending,
+  }
+}
+
+/** Skill 列表（带市场来源与服务端状态；enabled 为实际生效值，design 5.12.2）。 */
+async function buildSkillViews(context: AppContext, ws: WorkspacePaths): Promise<SkillView[]> {
+  const [skills, installed, cache] = await Promise.all([
+    context.skills.list(ws),
+    context.installer.list(),
+    context.statuses.load(),
+  ])
+  const byName = latestByName(installed)
+  return skills.map((skill) => {
+    const market = byName.get(skill.name)
+    const entry = market ? cache.skills[market.skillId] : undefined
+    const hard = entry ? isHardDisabled(entry.status) : false
+    return {
+      ...skill,
+      intentEnabled: skill.enabled,
+      enabled: skill.enabled && !hard,
+      market: market
+        ? { skillId: market.skillId, installedVersion: market.version, updateAvailable: false }
+        : undefined,
+      state: entry?.status,
+      stateReason: entry?.reason,
+      replacementVersion: entry?.replacementVersion,
+    }
+  })
+}
+
+function latestByName(installed: InstalledSkill[]): Map<string, InstalledSkill> {
+  const map = new Map<string, InstalledSkill>()
+  for (const item of installed) {
+    const current = map.get(item.name)
+    if (!current || compareSemver(item.version, current.version) > 0) map.set(item.name, item)
+  }
+  return map
+}
+
+function toMarketView(
+  item: MarketSkill,
+  installed: InstalledSkill[],
+  cache: StatusCache,
+): import('../shared/ipc').MarketSkillView {
+  const mine = installed
+    .filter((entry) => entry.skillId === item.id)
+    .sort((a, b) => compareSemver(b.version, a.version))[0]
+  const entry = cache.skills[item.id]
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    tags: item.tags,
+    latestVersion: item.latestVersion,
+    downloadCount: item.downloadCount,
+    updatedAt: item.updatedAt,
+    installedVersion: mine?.version ?? null,
+    updateAvailable: Boolean(mine && item.latestVersion && compareSemver(item.latestVersion, mine.version) > 0),
+    state: entry?.status,
+    stateReason: entry?.reason,
+    replacementVersion: entry?.replacementVersion,
+  }
+}
+
+/** 上报某一作用域的激活快照（登录后调用，失败不影响主流程）。 */
+async function reportScope(
+  context: AppContext,
+  ws: WorkspacePaths,
+  scope: 'global' | 'workspace',
+): Promise<void> {
+  try {
+    if (!(await context.cloud.isLoggedIn())) return
+    const [config, skills, installed] = await Promise.all([
+      context.cloud.config(),
+      context.skills.list(ws),
+      context.installer.list(),
+    ])
+    await reportActivationSnapshot({
+      market: context.market,
+      deviceId: config.deviceId,
+      scope,
+      workspaceId: scope === 'workspace' ? ws.id : null,
+      skills,
+      installed,
+    })
+  } catch (error) {
+    console.warn('[market] 激活上报失败：', error)
   }
 }

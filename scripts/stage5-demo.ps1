@@ -14,7 +14,9 @@
 param(
   [string]$BaseUrl = "http://127.0.0.1:8080",
   [string]$Password = "Str0ng-Passphrase-2026",
-  [string]$PgContainer = "huagent-postgres"
+  [string]$PgContainer = "huagent-postgres",
+  # 保留已发布资源（跳过最后的软删除），供客户端市场联调使用
+  [switch]$KeepResource
 )
 
 $ErrorActionPreference = "Stop"
@@ -172,7 +174,16 @@ $zipBase = Join-Path $env:TEMP "demo-skill-$suffix"
 $zipPath = "$zipBase.zip"
 $hskillPath = "$zipBase.hskill"
 if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
-Compress-Archive -Path (Join-Path $tmp "*") -DestinationPath $zipPath
+# 不用 Compress-Archive：PowerShell 5.1 会写入反斜杠条目名（非标准，客户端安全解压会拒绝）
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+  [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, (Join-Path $tmp "SKILL.md"), "SKILL.md") | Out-Null
+  [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, (Join-Path $tmp "scripts/run.sh"), "scripts/run.sh") | Out-Null
+} finally {
+  $zip.Dispose()
+}
 Move-Item -Force $zipPath $hskillPath
 
 $headers = @{ Authorization = "Bearer $member"; "X-Client-Version" = "0.1.0" }
@@ -257,9 +268,13 @@ Ok "下架后 → $($status.items[0].status)"
 $null = Api "POST" "/api/v1/skills/$skillId`:publish" $owner
 $status = Api "POST" "/api/v1/resources/status:check" $member @{ items = @(@{ type = "skill"; refId = $skillId; version = "1.0.0" }) }
 Ok "上架后 → $($status.items[0].status)"
-$null = Api "DELETE" "/api/v1/skills/$skillId" $owner
-$status = Api "POST" "/api/v1/resources/status:check" $member @{ items = @(@{ type = "skill"; refId = $skillId; version = "1.0.0" }) }
-Ok "删除后 → $($status.items[0].status)"
+if ($KeepResource) {
+  Ok "跳过删除（-KeepResource）：资源保持已发布，skillId=$skillId"
+} else {
+  $null = Api "DELETE" "/api/v1/skills/$skillId" $owner
+  $status = Api "POST" "/api/v1/resources/status:check" $member @{ items = @(@{ type = "skill"; refId = $skillId; version = "1.0.0" }) }
+  Ok "删除后 → $($status.items[0].status)"
+}
 
 Step "审批纪律：驳回必须填意见；已处理审批不能重复处理"
 $applied2 = Api "POST" "/api/v1/orgs:apply" $owner @{

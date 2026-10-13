@@ -87,6 +87,18 @@ describe('SkillManager', () => {
     expect(skills[0]?.enabled).toBe(false)
   })
 
+  it('同名多版本时默认激活最高 semver（design 5.7.2）', async () => {
+    await writeSkill(join(workspace.huDir, 'skills'), join('multi', '1.0.0'), 'multi', '旧版本', 'version: 1.0.0\n')
+    await writeSkill(join(workspace.huDir, 'skills'), join('multi', '3.0.0'), 'multi', '新版本', 'version: 3.0.0\n')
+    await writeSkill(join(workspace.huDir, 'skills'), join('multi', '2.0.0'), 'multi', '中间版本', 'version: 2.0.0\n')
+
+    const skills = await new SkillManager(globalRoot, globalState).list(workspace)
+    const multi = skills.filter((skill) => skill.name === 'multi')
+    expect(multi).toHaveLength(1)
+    expect(multi[0]?.version).toBe('3.0.0')
+    expect(multi[0]?.description).toBe('新版本')
+  })
+
   it('系统提示只包含已启用 Skill 的元数据与路径', async () => {
     await writeSkill(globalRoot, 'pdf-report', 'pdf-report', '导出 PDF', 'when_to_use: 用户要求导出 PDF 时\n')
     await writeSkill(globalRoot, 'other', 'other', '不启用的技能')

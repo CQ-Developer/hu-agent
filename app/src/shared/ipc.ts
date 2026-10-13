@@ -122,7 +122,71 @@ export interface SkillView {
   requires?: { tools?: string[]; bins?: string[]; network?: boolean }
   scope: 'global' | 'workspace'
   path: string
+  /** 用户意图（本地 skills.json 记录） */
+  intentEnabled: boolean
+  /** 实际生效 = 意图 ∧ 服务端状态允许（design 5.12） */
   enabled: boolean
+  /** 市场来源信息（本地 Skill 无此字段） */
+  market?: { skillId: string; installedVersion: string; updateAvailable: boolean }
+  state?: 'active' | 'delisted' | 'disabled' | 'revoked' | 'not_found' | 'unknown'
+  stateReason?: string
+  replacementVersion?: string
+}
+
+export interface MarketSkillView {
+  id: string
+  name: string
+  description: string
+  tags: string[]
+  latestVersion: string | null
+  downloadCount: number
+  updatedAt: string
+  installedVersion: string | null
+  updateAvailable: boolean
+  state?: 'active' | 'delisted' | 'disabled' | 'revoked' | 'not_found' | 'unknown'
+  stateReason?: string
+  replacementVersion?: string
+}
+
+export interface MarketVersionView {
+  version: string
+  status: string
+  digest: string
+  sizeBytes: number
+  fileCount: number
+  changelog: string | null
+  createdAt: string
+}
+
+export interface MarketDetailView extends MarketSkillView {
+  disabledReason: string | null
+  skillMd: string
+  scripts: string[]
+  requires: { tools: string[]; bins: string[]; network: boolean }
+  versions: MarketVersionView[]
+}
+
+export interface MarketInstallResultView {
+  name: string
+  version: string
+  files: number
+}
+
+export interface InstalledSkillView {
+  skillId: string
+  name: string
+  version: string
+  digest: string
+  installedAt: string
+  state?: 'active' | 'delisted' | 'disabled' | 'revoked' | 'not_found' | 'unknown'
+  stateReason?: string
+  replacementVersion?: string
+}
+
+export interface MarketCheckResultView {
+  checked: number
+  skipped: boolean
+  error?: string
 }
 
 export interface PolicyRuleView {
@@ -260,6 +324,14 @@ export interface HuAgentApi {
   skills: {
     list(): Promise<SkillView[]>
     setEnabled(name: string, scope: 'global' | 'workspace', enabled: boolean): Promise<SkillView[]>
+  }
+  market: {
+    list(params?: { q?: string; tag?: string; sort?: 'updated' | 'name' | 'downloads' }): Promise<MarketSkillView[]>
+    detail(skillId: string): Promise<MarketDetailView>
+    install(skillId: string, version: string): Promise<MarketInstallResultView>
+    uninstall(skillId: string): Promise<number>
+    installed(): Promise<InstalledSkillView[]>
+    checkStatus(force?: boolean): Promise<MarketCheckResultView>
   }
   permissions: {
     rules(): Promise<{ workspace: PolicyRuleView[]; global: PolicyRuleView[] }>

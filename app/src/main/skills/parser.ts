@@ -28,6 +28,19 @@ export class SkillParseError extends Error {
   }
 }
 
+/** 简易 semver 比较（忽略 pre-release）；仅用于挑选激活版本。 */
+export function compareSemver(left: string, right: string): number {
+  const parse = (value: string): number[] =>
+    (value.split('-')[0] ?? '').split('.').map((part) => Number(part) || 0)
+  const a = parse(left)
+  const b = parse(right)
+  for (let index = 0; index < 3; index += 1) {
+    const diff = (a[index] ?? 0) - (b[index] ?? 0)
+    if (diff !== 0) return diff > 0 ? 1 : -1
+  }
+  return 0
+}
+
 /** 解析 SKILL.md：必须包含 `---` 包裹的 front matter，且带 name/description。 */
 export function parseSkillFile(content: string): ParsedSkill {
   const normalized = content.replace(/\r\n/g, '\n')

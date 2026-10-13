@@ -1,7 +1,8 @@
-export type AppTab = 'chat' | 'models' | 'skills' | 'mcp' | 'workspace' | 'permissions' | 'about'
+export type AppTab = 'chat' | 'market' | 'models' | 'skills' | 'mcp' | 'workspace' | 'permissions' | 'about'
 
 export const APP_TABS: { id: AppTab; label: string }[] = [
   { id: 'chat', label: '对话' },
+  { id: 'market', label: '市场' },
   { id: 'models', label: '模型配置' },
   { id: 'skills', label: 'Skill 配置' },
   { id: 'mcp', label: 'MCP 配置' },

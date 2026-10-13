@@ -28,7 +28,9 @@ powershell -ExecutionPolicy Bypass -File scripts/stage5-demo.ps1
 - 需要 Docker 访问 `huagent-postgres` 容器（把 `sysadmin@example.com` 直接标记为系统管理员，本地开发便捷通道）；
 - 触发登录限流（10/min/IP）时会自动读取 `Retry-After` 并等待重试；
 - 共 17 步，每步打印 `OK …`，最后输出「全部走查通过」；
-- 临时文件写在 `%TEMP%\huagent-skill-demo-<随机数>`。
+- 临时文件写在 `%TEMP%\huagent-skill-demo-<随机数>`；
+- 加 `-KeepResource` 时跳过最后的软删除，保留已发布资源（供客户端市场联调 / `MARKET_E2E=1` 使用）；
+- 造包使用 .NET `ZipArchive`（显式正斜杠条目名）：PowerShell 5.1 的 `Compress-Archive` 会写入反斜杠条目名，属于非标准 zip，客户端安全解压会拒绝。
 
 对象存储：
 

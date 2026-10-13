@@ -39,6 +39,14 @@ const api: HuAgentApi = {
     list: () => ipcRenderer.invoke('skills:list'),
     setEnabled: (name, scope, enabled) => ipcRenderer.invoke('skills:set-enabled', name, scope, enabled),
   },
+  market: {
+    list: (params) => ipcRenderer.invoke('market:list', params),
+    detail: (skillId) => ipcRenderer.invoke('market:detail', skillId),
+    install: (skillId, version) => ipcRenderer.invoke('market:install', skillId, version),
+    uninstall: (skillId) => ipcRenderer.invoke('market:uninstall', skillId),
+    installed: () => ipcRenderer.invoke('market:installed'),
+    checkStatus: (force) => ipcRenderer.invoke('market:check-status', force),
+  },
   permissions: {
     rules: () => ipcRenderer.invoke('permissions:rules'),
     audit: (limit?: number) => ipcRenderer.invoke('permissions:audit', limit),
