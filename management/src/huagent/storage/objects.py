@@ -30,8 +30,24 @@ class ObjectStore(Protocol):
 class S3ObjectStore:
     def __init__(self, bucket: str) -> None:
         self._bucket = bucket
+        self._bucket_ready = False
+
+    def _ensure_bucket(self) -> None:
+        """首次写入前确保桶存在（本地 MinIO 零配置；生产通常已预建，幂等）。"""
+        if self._bucket_ready:
+            return
+        client = get_s3_client()
+        try:
+            client.head_bucket(Bucket=self._bucket)
+        except Exception:  # noqa: BLE001 —— 不存在或无权限时尝试创建
+            try:
+                client.create_bucket(Bucket=self._bucket)
+            except Exception:  # noqa: BLE001 —— 并发创建/已存在则忽略
+                pass
+        self._bucket_ready = True
 
     def put(self, key: str, data: bytes, content_type: str = "application/zip") -> None:
+        self._ensure_bucket()
         get_s3_client().put_object(Bucket=self._bucket, Key=key, Body=data, ContentType=content_type)
 
     def get(self, key: str) -> bytes:

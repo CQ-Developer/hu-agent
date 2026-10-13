@@ -1295,6 +1295,7 @@ stateDiagram-v2
 
 > 实现说明（阶段 5）：上传使用**原始 zip 请求体**（`Content-Type: application/zip`，流式读取并限制 20MB），
 > 元数据由包内 `SKILL.md` front matter 提供，`changelog` 走查询参数；比 multipart 少一个依赖且同样流式安全。
+> 对象存储经 `storage/objects.py` 抽象（生产 S3/MinIO，测试内存实现），首次写入自动确保桶存在。
 
 1. 流式接收，边收边算 sha256，同时限制最大 20 MB。
 2. 结构校验：能被 zip 解析；根目录或单一顶层目录下存在 `SKILL.md`；拒绝绝对路径 / `..` / 反斜杠 / 符号链接条目；文件数 ≤ 500；解压后总大小 ≤ 100 MB；压缩比 ≤ 200:1（防 zip 炸弹）。
