@@ -8,7 +8,7 @@ Electron + React + TypeScript 骨架（electron-vite 构建，electron-builder �
 npm install        # 首次安装依赖（生成 package-lock.json，请提交）
 npm run dev        # 开发模式：开窗 + HMR
 npm run typecheck  # 主进程/预加载 + 渲染进程类型检查
-npm run test       # Vitest 单测（会话存储、工具、截断、用量、Loop 冒烟）
+npm run test       # Vitest 单测（会话存储、工具、截断、用量、Loop 冒烟、SSE 解析）
 npm run build      # 构建到 out/
 npm run dist       # 打 Windows 安装包（需要签名时配置证书，见 docs/design.md 9.5）
 npm run dist:mac   # 打 macOS dmg（需 Developer ID 与公证配置）
@@ -43,4 +43,13 @@ src/renderer/   # 渲染进程（React 界面）
   - [x] 内置工具：read_file / write_file / edit_file / bash / powershell（截断 + artifact）
   - [x] 聊天 UI：流式消息、工具卡片、会话列表、模型设置抽屉
   - [x] 本地用量账本 + 侧边栏统计
-  - [x] 17 个单测（`npm run test`）
+  - [x] 20 个单测（`npm run test`）
+  - [x] 真实模型联调：DeepSeek `deepseek-flash` 流式对话 + 工具调用（集成测试见下）
+
+## 真实模型集成测试（需要密钥，默认跳过）
+
+```bash
+DEEPSEEK_API_KEY=... npx vitest run tests/integration/deepseek.test.ts
+```
+
+密钥只从环境变量读取，不落盘；测试覆盖基础流式对话与 Agent 工具调用链路。

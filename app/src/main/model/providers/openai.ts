@@ -17,6 +17,15 @@ export interface OpenAiChatOptions {
 }
 
 interface DeltaToolCall {
+  /** OpenAI 协议通常带 index；部分兼容服务省略，按数组位置回退 */
+  index?: number
+  id?: string
+  type?: string
+  function?: { name?: string; arguments?: string }
+}
+
+/** 流式工具调用的累积状态（name/arguments 分块到达）。 */
+interface PendingToolCall {
   index: number
   id?: string
   name?: string
@@ -79,7 +88,7 @@ export async function* streamOpenAiChat(options: OpenAiChatOptions): AsyncIterab
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
-  const pendingToolCalls = new Map<number, DeltaToolCall>()
+  const pendingToolCalls = new Map<number, PendingToolCall>()
   let buffer = ''
   let stopReason: 'stop' | 'tool_use' | 'length' = 'stop'
   let sawToolCall = false
@@ -99,13 +108,16 @@ export async function* streamOpenAiChat(options: OpenAiChatOptions): AsyncIterab
       const toolCalls = delta.tool_calls as DeltaToolCall[] | undefined
       if (toolCalls?.length) {
         sawToolCall = true
-        for (const partial of toolCalls) {
-          const current = pendingToolCalls.get(partial.index) ?? { index: partial.index }
+        toolCalls.forEach((partial, position) => {
+          const key = partial.index ?? position
+          const current = pendingToolCalls.get(key) ?? { index: key }
           if (partial.id) current.id = partial.id
-          if (partial.name) current.name = partial.name
-          if (partial.argumentsText) current.argumentsText = (current.argumentsText ?? '') + partial.argumentsText
-          pendingToolCalls.set(partial.index, current)
-        }
+          if (partial.function?.name) current.name = partial.function.name
+          if (partial.function?.arguments) {
+            current.argumentsText = (current.argumentsText ?? '') + partial.function.arguments
+          }
+          pendingToolCalls.set(key, current)
+        })
       }
       const finish = choice.finish_reason
       if (finish === 'length') stopReason = 'length'
@@ -157,11 +169,11 @@ export async function* streamOpenAiChat(options: OpenAiChatOptions): AsyncIterab
   yield { type: 'done', stopReason: sawToolCall ? 'tool_use' : stopReason }
 }
 
-function finalizeToolCalls(pending: Map<number, DeltaToolCall>): ToolCall[] {
-  return [...pending.values()]
-    .sort((a, b) => a.index - b.index)
-    .map((partial, index) => ({
-      id: partial.id ?? `call_${index}`,
+function finalizeToolCalls(pending: Map<number, PendingToolCall>): ToolCall[] {
+  return [...pending.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([key, partial], index) => ({
+      id: partial.id ?? `call_${key}_${index}`,
       name: partial.name ?? 'unknown',
       input: parseArguments(partial.argumentsText),
     }))

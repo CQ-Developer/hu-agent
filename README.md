@@ -37,8 +37,8 @@
   - [x] 内置工具：read_file / write_file / edit_file / bash / powershell
   - [x] 最小聊天 UI（流式渲染、工具卡片、会话列表、模型设置、Markdown 消毒）
   - [x] 本地用量账本与统计
-  - [x] 单测 17 个 + typecheck + 构建全绿
-  - [ ] 配置真实供应商后跑一次完整任务（真机联调）
+  - [x] 单测 20 个 + typecheck + 构建全绿
+  - [x] 真实模型联调（DeepSeek `deepseek-flash`）：流式对话与工具调用通过
   - [ ] Anthropic 适配（1-07，延后）
 
 ## 环境要求
