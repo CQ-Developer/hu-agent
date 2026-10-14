@@ -21,6 +21,7 @@ import type { SessionStore } from '../session/store'
 import type { UsageLedger } from '../usage/ledger'
 import type { TelemetrySink } from '../usage/telemetry'
 import { createPiRuntime, type PiRuntime } from '../model/pi-runtime'
+import type { NativeTool } from '../tools/native/tool'
 
 export interface PiRunnerOptions {
   workspaceRoot: string
@@ -37,6 +38,10 @@ export interface PiRunnerOptions {
   /** 测试注入 pi 的 models 集合（例如 faux provider） */
   models?: Parameters<typeof createPiRuntime>[0]['models']
   skillSection?: string
+  /** 压缩用的模型（缺省用当前会话模型） */
+  fastTarget?: string
+  /** 运行时注入的工具（例如 MCP），与默认工具集合并 */
+  extraTools?: NativeTool[]
   maxSteps?: number
   outputLimit?: number
   keepRecentMessages?: number
@@ -63,6 +68,7 @@ export function createPiTurnRunner(options: PiRunnerOptions): PiTurnRunner {
     getSecret: options.getSecret,
     ...(options.agentDir ? { path: join(options.agentDir, 'models.json') } : {}),
     ...(options.models ? { models: options.models } : {}),
+    ...(options.fastTarget ? { fastTarget: options.fastTarget } : {}),
   })
 
   return {
@@ -70,13 +76,16 @@ export function createPiTurnRunner(options: PiRunnerOptions): PiTurnRunner {
     async runTurn(request: TurnRequest): Promise<void> {
       const workspaceRoot = request.workspaceRoot ?? options.workspaceRoot
       const turnId = ulid()
-      // 工具按回合构造：ask_guide 需要把提问路由到正确的会话与轮次
-      const tools = createDefaultTools({
-        workspaceRoot,
-        interactions: options.interactions,
-        sessionId: request.sessionId,
-        turnId,
-      })
+      // 工具按回合构造：ask_guide 需要把提问路由到正确的会话与轮次；MCP 等运行时工具并入
+      const tools = [
+        ...createDefaultTools({
+          workspaceRoot,
+          interactions: options.interactions,
+          sessionId: request.sessionId,
+          turnId,
+        }),
+        ...(options.extraTools ?? []),
+      ]
 
       const deps: PiLoopDeps = {
         resolver: runtime.resolver,

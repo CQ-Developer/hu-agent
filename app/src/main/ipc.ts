@@ -4,11 +4,11 @@ import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { ModelGateway } from './model/gateway'
+import type { PiTurnRunner } from './agent/pi_runner'
 import type { ModelSettings, ReasoningEffort } from './model/types'
-import { runTurn } from './agent/loop'
+
 import type { SecretStore } from './config/secrets'
-import type { SettingsStore } from './config/settings-store'
+
 import { configFilePath } from './config/paths'
 import type { CloudClient } from './cloud/client'
 import type { UsageReporter } from './cloud/reporter'
@@ -41,7 +41,10 @@ import type { SessionOptionsView } from '../shared/ipc'
 import type { SkillView } from '../shared/ipc'
 import type { MarketSkill } from './market/client'
 import type { AgentEvent, ApprovalRequestView, GuideRequestView } from '../shared/events'
-import type { ToolRegistry } from './tools/registry'
+import { bridgeLegacyTools } from './tools/mcp_bridge'
+import type { NativeTool } from './tools/native/tool'
+import type { ModelSettingsStore } from './config/pi_model_settings'
+import type { TelemetrySink } from './usage/telemetry'
 import type { UsageLedger } from './usage/ledger'
 import type { WorkspaceManager, WorkspacePaths } from './workspace'
 import { appendWorkspaceRule, loadGlobalRules, loadWorkspaceRules } from './workspace-settings'
@@ -49,10 +52,22 @@ import { getLocale, getLocalePreference, setLocale, systemLocale, t } from './i1
 
 export interface AppContext {
   workspaces: WorkspaceManager
-  settings: SettingsStore
+  settings: ModelSettingsStore
   secrets: SecretStore
-  gateway: ModelGateway
-  tools: ToolRegistry
+  /**
+   * 每回合构造 runner（R3 切换）：工作空间相关依赖从这里注入，
+   * 引擎装配（models.json → pi-ai → Agent → 原生工具 + 治理钩子）在 runner 内部完成。
+   */
+  createRunner: (options: {
+    workspaceRoot: string
+    permissions: PermissionEngine
+    sessions: SessionStore
+    artifacts: ArtifactStore
+    telemetry?: TelemetrySink
+    skillSection?: string
+    fastTarget?: string
+    extraTools?: NativeTool[]
+  }) => PiTurnRunner
   ledger: UsageLedger
   interactions: InteractionBroker
   skills: SkillManager
@@ -221,8 +236,8 @@ export function registerIpc(context: AppContext): void {
     const { sessions } = await scoped(context)
     const lines = (await sessions.readLines(sessionId)).lines
     const options = await resolveSessionOptions(context, sessionId)
-    const { model } = context.gateway.resolve(options.model)
-    return computeSessionUsage(lines, model.capabilities.contextWindow)
+    const settings = await context.settings.load()
+    return computeSessionUsage(lines, contextWindowOf(settings, options.model))
   })
   ipcMain.handle('sessions:search', async (_event, query: string) => (await scoped(context)).sessions.search(query))
 
@@ -235,33 +250,36 @@ export function registerIpc(context: AppContext): void {
     const controller = new AbortController()
     activeTurns.set(sessionId, controller)
     try {
-      await runTurn(
-        {
-          gateway: context.gateway,
-          tools: context.tools,
-          sessions,
-          artifacts,
-          ledger: context.ledger,
-          permissions,
-          interactions: context.interactions,
-          emit: broadcastEvent,
+      const runner = context.createRunner({
+        workspaceRoot: ws.root,
+        permissions,
+        sessions,
+        artifacts,
+        fastTarget: settings.defaults.fast ?? settings.defaults.primary,
+        skillSection: await context.skills.systemPromptSection(ws),
+        // MCP 仍是自研客户端（R4 换 pi-mcp），此处用过渡桥把旧工具接成原生工具
+        extraTools: bridgeLegacyTools(await context.mcp.tools(ws), {
           workspaceRoot: ws.root,
-          fastTarget: settings.defaults.fast ?? settings.defaults.primary,
-          skillSection: await context.skills.systemPromptSection(ws),
-          extraTools: await context.mcp.tools(ws),
-          telemetry: {
-            record: async (input) => {
-              try {
-                await context.reporter.enqueue(ws, input)
-                // 入队后后台尝试上报（未到退避时间会自动跳过）
-                void context.reporter.tick([ws])
-              } catch (error) {
-                console.warn(t('[telemetry] 入队失败：'), error)
-              }
-            },
+          sessionId,
+          turnId: '',
+          artifacts,
+          interactions: context.interactions,
+        }),
+        telemetry: {
+          record: async (input) => {
+            try {
+              await context.reporter.enqueue(ws, input)
+              // 入队后后台尝试上报（未到退避时间会自动跳过）
+              void context.reporter.tick([ws])
+            } catch (error) {
+              console.warn(t('[telemetry] 入队失败：'), error)
+            }
           },
         },
-        { sessionId, userText: text, signal: controller.signal },
+      })
+
+      await runner.runTurn(
+        { sessionId, userText: text, signal: controller.signal, emit: broadcastEvent },
       )
     } finally {
       activeTurns.delete(sessionId)
@@ -655,6 +673,19 @@ interface McpSaveInputWire {
   headers?: Record<string, string>
   approval?: 'ask' | 'session' | 'always'
   scope: 'global' | 'workspace'
+}
+
+/** 从模型设置里取目标模型的上下文窗口（stats 视图用；找不到就退回第一个可用模型） */
+function contextWindowOf(settings: ModelSettings, target?: string): number {
+  const slash = (target ?? '').indexOf('/')
+  const providerId = slash >= 0 ? (target ?? '').slice(0, slash) : ''
+  const modelName = slash >= 0 ? (target ?? '').slice(slash + 1) : (target ?? '')
+  const provider =
+    settings.providers.find((item) => item.id === providerId) ??
+    settings.providers.find((item) => item.models.some((model) => model.name === modelName)) ??
+    settings.providers[0]
+  const model = provider?.models.find((item) => item.name === modelName) ?? provider?.models[0]
+  return model?.capabilities.contextWindow ?? 0
 }
 
 async function resolveSessionOptions(context: AppContext, sessionId: string): Promise<SessionOptionsView> {  const settings = await context.settings.load()

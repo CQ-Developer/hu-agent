@@ -97,6 +97,12 @@ interface HistorySummarizer {
 
 ### 1.6 修订后的重构步骤（pi 为核）
 
+> **R3 进度**：运行器装配 ✅ · 模型设置来源桥 ✅ · **IPC/index 切换 ✅**
+> —— `context.createRunner` 每回合构造 runner（工作空间相关的权限/会话/技能/遥测在工厂注入），
+> `context.settings` 换成桥适配器（与旧 `SettingsStore` 同形接口，ipc 层的设置调用点零改动）；
+> 旧 `ModelGateway` 与 `ToolRegistry` 不再被 ipc/index 引用（随 R5 删文件）。
+> 过渡期 MCP 桥 `tools/mcp_bridge.ts` 把旧 MCP 工具接成原生工具，**R4 换 `pi-mcp` 后删除**。
+
 > 命名约定（本轮新增）：新文件一律用**下划线**（`read_file.ts` / `pi_governance.ts`），与 Python 侧一致；
 > 客户端的 kebab-case 属遗留，随文件被改动时一并改名。约定已记入 `CONTRIBUTING.md`。
 

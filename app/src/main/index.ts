@@ -3,10 +3,9 @@ import { appendFile, mkdir } from 'node:fs/promises'
 
 import { BrowserWindow, Menu, app, shell } from 'electron'
 
-import { ModelGateway } from './model/gateway'
 import { broadcastInteraction, broadcastSessionLost, broadcastSyncEvent, registerIpc, type AppContext } from './ipc'
 import { SecretStore } from './config/secrets'
-import { SettingsStore } from './config/settings-store'
+import { createModelSettingsStore } from './config/pi_model_settings'
 import { configFilePath, cloudConfigFile, globalDir, secretsFilePath, usageLedgerPath, workspacesIndexFile } from './config/paths'
 import { CloudStore } from './cloud/store'
 import { CloudClient } from './cloud/client'
@@ -22,7 +21,7 @@ import { InteractionBroker } from './permissions/broker'
 import { McpManager } from './mcp/manager'
 import { SkillManager } from './skills/manager'
 import { FileLogger } from './logging'
-import { createDefaultToolRegistry } from './tools/registry'
+import { createPiTurnRunner } from './agent/pi_runner'
 import { UsageLedger } from './usage/ledger'
 import { WorkspaceManager } from './workspace'
 import { initI18n, t } from './i18n'
@@ -75,15 +74,18 @@ async function bootstrap(): Promise<void> {
   const workspaces = new WorkspaceManager(workspacesIndexFile())
   await workspaces.init()
 
-  const settings = new SettingsStore(configFilePath())
-  await settings.load()
   const secrets = new SecretStore(secretsFilePath())
   await secrets.load()
-  const ledger = new UsageLedger(usageLedgerPath())
-  const gateway = new ModelGateway({
-    getSettings: () => settings.get(),
-    getSecret: (ref) => secrets.get(ref),
+
+  // 模型设置来源（R3 切换）：providers 存 pi 的 models.json，defaults 存 config.json；
+  // 接口与旧 SettingsStore 同形，因此 IPC 层的调用点无需改动。
+  const settings = createModelSettingsStore({
+    configPath: configFilePath(),
+    hasKey: (providerId) => secrets.has(`model:${providerId}`),
   })
+  await settings.load()
+
+  const ledger = new UsageLedger(usageLedgerPath())
   const interactions = new InteractionBroker({ broadcast: broadcastInteraction })
 
   // 云账户与上报器必须共享同一个 CloudClient（access token 只存内存）；
@@ -127,8 +129,22 @@ async function bootstrap(): Promise<void> {
     workspaces,
     settings,
     secrets,
-    gateway,
-    tools: createDefaultToolRegistry(),
+    // 每回合构造 runner：工作空间相关的依赖（权限引擎、会话/产物存储、技能段、遥测出口）在这里注入。
+    // runner 内部负责 pi 运行时装配（models.json → pi-ai → Agent）与原生工具集 + 治理钩子。
+    createRunner: (options) =>
+      createPiTurnRunner({
+        workspaceRoot: options.workspaceRoot,
+        getSecret: (ref) => secrets.get(ref),
+        permissions: options.permissions,
+        interactions,
+        sessions: options.sessions,
+        artifacts: options.artifacts,
+        ledger,
+        ...(options.telemetry ? { telemetry: options.telemetry } : {}),
+        ...(options.skillSection ? { skillSection: options.skillSection } : {}),
+        ...(options.fastTarget ? { fastTarget: options.fastTarget } : {}),
+        ...(options.extraTools ? { extraTools: options.extraTools } : {}),
+      }),
     ledger,
     interactions,
     skills: new SkillManager(),

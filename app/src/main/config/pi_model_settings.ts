@@ -71,3 +71,31 @@ export async function inspectModelConfig(options: ModelSettingsBridgeOptions): P
   const providers = Object.keys(file.providers).length
   return { providers, modelsFile: modelsPath(options), hasModelsFile: providers > 0 }
 }
+
+/** 与旧 `SettingsStore` 同形的接口（`load/get/save`），便于 IPC 调用点零改动地切换来源 */
+export interface ModelSettingsStore {
+  load(): Promise<ModelSettings>
+  get(): ModelSettings
+  save(settings: ModelSettings): Promise<void>
+}
+
+/**
+ * 桥适配器：把"providers 存 pi 的 models.json、defaults 存 config.json"包装成与 SettingsStore
+ * 相同的接口，于是 IPC 层的 `context.settings.load()/save()` 调用完全不用改。
+ */
+export function createModelSettingsStore(options: ModelSettingsBridgeOptions): ModelSettingsStore {
+  let cache: ModelSettings | null = null
+  return {
+    async load(): Promise<ModelSettings> {
+      if (!cache) cache = await loadModelSettings(options)
+      return cache
+    },
+    get(): ModelSettings {
+      return cache ?? { providers: [], defaults: { primary: '' } }
+    },
+    async save(settings: ModelSettings): Promise<void> {
+      await saveModelSettings(options, settings)
+      cache = settings
+    },
+  }
+}
