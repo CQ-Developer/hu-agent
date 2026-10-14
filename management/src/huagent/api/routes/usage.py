@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from huagent.api.deps import Actor, get_actor
 from huagent.api.schemas import ApiModel
 from huagent.common.errors import AppError, ErrorCode
+from huagent.common.metrics import USAGE_EVENTS
 from huagent.domain.db import get_session
 
 router = APIRouter(tags=["usage"])
@@ -228,6 +229,9 @@ async def submit_usage(
     await session.commit()
 
     duplicated = duplicates + (len(rows) - accepted)
+    USAGE_EVENTS.inc(accepted, result="accepted")
+    USAGE_EVENTS.inc(duplicated, result="duplicated")
+    USAGE_EVENTS.inc(rejected, result="rejected")
     return UsageBatchOut(
         received=len(payload.events),
         accepted=accepted,

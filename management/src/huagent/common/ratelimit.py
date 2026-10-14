@@ -13,6 +13,7 @@ from typing import Protocol
 
 from huagent.common.config import get_settings
 from huagent.common.errors import AppError, ErrorCode
+from huagent.common.metrics import LOGIN_ATTEMPTS
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +114,7 @@ class LoginGuard:
     async def check_ip(self, ip: str) -> None:
         count = await self._backend.incr(f"rl:login:ip:{ip}", self._ip_window)
         if count > self._ip_limit:
+            LOGIN_ATTEMPTS.inc(result="locked_ip")
             raise AppError(
                 ErrorCode.RATE_LIMITED,
                 "登录请求过于频繁，请稍后再试",
@@ -123,6 +125,7 @@ class LoginGuard:
         remaining = await self._backend.ttl(f"rl:login:lock:{email}")
         if remaining > 0:
             minutes = max(1, math.ceil(remaining / 60))
+            LOGIN_ATTEMPTS.inc(result="locked_account")
             raise AppError(
                 ErrorCode.RATE_LIMITED,
                 f"账号已临时锁定，请约 {minutes} 分钟后重试",

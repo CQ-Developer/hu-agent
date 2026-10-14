@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from huagent.api.errors import install_exception_handlers
-from huagent.api.middleware import TraceIdMiddleware
+from huagent.api.middleware import MetricsMiddleware, TraceIdMiddleware
 from huagent.api.routes import (
     admin_identity,
     approvals,
@@ -51,6 +51,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
     app.add_middleware(TraceIdMiddleware)
+    app.add_middleware(MetricsMiddleware)
     install_exception_handlers(app)
     app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
     app.include_router(auth.router, prefix="/api/v1")

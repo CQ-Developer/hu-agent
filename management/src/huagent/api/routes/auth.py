@@ -20,6 +20,7 @@ from huagent.api.deps import Actor, client_ip, get_actor
 from huagent.api.schemas import ApiModel
 from huagent.common.config import get_settings
 from huagent.common.errors import AppError, ErrorCode
+from huagent.common.metrics import LOGIN_ATTEMPTS
 from huagent.common.ratelimit import LoginGuard, get_login_guard
 from huagent.common.security import (
     hash_password,
@@ -263,12 +264,15 @@ async def login(
     user = (await session.execute(SELECT_USER, {"email": email})).mappings().first()
     if user is None or not verify_password(payload.password, user["password_hash"]):
         await guard.on_failure(email)
+        LOGIN_ATTEMPTS.inc(result="failure")
         # 不区分“用户不存在/密码错误”，避免账号枚举
         raise AppError(ErrorCode.UNAUTHENTICATED, "邮箱或密码错误")
     if user["status"] != "active":
+        LOGIN_ATTEMPTS.inc(result="disabled")
         raise AppError(ErrorCode.ACCOUNT_DISABLED, "账号已被禁用")
 
     await guard.on_success(email)
+    LOGIN_ATTEMPTS.inc(result="success")
     device = payload.device
     return await issue_login_tokens(
         session,

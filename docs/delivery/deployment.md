@@ -28,6 +28,8 @@
 | `AUTH_REGISTRATION_ENABLED` | — | `false` 关闭自助注册（企业只走 SSO/邀请） |
 | `SCHEMA_EXPECTED_VERSION` | ✅ | 期望的 DDL 版本（当前 `V0004`）；不匹配会拒绝启动 |
 | `WEAK_PASSWORD_FILE` | 建议 | 挂载 top-10k 弱口令名单文件路径 |
+| `METRICS_ENABLED` | — | 默认 `true`；置 `false` 关闭 `/api/v1/system/metrics` |
+| `METRICS_TOKEN` | 建议 | 非空时指标端点要求 `Authorization: Bearer <token>`（生产必须设置） |
 | `CORS_ORIGINS` | 管理台 | 管理台/SSO 回跳来源白名单（JSON 数组） |
 | `LOGIN_IP_LIMIT` / `LOGIN_FAIL_THRESHOLD` | — | 默认 10/min/IP、5 次失败递增锁 1/5/15 分钟 |
 

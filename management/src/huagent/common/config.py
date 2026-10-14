@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # 弱口令名单文件（每行一个；生产可挂载到 top-10k 名单）
     weak_password_file: str = ""
 
+    # 监控（design 9.x）：Prometheus 文本指标；metrics_token 为空则不校验（仅限内网）
+    metrics_enabled: bool = True
+    metrics_token: str = ""  # noqa: S105 —— 默认空表示不校验；生产建议设置并由采集器携带
+
     # 启动时校验数据库 schema 版本（design 6.8.3）；阶段 7 期望 V0004
     schema_check_enabled: bool = True
     schema_expected_version: str = "V0004"

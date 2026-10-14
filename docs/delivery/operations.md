@@ -6,12 +6,14 @@
 | --- | --- | --- |
 | `GET /api/v1/system/health` | 进程存活 | 连续 2 次失败 → P1 |
 | `GET /api/v1/system/ready` | PG/Redis 就绪（schema 版本校验在启动时执行） | 失败 5 分钟 → P1 |
+| `GET /api/v1/system/metrics` | Prometheus 指标（默认启用；`HUAGENT_METRICS_TOKEN` 可要求 Bearer 令牌） | 规则、看板与采集配置见 `docs/delivery/monitoring.md` |
 | `GET /api/v1/stats/usage?scope=global` | 全局用量（系统管理员） | 突增/突降 50% → P3 观察 |
 
 日志：API/worker 输出到 stdout（容器/systemd 收集）；结构化字段：`traceId`（`X-Trace-Id` 透传或自动生成，
 响应头同样返回），排障时以 traceId 关联一次请求的全部日志。
 
-worker 任务：`job_runs` 表记录每次执行（`job_id/status/started_at/finished_at/error`）。
+worker 任务：`job_runs` 表记录**每个任务最近一次**执行（`job_id/status/started_at/finished_at/error`），
+并通过 `huagent_job_last_*` 指标暴露（陈旧/失败告警见 `monitoring.md`）。
 建议监控 `status='failed'` 与 `started_at` 超过 2 倍周期的任务。
 
 ## 2. 客户端排障
@@ -51,7 +53,7 @@ worker 任务：`job_runs` 表记录每次执行（`job_id/status/started_at/fin
 1. 备份 PG（快照或 WAL 位点）与对象存储版本；
 2. 执行 `scripts/ci/apply-ddl.py`（只升不降、幂等）；
 3. 滚动重启 API → worker（worker 启动会先补偿聚合与分区维护）；
-4. 冒烟：健康检查、登录、`POST /usage:batch`、市场列表、一次快照 init/complete；
+4. 冒烟：健康检查、登录、`POST /usage:batch`、市场列表、一次快照 init/complete、`GET /api/v1/system/metrics`；
 5. 出现问题时按 `docs/delivery/signing.md` 第 3 节回滚客户端；服务端回滚走数据库恢复（DDL 无向下迁移）。
 
 ## 6. CI 端到端作业
