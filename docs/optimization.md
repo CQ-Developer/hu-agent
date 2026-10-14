@@ -60,7 +60,7 @@
 | 阶段 | 内容 | 依赖（精确 pin） | 出口标准 |
 | --- | --- | --- | --- |
 | **P0 合规基线** ✅ | 遥测审计、许可与依赖策略、ADR-0006、npm 可用性核对 | — | 已完成（`pi-evals` 404 已确认） |
-| **P1 引擎重构（pi 为核）** 🚧 | **不做形状适配**：会话/消息/工具/模型全部改用 pi 原生（`Agent`+`pi-durable`+`AgentTool`+`pi-ai`），旧的 `LlmMessage`/事件联合/工具接口/会话存储/自研 provider/MCP 一律删除；我们的代码只保留企业侧能力（权限/审批/审计/用量/同步/市场/服务端）与 IPC 边界投影 | `pi-ai`、`pi-agent-core`、`pi-durable`+`chord`、`pi-mcp`、`pi-codemode`、`pi-telemetry`、`typebox`（精确 pin） | 已完成 R1–R5（引擎已切换、旧模块删净）；剩 ④ main 包体积复核、⑤ `design.md` 客户端架构章节按 pi 为核心改写（R6） |
+| **P1 引擎重构（pi 为核）** ✅ | **不做形状适配**：会话/消息/工具/模型全部改用 pi 原生（`Agent`+`pi-durable`+`AgentTool`+`pi-ai`），旧的 `LlmMessage`/事件联合/工具接口/会话存储/自研 provider/MCP 一律删除；我们的代码只保留企业侧能力（权限/审批/审计/用量/同步/市场/服务端）与 IPC 边界投影 | `pi-ai`、`pi-agent-core`、`pi-durable`+`chord`、`pi-mcp`、`pi-codemode`、`pi-telemetry`、`typebox`（精确 pin） | ① 定向测试全绿 ② 旧模块删除且 import 图干净 ③ e2e + 真实调用 ④ main 包体积复核（见 1.6） ⑤ `design.md` 按 pi 为核心改写——均已达成（R1–R6）；正式打包排除留 P6 |
 
 轨道 B（UI 令牌 + 动效）不依赖 P1–P5，可与引擎切换并行；轨道 C 已落地。
 
@@ -112,8 +112,8 @@ interface HistorySummarizer {
 > ④ IPC/index 切到会话服务（`sessions:*` → `DurableSessions`，实时事件由 `agent/durable_projection.ts` 投影）✅
 > ⑤ 旧会话路径已删除（`session/{store,items,types,stats}.ts`、`agent/{pi_loop,pi_events,pi_runner,events}.ts`）✅
 > 旧本地 JSONL 会话按计划**归档为只读**（导入脚本可后补）。
-> 剩余：**R5**（`model/types.ts` 中不再被引用的形状；`session/artifacts.ts` 是否并入 pi-durable 存储的决策）
-> 与 **R6**（`design.md` 旧章节彻底重写、docs 旧文件名清理、仓库文件名统一）。
+> 后续：**R5/R6 均已完成**（见下表与 1.6 进度）。
+> 引擎侧仅剩 P6 的正式打包排除（`@aws-sdk/*`、`@google/genai` 等）；main 包体积已复核（见 1.6）。
 
 ### 1.6 修订后的重构步骤（pi 为核）
 
@@ -125,6 +125,9 @@ interface HistorySummarizer {
 > `session.compacted`）；`design.md` 的 5.1/5.2/5.4/5.8/5.9 按实际实现重写；旧实现引用
 > （plan/signing/ADR-0003）同步修正。命名：客户端代码文件已全部下划线（e913695）；
 > ADR 编号、docker/CI/脚本等**非代码文件名**沿用各自生态惯例，不再重命名。
+
+> **P1 包体积复核 ✅**：`npm run build` 通过；main 303 KB / preload 6.5 KB / renderer 1.2 MB
+> （依赖为 external，未计入 pi 包与传递 SDK）。正式打包排除（`@aws-sdk/*`、`@google/genai` 等）留 P6。
 
 > 命名约定（本轮新增）：新文件一律用**下划线**（`read_file.ts` / `pi_governance.ts`），与 Python 侧一致；
 > 客户端的 kebab-case 属遗留，随文件被改动时一并改名。约定已记入 `CONTRIBUTING.md`。
@@ -156,8 +159,8 @@ interface HistorySummarizer {
 3. 密钥按请求注入（`streamSimple(model, ctx, { apiKey })`），不注册进 pi 的凭证存储——与
    「企业模式密钥在服务端 / 个人模式在 safeStorage」的设计一致。
 
-已完成（历史待办，见 1.6 R1–R5）：`agent/loop.ts`、`model/providers/*` + `model/gateway.ts` 均已删除；
-模型目录接入设置页；用量改从 pi 的 `pi.usage` 汇入 ledger/上报。仅剩 main 包体积复核（P6）。
+已完成（历史待办，见 1.6 R1–R6）：`agent/loop.ts`、`model/providers/*` + `model/gateway.ts` 均已删除；
+模型目录接入设置页；用量改从 pi 的 `pi.usage` 汇入 ledger/上报。main 包体积已复核（见 1.6，P1 ✅）。
 
 **P1.1 已完成**（配置层，独立可验证）：`app/src/main/model/pi-config.ts` + `app/tests/pi-config.test.ts`
 6 条测试（字段映射、密钥优先级与"密钥不落盘"、缺文件容错、与 pi CLI 配置互通），`npm run typecheck` 全绿。
