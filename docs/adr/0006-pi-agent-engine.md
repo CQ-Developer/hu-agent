@@ -106,14 +106,21 @@ pi（源码 `C:\Users\chen\Dev\pi`，npm 版本 1.2.0，MIT）提供 11 个包�
 
 ### 删除清单（本次重构目标）
 
-- `src/main/model/providers/*`（openai / openai-responses / anthropic / sse / json-args / types）
-- `src/main/model/gateway.ts`、`src/main/model/types.ts`（`LlmMessage`/`StreamEvent`/`ApiType`…）
-- `src/main/agent/loop.ts`（旧循环）、`src/main/agent/compaction.ts`（改用 pi-durable 的能力）
+> **进度**：R5 第一批已删除 `model/providers/*`、`model/gateway.ts`、`model/errors.ts`、
+> `agent/loop.ts`、`agent/compaction.ts`、`tools/registry.ts` 与 4 个旧工具实现，以及对应的 9 个旧测试文件
+> （提交 `0d6c394`）。剩余项在 R1/R4 落地后删除。
+>
+> 更正：`agent/pi-loop.ts` 与 `model/pi-runtime.ts` **不是过渡件**——它们是切换后的正式实现
+> （回合循环与运行时装配），不在删除清单内。
+
+- `src/main/model/providers/*`（openai / openai-responses / anthropic / sse / json-args / types）✅ 已删
+- `src/main/model/gateway.ts`、`src/main/model/errors.ts` ✅ 已删
+- `src/main/agent/loop.ts`（旧循环）✅ 已删、`src/main/agent/compaction.ts` ✅ 已删（改用 pi 摘要器）
+- `src/main/tools/registry.ts` 与旧工具实现 ✅ 已删（`shell.ts`/`types.ts` 暂留：MCP 客户端仍用，R4 删除）
 - `src/main/session/{store,items,types}.ts`（改用 pi-durable 的 entries + storage；快照/同步改读它）
-- `src/main/tools/types.ts` 的 JSON Schema 工具接口与 `registry.ts`（改用 `AgentTool` + typebox）
-- `src/main/mcp/*`（改用 `pi-mcp`）
-- 对应测试：`tests/{openai,openai-responses,anthropic}-provider.test.ts` 等
-- `src/main/model/pi-runtime.ts`、`src/main/agent/pi-loop.ts`（本 ADR 修订后的产物被替换）
+- `src/main/mcp/*`、`tools/{shell,types}.ts`、`tools/mcp_bridge.ts`（改用 `pi-mcp`）
+- 对应测试 ✅ 已删（provider/agent-loop/compaction/deepseek*）
+- `src/main/model/types.ts`（`LlmMessage` 等会话形状，随 R1 迁移完成后删除）
 
 ## 后果与待办
 

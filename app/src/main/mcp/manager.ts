@@ -1,9 +1,17 @@
-/** MCP 管理器（design 5.8.2）：懒连接、失败重连退避、空闲回收、工具暴露。 */
+/** MCP 管理器（design 5.8.2）：懒连接、失败重连退避、空闲回收、工具暴露。
+ *
+ * R4：客户端换成 pi 的原生实现 `@earendil-works/pi-mcp`（自研 288 行 client.ts 已删除），
+ * 并顺带支持 streamable HTTP 传输（此前只支持 stdio，v1.x 计划里的 MCP http/sse 由此解决）。
+ * 工具直接产出 pi 原生 `NativeTool`（MCP 工具 → AgentTool 的官方配方见 pi-mcp README），
+ * 因此不再需要过渡期的 tools/mcp_bridge.ts。
+ */
+
+import { McpClient, StdioTransport, StreamableHttpTransport, toLlmContent } from '@earendil-works/pi-mcp'
+import { Type } from 'typebox'
 
 import type { SecretReader } from './config'
-import type { AnyTool } from '../tools/types'
 import type { WorkspacePaths } from '../workspace'
-import { McpStdioClient, type McpToolDefinition } from './client'
+import { ToolFailure, type NativeTool } from '../tools/native/tool'
 import {
   formatMcpSummary,
   globalMcpFile,
@@ -52,7 +60,8 @@ export interface McpTestResult {
 interface LiveEntry {
   key: string
   workspaceId: string
-  client: McpStdioClient
+  client: McpClient
+  tools: Array<{ name: string; description?: string; title?: string; inputSchema: Record<string, unknown> }>
   lastUsedAt: number
 }
 
@@ -101,12 +110,12 @@ export class McpManager {
         ? 'disabled'
         : this.connecting.has(key)
           ? 'connecting'
-          : live?.client.isConnected
+          : live
             ? 'connected'
             : this.errors.has(key)
               ? 'error'
               : 'idle'
-      const tools = live?.client.tools ?? []
+      const tools = live?.tools ?? []
       return {
         name: entry.name,
         transport: entry.config.transport ?? 'stdio',
@@ -131,8 +140,8 @@ export class McpManager {
     })
   }
 
-  /** 连接全部启用 server，返回注入模型的工具（单个失败不影响其他 server）。 */
-  async tools(ws: WorkspacePaths): Promise<AnyTool[]> {
+  /** 连接全部启用 server，返回注入模型的 pi 原生工具（单个失败不影响其他 server）。 */
+  async tools(ws: WorkspacePaths): Promise<NativeTool[]> {
     const catalog = await this.catalog(ws)
     const results = await Promise.all(
       catalog
@@ -148,19 +157,17 @@ export class McpManager {
     const entry = catalog.find((item) => item.name === name)
     if (!entry) return { ok: false, toolCount: 0, error: `未找到 MCP server：${name}`, tools: [] }
     await this.dropEntry(ws, name)
-    const client = await this.ensure(ws, entry)
-    if (!client) {
+    const live = await this.ensure(ws, entry)
+    if (!live) {
       return { ok: false, toolCount: 0, error: this.errors.get(keyOf(ws, name)) ?? '连接失败', tools: [] }
     }
-    const tools = client.tools.map((tool) => ({ name: tool.name, description: tool.description ?? '' }))
+    const tools = live.tools.map((tool) => ({ name: tool.name, description: tool.description ?? '' }))
     return { ok: true, toolCount: tools.length, tools }
   }
 
   /** 配置变更后清空对应工作空间的连接与错误状态。 */
   async reload(ws: WorkspacePaths): Promise<void> {
-    const names = [...this.live.values()]
-      .filter((entry) => entry.workspaceId === ws.id)
-      .map((entry) => entry.key)
+    const names = [...this.live.values()].filter((entry) => entry.workspaceId === ws.id).map((entry) => entry.key)
     for (const key of names) await this.closeKey(key)
     for (const key of [...this.errors.keys()]) {
       if (key.startsWith(`${ws.id}\u0000`)) this.errors.delete(key)
@@ -174,6 +181,14 @@ export class McpManager {
     this.connecting.clear()
   }
 
+  /** 空闲回收；由内部定时器调用，测试可直接触发。 */
+  async reapIdle(): Promise<void> {
+    const now = Date.now()
+    for (const [key, entry] of [...this.live]) {
+      if (now - entry.lastUsedAt > this.idleMs) await this.closeKey(key)
+    }
+  }
+
   private async catalog(ws: WorkspacePaths): Promise<McpCatalogEntry[]> {
     const [globalServers, workspaceServers] = await Promise.all([
       loadMcpFile(this.globalFile),
@@ -182,28 +197,27 @@ export class McpManager {
     return mergeCatalog(globalServers, workspaceServers)
   }
 
-  private async toolsForEntry(ws: WorkspacePaths, entry: McpCatalogEntry): Promise<AnyTool[]> {
-    const client = await this.ensure(ws, entry)
-    if (!client) return []
-    return client.tools.map((definition) => buildMcpTool(entry.name, definition, client))
+  private async toolsForEntry(ws: WorkspacePaths, entry: McpCatalogEntry): Promise<NativeTool[]> {
+    const live = await this.ensure(ws, entry)
+    if (!live) return []
+    return live.tools.map((definition) => buildMcpTool(entry.name, definition, live.client))
   }
 
-  private async ensure(ws: WorkspacePaths, entry: McpCatalogEntry): Promise<McpStdioClient | null> {
+  private async ensure(ws: WorkspacePaths, entry: McpCatalogEntry): Promise<LiveEntry | null> {
     const key = keyOf(ws, entry.name)
     const existing = this.live.get(key)
-    if (existing?.client.isConnected) {
+    if (existing) {
       existing.lastUsedAt = Date.now()
-      return existing.client
+      return existing
     }
 
     const transport = entry.config.transport ?? 'stdio'
-    if (transport !== 'stdio') {
-      this.errors.set(key, `暂不支持 ${transport} 传输（计划阶段 3-05）`)
+    if (transport === 'stdio' && !entry.config.command) {
+      this.errors.set(key, '缺少 command 配置')
       return null
     }
-    const command = entry.config.command
-    if (!command) {
-      this.errors.set(key, '缺少 command 配置')
+    if (transport !== 'stdio' && !entry.config.url) {
+      this.errors.set(key, '缺少 url 配置')
       return null
     }
 
@@ -211,19 +225,17 @@ export class McpManager {
     try {
       let lastError = '连接失败'
       for (let attempt = 1; attempt <= MAX_CONNECT_ATTEMPTS; attempt += 1) {
-        const client = new McpStdioClient(
-          entry.name,
-          { command, args: entry.config.args ?? [], env: this.resolveEnv(entry) },
-          this.clientVersion,
-        )
+        const client = new McpClient({ name: 'hu-agent', version: this.clientVersion })
         try {
-          await client.connect()
-          this.live.set(key, { key, workspaceId: ws.id, client, lastUsedAt: Date.now() })
+          await client.connect(this.buildTransport(entry, transport))
+          const tools = await client.listTools()
+          const live: LiveEntry = { key, workspaceId: ws.id, client, tools, lastUsedAt: Date.now() }
+          this.live.set(key, live)
           this.errors.delete(key)
-          return client
+          return live
         } catch (error) {
           lastError = error instanceof Error ? error.message : String(error)
-          await client.close()
+          await client.close().catch(() => undefined)
           if (attempt < MAX_CONNECT_ATTEMPTS) await sleep(attempt * this.retryDelayMs)
         }
       }
@@ -232,6 +244,23 @@ export class McpManager {
     } finally {
       this.connecting.delete(key)
     }
+  }
+
+  private buildTransport(
+    entry: McpCatalogEntry,
+    transport: McpTransport,
+  ): StdioTransport | StreamableHttpTransport {
+    if (transport === 'stdio') {
+      return new StdioTransport({
+        command: entry.config.command ?? '',
+        args: entry.config.args ?? [],
+        env: this.resolveEnv(entry),
+      })
+    }
+    return new StreamableHttpTransport({
+      url: entry.config.url ?? '',
+      ...(Object.keys(entry.config.headers ?? {}).length > 0 ? { headers: entry.config.headers } : {}),
+    })
   }
 
   private resolveEnv(entry: McpCatalogEntry): Record<string, string> {
@@ -250,14 +279,7 @@ export class McpManager {
   private async closeKey(key: string): Promise<void> {
     const entry = this.live.get(key)
     this.live.delete(key)
-    if (entry) await entry.client.close()
-  }
-
-  /** 空闲回收；由内部定时器调用，测试可直接触发。 */
-  async reapIdle(): Promise<void> {    const now = Date.now()
-    for (const [key, entry] of [...this.live]) {
-      if (!entry.client.isConnected || now - entry.lastUsedAt > this.idleMs) await this.closeKey(key)
-    }
+    if (entry) await entry.client.close().catch(() => undefined)
   }
 }
 
@@ -269,20 +291,32 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+type McpToolDefinition = LiveEntry['tools'][number]
+
 /** 工具统一命名 mcp__<server>__<tool>（design 5.8.2），描述截断到 1000 字符。 */
-function buildMcpTool(server: string, definition: McpToolDefinition, client: McpStdioClient): AnyTool {
+function buildMcpTool(server: string, definition: McpToolDefinition, client: McpClient): NativeTool {
   const description = definition.description?.trim() ?? ''
+  const schema = definition.inputSchema ?? {}
   return {
     name: `mcp__${sanitize(server)}__${sanitize(definition.name)}`,
-    description: `${description ? `${description} · ` : ''}MCP server：${server}`.slice(0, DESCRIPTION_LIMIT),
+    label: definition.title ?? definition.name,
     category: 'mcp',
-    parameters: isObject(definition.inputSchema) ? definition.inputSchema : { type: 'object', properties: {} },
-    run: async (input, ctx) => {
-      try {
-        const result = await client.callTool(definition.name, (input ?? {}) as Record<string, unknown>, ctx.signal)
-        return { status: result.isError ? 'error' : 'ok', output: result.content }
-      } catch (error) {
-        return { status: 'error', output: error instanceof Error ? error.message : String(error) }
+    description: `${description ? `${description} · ` : ''}MCP server：${server}`.slice(0, DESCRIPTION_LIMIT),
+    // 部分 provider 要求参数是对象且带 properties（pi-mcp README 的官方配方）
+    parameters: Type.Unsafe({ ...schema, type: 'object', properties: isObject(schema.properties) ? schema.properties : {} }),
+    execute: async (_toolCallId, params, signal) => {
+      const result = await client
+        .callTool(definition.name, (params ?? {}) as Record<string, unknown>, {
+          ...(signal ? { signal } : {}),
+        })
+        .catch((error: unknown) => {
+          // 传输/协议层失败：按 pi 约定抛错（工具级失败在 result.isError 里）
+          throw new ToolFailure(error instanceof Error ? error.message : String(error))
+        })
+      return {
+        content: toLlmContent(result),
+        details: { status: result.isError ? 'error' : 'ok', tool: definition.name },
+        isError: result.isError === true,
       }
     },
   }

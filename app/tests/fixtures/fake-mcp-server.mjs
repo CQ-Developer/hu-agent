@@ -32,7 +32,7 @@ function handle(message) {
         nextCursor: 'page2',
       })
     } else {
-      respond(id, { tools: [{ name: 'ping', description: 'Ping 测试' }] })
+      respond(id, { tools: [{ name: 'ping', description: 'Ping 测试', inputSchema: { type: 'object', properties: {} } }] })
     }
     return
   }

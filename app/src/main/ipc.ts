@@ -41,7 +41,6 @@ import type { SessionOptionsView } from '../shared/ipc'
 import type { SkillView } from '../shared/ipc'
 import type { MarketSkill } from './market/client'
 import type { AgentEvent, ApprovalRequestView, GuideRequestView } from '../shared/events'
-import { bridgeLegacyTools } from './tools/mcp_bridge'
 import type { NativeTool } from './tools/native/tool'
 import type { ModelSettingsStore } from './config/pi_model_settings'
 import type { TelemetrySink } from './usage/telemetry'
@@ -257,14 +256,7 @@ export function registerIpc(context: AppContext): void {
         artifacts,
         fastTarget: settings.defaults.fast ?? settings.defaults.primary,
         skillSection: await context.skills.systemPromptSection(ws),
-        // MCP 仍是自研客户端（R4 换 pi-mcp），此处用过渡桥把旧工具接成原生工具
-        extraTools: bridgeLegacyTools(await context.mcp.tools(ws), {
-          workspaceRoot: ws.root,
-          sessionId,
-          turnId: '',
-          artifacts,
-          interactions: context.interactions,
-        }),
+        extraTools: await context.mcp.tools(ws),
         telemetry: {
           record: async (input) => {
             try {
