@@ -10,6 +10,7 @@
 | `sso-live-check.py` | 真实 IdP（Keycloak 等）SSO 全流程联调：配置身份源 → 模拟浏览器登录 → exchange → 校验绑定 → 禁用撤销 | `uv run --project management python scripts/sso-live-check.py --admin-email … --admin-password …` |
 
 | `package.ps1` / `package.sh` | 打包与签名（Windows/macOS，含校验和生成） | 见 `docs/delivery/signing.md` |
+| `security-scan.sh` | 依赖与静态扫描（pip-audit + bandit + npm audit；CI `security` 作业同源） | `bash scripts/security-scan.sh [--report]` |
 | `ci/apply-ddl.py` | CI 用：按编号应用 DDL（不依赖 docker compose） | `uv run --project management python scripts/ci/apply-ddl.py` |
 | `ci/seed-e2e.py` | CI 用：账号/组织/团队/已发布 Skill/用量种子数据（幂等） | `uv run --project management python scripts/ci/seed-e2e.py` |
 | `ci/keycloak-setup.py` | CI 用：Admin REST 准备 Keycloak realm/client/用户（幂等） | `uv run --project management python scripts/ci/keycloak-setup.py --base http://127.0.0.1:8100` |

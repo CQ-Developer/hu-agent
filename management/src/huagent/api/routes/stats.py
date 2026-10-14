@@ -100,6 +100,36 @@ _AGGREGATES = """
     COALESCE(SUM(estimated_cost), 0)::float8 AS estimated_cost
 """
 
+# 统计查询模板：{dims}/{where}/{aggregates} 只由白名单常量与绑定参数占位符填充
+_USAGE_SQL_TEMPLATE = """
+    SELECT {dims}, {aggregates} FROM usage_daily WHERE {where}
+    GROUP BY {dims} ORDER BY {dims} LIMIT {limit}
+"""
+_TOTALS_SQL_TEMPLATE = """SELECT {aggregates} FROM usage_daily WHERE {where}"""
+
+# 激活明细查询：占位符 {joins}/{where} 只由白名单静态片段填充（不走用户输入）
+_ACTIVATIONS_SQL = """
+    SELECT a.user_id, u.email, a.resource_type, a.ref_id, a.name, a.version,
+           bool_or(a.enabled) AS enabled,
+           count(DISTINCT a.device_id) AS device_count,
+           max(a.reported_at) AS last_reported_at,
+           max(s.status) AS skill_status,
+           max(t.status) AS team_status,
+           max(o.status) AS org_status,
+           max(sv.status) AS version_status
+    FROM activation_reports a
+    JOIN users u ON u.id = a.user_id
+    {joins}
+    LEFT JOIN skills s ON a.resource_type = 'skill' AND s.id = a.ref_id
+    LEFT JOIN skill_versions sv ON sv.skill_id = s.id AND sv.version = a.version
+    LEFT JOIN teams t ON t.id = s.team_id
+    LEFT JOIN orgs o ON o.id = s.org_id
+    {where}
+    GROUP BY a.user_id, u.email, a.resource_type, a.ref_id, a.name, a.version
+    ORDER BY max(a.reported_at) DESC
+    LIMIT :limit OFFSET :offset
+"""
+
 
 @router.get("/usage", response_model=UsageOut)
 async def usage_stats(
@@ -150,13 +180,13 @@ async def usage_stats(
     dims = GROUP_BY_DIMS[group_by]
     dim_select = ", ".join(dims)
     where = " AND ".join(conditions)
-    sql = (
-        f"SELECT {dim_select}, {_AGGREGATES} FROM usage_daily WHERE {where} "  # noqa: S608 —— 片段均为白名单常量
-        f"GROUP BY {dim_select} ORDER BY {dim_select} LIMIT {MAX_ROWS}"
-    )
+    # 片段均为白名单常量：dim_select/where 由 GROUP_BY_DIMS 与静态条件拼装，值全为绑定参数
+    sql = _USAGE_SQL_TEMPLATE.format(
+        dims=dim_select, aggregates=_AGGREGATES, where=where, limit=MAX_ROWS
+    )  # noqa: S608
     rows = (await session.execute(text(sql), params)).mappings().all()
 
-    totals_sql = f"SELECT {_AGGREGATES} FROM usage_daily WHERE {where}"  # noqa: S608 同上
+    totals_sql = _TOTALS_SQL_TEMPLATE.format(aggregates=_AGGREGATES, where=where)  # noqa: S608
     totals = (await session.execute(text(totals_sql), params)).mappings().one()
 
     return UsageOut(
@@ -207,28 +237,8 @@ async def activation_stats(
         conditions.append("a.resource_type = :resource_type")
         params["resource_type"] = resource_type
 
-    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    sql = f"""
-        SELECT a.user_id, u.email, a.resource_type, a.ref_id, a.name, a.version,
-               bool_or(a.enabled) AS enabled,
-               count(DISTINCT a.device_id) AS device_count,
-               max(a.reported_at) AS last_reported_at,
-               max(s.status) AS skill_status,
-               max(t.status) AS team_status,
-               max(o.status) AS org_status,
-               max(sv.status) AS version_status
-        FROM activation_reports a
-        JOIN users u ON u.id = a.user_id
-        {joins}
-        LEFT JOIN skills s ON a.resource_type = 'skill' AND s.id = a.ref_id
-        LEFT JOIN skill_versions sv ON sv.skill_id = s.id AND sv.version = a.version
-        LEFT JOIN teams t ON t.id = s.team_id
-        LEFT JOIN orgs o ON o.id = s.org_id
-        {where}
-        GROUP BY a.user_id, u.email, a.resource_type, a.ref_id, a.name, a.version
-        ORDER BY max(a.reported_at) DESC
-        LIMIT :limit OFFSET :offset
-    """  # noqa: S608 —— 片段均为白名单常量
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""  # noqa: S608
+    sql = _ACTIVATIONS_SQL.format(joins=joins, where=where)  # noqa: S608
     rows = (await session.execute(text(sql), params)).mappings().all()
     items = [
         ActivationOut(

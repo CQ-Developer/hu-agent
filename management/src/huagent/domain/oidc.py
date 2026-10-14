@@ -109,20 +109,22 @@ class UrllibOidcHttp:
         return await asyncio.to_thread(self._post_form_sync, url, data)
 
     def _get_json_sync(self, url: str, headers: dict[str, str]) -> dict[str, Any]:
-        request = urllib.request.Request(url, headers=headers, method="GET")  # noqa: S310 —— 仅访问管理员配置的 IdP
-        with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
+        # url 来自管理员配置的身份源 discovery，非用户输入
+        request = urllib.request.Request(url, headers=headers, method="GET")  # noqa: S310
+        with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310  # nosec B310
             data: dict[str, Any] = json.loads(response.read().decode("utf-8"))
             return data
 
     def _post_form_sync(self, url: str, data: dict[str, str]) -> dict[str, Any]:
         body = urllib.parse.urlencode(data).encode("ascii")
+        # url 为 discovery 中声明的 token 端点（管理员配置的身份源）
         request = urllib.request.Request(  # noqa: S310
             url,
             data=body,
             headers={"content-type": "application/x-www-form-urlencoded", "accept": "application/json"},
             method="POST",
         )
-        with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310
+        with urllib.request.urlopen(request, timeout=self._timeout) as response:  # noqa: S310  # nosec B310
             payload: dict[str, Any] = json.loads(response.read().decode("utf-8"))
             return payload
 

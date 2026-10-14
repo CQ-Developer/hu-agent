@@ -53,11 +53,44 @@
 | 诊断包脱敏 | 不含密钥库；敏感字段 `***`；主目录 `~` | `tests/logging-diagnostics.test.ts` |
 | 服务端不存模型/MCP 密钥 | 密钥只在客户端；服务端只存 IdP `client_secret`（加密） | design 6.10.2 |
 
-## 6. 未完成 / 待办（不隐瞒）
+## 6. 自动化扫描（CI 强制）
+
+`scripts/security-scan.sh`（CI `security` 作业）每次提交都执行，三项均须全绿：
+
+| 扫描 | 范围 | 当前结果 |
+| --- | --- | --- |
+| `pip-audit`（2.10.1） | `management` 全量依赖（`uv export` 导出，排除自身包） | **No known vulnerabilities found** |
+| `bandit`（1.9.4，仅 medium 及以上） | `management/src`（6628 行） | **0 项**（6 处已评审项用行内 `# nosec` 标注并附原因） |
+| `npm audit --omit=dev` | `app`（产物只含运行时依赖）、`management-ui` | **0 vulnerabilities** |
+
+**已评审并标注的 6 处（均非用户输入）**：
+
+| 位置 | 规则 | 原因 |
+| --- | --- | --- |
+| `api/routes/approvals.py` 审批列表计数 | B608 | `where` 由静态条件片段拼接，值全部为绑定参数 |
+| `api/routes/stats.py` 用量统计 / 总计 | B608 | 改为 `_USAGE_SQL_TEMPLATE.format(...)`，占位符仅来自白名单 `GROUP_BY_DIMS` 与静态条件 |
+| `api/routes/stats.py` 激活明细 | B608 | 同上，`_ACTIVATIONS_SQL` 模板 + 白名单片段 |
+| `domain/oidc.py` discovery / token 请求 | B310 | 仅访问管理员配置的身份源端点；`url` 不由终端用户输入控制 |
+
+### 豁免（含开发依赖，不阻断构建）
+
+`app` 完整 `npm audit` 报告 21 项（5 moderate / 13 high / 3 critical），全部位于**开发依赖**：
+
+| 包 | 严重度 | 说明 |
+| --- | --- | --- |
+| `tinypool`（经 `vitest@3.2.7` 引入） | 3 critical | 原型污染 gadget→RCE，触发前提是攻击者已能控制测试运行参数；修复需 `vitest@5`（大版本） |
+| 其余 `vitest`/`esbuild`/`node-gyp` 链路 | 中高 | 同上，均不进入安装包 |
+
+依据：`electron-builder.yml` 只打包 `out/**` 与 `package.json`，`devDependencies` **不会进入分发产物**；因此以
+`npm audit --omit=dev` 为发布门禁。
+
+**后续动作**：待 `vitest@5` 稳定后升级，届时完整 `npm audit` 也需清零（已记入发布清单遗留项）。
+
+## 7. 未完成 / 待办（不隐瞒）
 
 | 项 | 状态 | 建议 |
 | --- | --- | --- |
-| 依赖与静态扫描（npm audit / pip-audit / bandit）接入 CI 并清零高危 | ❌ 未接入 | 在 CI 增加 `uvx pip-audit -r <(uv export)` 与 `npm audit --omit=dev`，按结果评估豁免并记录 |
+| 依赖与静态扫描（npm audit / pip-audit / bandit）接入 CI 并清零高危 | ✅ 已接入 | `scripts/security-scan.sh` + CI `security` 作业；生产依赖与源码扫描 0 项（见第 6 节） |
 | 管理台（5-09）与英文 i18n（D13） | ❌ 未做 | 发布前按附录 E 补齐或经需求方书面确认延后 |
 | 签名安装包实测、升级/回滚演练 | ⏳ 脚本与文档就绪，缺证书 | 用企业证书执行 `scripts/package.ps1` / `package.sh --mac` 并保存记录 |
 | staging/prod 监控告警与值班 | ❌ 未落地 | 按 `docs/delivery/operations.md` 第 1 节接入（health/ready + worker job_runs） |

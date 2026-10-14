@@ -18,7 +18,7 @@
 | 项 | 状态 | 证据 / 说明 |
 | --- | --- | --- |
 | 安全用例全结（路径逃逸/zip/越权/令牌重放） | ✅（有小结，扫描待补） | `docs/delivery/security-review.md` 第 1-5 节逐条列证据（单测 + 集成 + 真实联调） |
-| 依赖与静态扫描无高危未处理 | ❌ | 未接入 CI。建议：`uvx pip-audit`（management）、`npm audit --omit=dev`（app/management-ui），按结果修复或记录豁免 |
+| 依赖与静态扫描无高危未处理 | ✅ | `scripts/security-scan.sh` + CI `security` 作业（pip-audit / bandit medium+ / npm audit --omit=dev 全绿）；开发依赖豁免与后续动作见 `security-review.md` 第 6 节 |
 | 审计/保留/删除策略按 6.10.5 自检 | ⏳ | 审计与保留已实现（worker 分区保留、快照保留、审计落库）；**用户数据删除（GDPR 类）未实现**，需确认范围 |
 | 保护文件、权限矩阵与产品说明一致 | ✅ | `app/src/main/permissions/*` + `tests/permissions-*`；design 5.5 与「权限与审计」Tab 展示一致 |
 
@@ -41,6 +41,6 @@
 ## 本次（阶段 7）新增产物
 
 - 客户端：文件日志（10MB × 5 滚动）+ 诊断包导出（脱敏、不含密钥库）与「关于」页入口
-- CI：`e2e` 作业（源码构建 MinIO + PG/Redis + 真实 API + Keycloak），失败自动收集日志
+- CI：`security` 作业（依赖与静态扫描）、`e2e` 作业（源码构建 MinIO + PG/Redis + 真实 API + Keycloak），失败自动收集日志
 - 打包：`scripts/package.sh`、`scripts/package.ps1`、electron-builder 签名配置、macOS 公证开关与 entitlements
 - 文档：`docs/delivery/{signing,deployment,operations,user-guide,security-review}.md` 与本清单

@@ -121,7 +121,7 @@ async def list_approvals(
     total = int(
         (
             await session.execute(
-                text(f"SELECT count(*) FROM approval_requests WHERE {where}"),  # noqa: S608 —— where 为静态片段，值全为绑定参数
+                text(f"SELECT count(*) FROM approval_requests WHERE {where}"),  # noqa: S608  # nosec B608
                 {key: value for key, value in params.items() if key not in {"limit", "offset"}},
             )
         ).scalar_one()

@@ -43,6 +43,20 @@ jobs:
       - run: npm run test
       - run: npm run build
 
+  # 依赖与静态扫描：生产依赖漏洞 + Python 源码静态扫描（发布前必须全绿，附录 E）
+  security:
+    name: security (依赖与静态扫描)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: bash scripts/security-scan.sh
+
   management-ui:
     name: management-ui
     runs-on: ubuntu-latest

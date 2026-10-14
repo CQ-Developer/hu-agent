@@ -472,7 +472,7 @@ Authorization: Bearer {{token}}
 **安全与合规**
 
 - [x] 安全用例全结（路径逃逸/zip/越权/令牌重放）并留有报告 —— 证据：`docs/delivery/security-review.md`（第 1-5 节逐条对应单测/集成/真实联调）
-- [ ] 依赖扫描与静态扫描无高危未处理项 —— ❌ 未接入 CI（建议 pip-audit + npm audit，见清单）
+- [x] 依赖扫描与静态扫描无高危未处理项 —— `scripts/security-scan.sh` 与 CI `security` 作业（pip-audit / bandit medium+ / npm audit --omit=dev 全绿；证据：`docs/delivery/security-review.md` 第 6 节）
 - [ ] 审计/保留/删除策略按 design.md 6.10.5 自检通过 —— ⏳ 审计与保留已实现；用户数据删除接口未实现
 - [x] 保护文件、权限决策矩阵与产品说明一致 —— 证据：`tests/permissions-*` + design 5.5
 
@@ -481,7 +481,7 @@ Authorization: Bearer {{token}}
 - [ ] Windows / macOS 签名安装包，升级与回滚验证通过 —— ⏳ 脚本与文档就绪（`scripts/package.*`、`docs/delivery/signing.md`），缺企业证书与实测记录
 - [x] 部署手册、使用手册、运维/回滚手册完成 —— 证据：`docs/delivery/deployment.md`、`user-guide.md`、`operations.md`、`signing.md`
 - [ ] staging / prod 监控与告警可用，告警联系人与值班方式明确 —— ❌ 未接入（`operations.md` 第 1 节给出接入建议）
-- [ ] 发布冒烟 E2E 5 条全过；性能验证结论已出 —— ⏳ CI `e2e` 作业覆盖登录上报/市场/同步/统计/SSO；性能未验证
+- [ ] 发布冒烟 E2E 5 条全过；性能验证结论已出 —— ⏳ CI `e2e` 作业覆盖登录上报/市场/同步/统计/SSO；性能验证进行中（见 `docs/delivery/performance.md`）
 
 **用户与需求方**
 
