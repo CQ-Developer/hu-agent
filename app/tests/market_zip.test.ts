@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { ZipError, extractZip, normalizeZipPath, type ZipLimits } from '../src/main/market/zip'
-import { buildZip } from './helpers/zip-writer'
+import { buildZip } from './helpers/zip_writer'
 
 const LIMITS: ZipLimits = {
   maxFiles: 10,

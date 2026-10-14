@@ -13,7 +13,7 @@ import type { WorkspacePaths } from '../workspace'
 import type { SyncConflictView, SyncStatusCode, SyncStatusView, SyncVersionView } from '../../shared/ipc'
 import { extractZip } from '../market/zip'
 import { LOCAL_ONLY_DIRS, diffManifests, readSyncExcludes, scanWorkspace, type ManifestEntry, type ScanResult } from './scan'
-import { writeZipToFile } from './zip-write'
+import { writeZipToFile } from './zip_write'
 import { t } from '../i18n'
 
 export interface BackendSnapshot {

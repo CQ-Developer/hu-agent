@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import type { MarketClient } from '../src/main/market/client'
 import { SkillInstaller, type InstalledSkill } from '../src/main/market/installer'
-import { buildZip } from './helpers/zip-writer'
+import { buildZip } from './helpers/zip_writer'
 
 function skillMd(version = '1.0.0', name = 'demo-skill'): string {
   return `---\nname: ${name}\ndescription: 演示\nversion: ${version}\n---\n\n正文\n`

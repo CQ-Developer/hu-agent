@@ -14,7 +14,7 @@ import { readFile, stat } from 'node:fs/promises'
 
 import { Type } from 'typebox'
 
-import { resolveInWorkspace } from '../path-guard'
+import { resolveInWorkspace } from '../path_guard'
 import { ToolFailure, type NativeTool, type ToolFactoryOptions } from './tool'
 
 export { ToolFailure, type NativeTool, type ToolFactoryOptions }

@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { createPiRuntime } from '../src/main/model/pi-runtime'
+import { createPiRuntime } from '../src/main/model/pi_runtime'
 
 async function runtime() {
   const faux = fauxProvider({ models: [{ id: 'faux-1', name: 'Faux 1', contextWindow: 64_000 }] })

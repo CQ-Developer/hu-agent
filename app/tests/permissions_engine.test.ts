@@ -10,7 +10,7 @@ import { AuditLog } from '../src/main/permissions/audit'
 import type { InteractionBroker } from '../src/main/permissions/broker'
 import { PermissionEngine } from '../src/main/permissions/engine'
 import type { ApprovalChoice, PermissionCheck, PolicyRule } from '../src/main/permissions/types'
-import { appendWorkspaceRule, loadWorkspaceRules } from '../src/main/workspace-settings'
+import { appendWorkspaceRule, loadWorkspaceRules } from '../src/main/workspace_settings'
 
 class FakeBroker {
   calls: unknown[] = []

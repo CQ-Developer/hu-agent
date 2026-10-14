@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { McpManager } from '../src/main/mcp/manager'
 import type { WorkspacePaths } from '../src/main/workspace'
 
-const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-mcp-server.mjs')
+const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake_mcp_server.mjs')
 
 class FakeSecrets {
   get(): string | null {

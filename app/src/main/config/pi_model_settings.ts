@@ -11,7 +11,7 @@
 import { mkdir, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
-import { listProviders, modelsFilePath, readModelsFile, writeProviders } from '../model/pi-config'
+import { listProviders, modelsFilePath, readModelsFile, writeProviders } from '../model/pi_config'
 import type { ModelSettings, ProviderConfig } from '../model/types'
 import { readRawConfig } from './preferences'
 

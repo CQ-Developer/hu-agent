@@ -11,8 +11,8 @@
 import { join } from 'node:path'
 
 import type { AgentEvent } from '../../shared/events'
-import { runTurnWithPi, type PiLoopDeps } from './pi-loop'
-import { createDefaultTools } from './pi-governance'
+import { runTurnWithPi, type PiLoopDeps } from './pi_loop'
+import { createDefaultTools } from './pi_governance'
 import { ulid } from '../session/ulid'
 import type { InteractionBroker } from '../permissions/broker'
 import type { PermissionEngine } from '../permissions/engine'
@@ -20,7 +20,7 @@ import type { ArtifactStore } from '../session/artifacts'
 import type { SessionStore } from '../session/store'
 import type { UsageLedger } from '../usage/ledger'
 import type { TelemetrySink } from '../usage/telemetry'
-import { createPiRuntime, type PiRuntime } from '../model/pi-runtime'
+import { createPiRuntime, type PiRuntime } from '../model/pi_runtime'
 import type { NativeTool } from '../tools/native/tool'
 
 export interface PiRunnerOptions {

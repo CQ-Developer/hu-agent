@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { SyncEngine, type BackendSnapshot, type InitPayload, type SyncBackend } from '../src/main/sync/engine'
-import { writeZipToFile } from '../src/main/sync/zip-write'
+import { writeZipToFile } from '../src/main/sync/zip_write'
 import type { WorkspacePaths } from '../src/main/workspace'
 
 class FakeBackend implements SyncBackend {

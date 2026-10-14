@@ -46,7 +46,7 @@ import type { ModelSettingsStore } from './config/pi_model_settings'
 import type { TelemetrySink } from './usage/telemetry'
 import type { UsageLedger } from './usage/ledger'
 import type { WorkspaceManager, WorkspacePaths } from './workspace'
-import { appendWorkspaceRule, loadGlobalRules, loadWorkspaceRules } from './workspace-settings'
+import { appendWorkspaceRule, loadGlobalRules, loadWorkspaceRules } from './workspace_settings'
 import { getLocale, getLocalePreference, setLocale, systemLocale, t } from './i18n'
 
 export interface AppContext {

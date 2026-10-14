@@ -14,7 +14,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 
 import { Type } from 'typebox'
 
-import { resolveInWorkspace } from '../path-guard'
+import { resolveInWorkspace } from '../path_guard'
 import { ToolFailure, type NativeTool, type ToolFactoryOptions } from './tool'
 
 const MAX_STREAM_BYTES = 1024 * 1024

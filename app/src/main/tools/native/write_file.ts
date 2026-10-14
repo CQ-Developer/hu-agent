@@ -10,7 +10,7 @@ import { dirname } from 'node:path'
 
 import { Type } from 'typebox'
 
-import { resolveInWorkspace } from '../path-guard'
+import { resolveInWorkspace } from '../path_guard'
 import { ToolFailure, type NativeTool, type ToolFactoryOptions } from './tool'
 
 export function createWriteFileTool(options: ToolFactoryOptions): NativeTool {

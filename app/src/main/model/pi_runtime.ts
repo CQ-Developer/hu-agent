@@ -13,9 +13,9 @@ import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completio
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
 
 import { HISTORY_SUMMARY_SYSTEM } from '../agent/prompt'
-import type { HistorySummarizer, ModelResolver, ResolvedModel } from '../agent/pi-loop'
+import type { HistorySummarizer, ModelResolver, ResolvedModel } from '../agent/pi_loop'
 import { t } from '../i18n'
-import { buildPiProviders, listProviders, readModelsFile } from './pi-config'
+import { buildPiProviders, listProviders, readModelsFile } from './pi_config'
 import type { ApiType } from './types'
 
 function apiFor(apiType: ApiType): unknown {

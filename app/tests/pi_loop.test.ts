@@ -11,7 +11,7 @@ import { Type } from 'typebox'
 import { describe, expect, it } from 'vitest'
 
 import type { AgentEvent } from '../src/main/agent/events'
-import { runTurnWithPi, type ModelResolver, type PiLoopDeps } from '../src/main/agent/pi-loop'
+import { runTurnWithPi, type ModelResolver, type PiLoopDeps } from '../src/main/agent/pi_loop'
 import type { NativeTool } from '../src/main/tools/native/tool'
 
 interface SessionItem {

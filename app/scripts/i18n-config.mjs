@@ -24,7 +24,7 @@ export const MODEL_FACING = [
 ]
 
 /** 「键注册表」：文件里的中文串本身就是消息键，不参与翻译（如业务码映射） */
-export const KEY_REGISTRY = ['src/shared/i18n/error-codes.ts']
+export const KEY_REGISTRY = ['src/shared/i18n/error_codes.ts']
 
 export function isKeyRegistry(file) {
   const normalized = file.replace(/\\/g, '/')

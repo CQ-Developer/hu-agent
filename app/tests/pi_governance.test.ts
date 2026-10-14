@@ -14,13 +14,13 @@ import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-work
 import { Type } from 'typebox'
 import { describe, expect, it } from 'vitest'
 
-import { mapPiEvent } from '../src/main/agent/pi-events'
+import { mapPiEvent } from '../src/main/agent/pi_events'
 import {
   createAfterToolCall,
   createBeforeToolCall,
   createGovernanceState,
   type GovernanceDeps,
-} from '../src/main/agent/pi-governance'
+} from '../src/main/agent/pi_governance'
 import type { PermissionCheck, PermissionDecision } from '../src/main/permissions/types'
 import type { NativeTool } from '../src/main/tools/native/tool'
 

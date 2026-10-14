@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { loadModelSettings, saveModelSettings } from '../src/main/config/pi_model_settings'
-import { SettingsStore, defaultModelSettings } from '../src/main/config/settings-store'
+import { SettingsStore, defaultModelSettings } from '../src/main/config/settings_store'
 import type { ModelSettings } from '../src/main/model/types'
 
 async function tempConfig(): Promise<{ dir: string; configPath: string }> {

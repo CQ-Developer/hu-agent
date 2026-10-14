@@ -93,7 +93,7 @@ src/renderer/   # 渲染进程（React 界面）
 
 ## 国际化（D13）
 
-- 词典：`src/shared/i18n/en-US.ts`（**中文原文即键**，zh-CN 无需词典）；业务码文案见 `src/shared/i18n/error-codes.ts`。
+- 词典：`src/shared/i18n/en-US.ts`（**中文原文即键**，zh-CN 无需词典）；业务码文案见 `src/shared/i18n/error_codes.ts`。
 - 新增文案：直接在代码里写中文并包 `t('中文')`（插值写成 `t('已选 {count} 项', { count })`），
   然后跑 `node scripts/i18n-check.mjs` 把缺的键补进词典；`tests/i18n.test.ts` 会在 CI 里强制。
 - 工具（`app/scripts/`）：

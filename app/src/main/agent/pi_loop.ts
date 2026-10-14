@@ -32,8 +32,8 @@ import type { UsageLedger } from '../usage/ledger'
 import type { TelemetryInput, TelemetrySink } from '../usage/telemetry'
 /** 压缩阈值（占上下文窗口比例）：超过即调摘要器压缩。原 compaction.ts 已随旧引擎删除 */
 const COMPACT_THRESHOLD = 0.75
-import { mapPiEvent, type PiEventContext } from './pi-events'
-import { createAfterToolCall, createBeforeToolCall, createGovernanceState } from './pi-governance'
+import { mapPiEvent, type PiEventContext } from './pi_events'
+import { createAfterToolCall, createBeforeToolCall, createGovernanceState } from './pi_governance'
 import { buildSystemPrompt } from './prompt'
 
 /** 一轮对话的用量记录形态（与旧循环一致） */

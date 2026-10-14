@@ -13,7 +13,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { agentDir, listProviders, modelsFilePath, readModelsFile, writeProviders } from '../src/main/model/pi-config'
+import { agentDir, listProviders, modelsFilePath, readModelsFile, writeProviders } from '../src/main/model/pi_config'
 import type { ProviderConfig } from '../src/main/model/types'
 
 async function tempDir(): Promise<string> {

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { SettingsStore, defaultModelSettings } from '../src/main/config/settings-store'
+import { SettingsStore, defaultModelSettings } from '../src/main/config/settings_store'
 
 describe('SettingsStore', () => {
   let dir: string

@@ -7,7 +7,7 @@
 
 import type { CloudConfig, CloudStore } from './store'
 import { getLocale, t } from '../i18n'
-import { localizeServerError } from '../../shared/i18n/error-codes'
+import { localizeServerError } from '../../shared/i18n/error_codes'
 
 export const REFRESH_TOKEN_KEY = 'cloud.refreshToken'
 

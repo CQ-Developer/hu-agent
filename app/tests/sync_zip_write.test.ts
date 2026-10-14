@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { extractZip } from '../src/main/market/zip'
-import { writeZipToFile } from '../src/main/sync/zip-write'
+import { writeZipToFile } from '../src/main/sync/zip_write'
 
 const LIMITS = {
   maxFiles: 100,

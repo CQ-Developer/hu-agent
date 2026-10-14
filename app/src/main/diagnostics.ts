@@ -13,7 +13,7 @@ import { join } from 'node:path'
 
 import { globalDir, cloudConfigFile, configFilePath, workspacesIndexFile } from './config/paths'
 import { logDir } from './logging'
-import { writeZipToFile, type ZipSource } from './sync/zip-write'
+import { writeZipToFile, type ZipSource } from './sync/zip_write'
 import { t } from './i18n'
 
 const SENSITIVE_KEY = /(token|secret|password|api[-_]?key|authorization)/i

@@ -10,7 +10,7 @@ import type { AgentEvent as PiAgentEvent } from '@earendil-works/pi-agent-core'
 import { describe, expect, it } from 'vitest'
 
 import type { AgentEvent } from '../src/main/agent/events'
-import { UNMAPPED_PI_EVENTS, mapPiEvent, mapToolResult, mapUsage } from '../src/main/agent/pi-events'
+import { UNMAPPED_PI_EVENTS, mapPiEvent, mapToolResult, mapUsage } from '../src/main/agent/pi_events'
 
 const ctx = { sessionId: 's1', turnId: 't1', provider: 'gateway', model: 'deepseek-v4.1-flash' }
 
