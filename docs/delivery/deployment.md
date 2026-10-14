@@ -31,7 +31,7 @@
 | `METRICS_ENABLED` | — | 默认 `true`；置 `false` 关闭 `/api/v1/system/metrics` |
 | `METRICS_TOKEN` | 建议 | 非空时指标端点要求 `Authorization: Bearer <token>`（生产必须设置） |
 | `CORS_ORIGINS` | 管理台 | 管理台/SSO 回跳来源白名单（JSON 数组） |
-| `LOGIN_IP_LIMIT` / `LOGIN_FAIL_THRESHOLD` | — | 默认 10/min/IP、5 次失败递增锁 1/5/15 分钟 |
+| `LOGIN_IP_LIMIT` / `LOGIN_FAIL_THRESHOLD` | 建议调整 | 默认 10/min/IP、5 次失败递增锁 1/5/15 分钟。**办公室 NAT 场景注意**：同一出口 IP 的整间办公室共享 10 次/分钟额度（压测发现，见 `performance.md` 第 4 节），建议放宽 IP 上限并保留账号维度锁定 |
 
 生成主密钥：`uv run python -c "import secrets,base64;print(base64.b64encode(secrets.token_bytes(32)).decode())"`
 

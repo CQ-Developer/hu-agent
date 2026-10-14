@@ -27,9 +27,9 @@
 | 项 | 状态 | 证据 / 说明 |
 | --- | --- | --- |
 | Windows/macOS 签名安装包 + 升级回滚验证 | ⏳ | 脚本与文档就绪：`scripts/package.ps1`、`scripts/package.sh`、`docs/delivery/signing.md`（含校验与回滚章节）；**缺企业证书与实测记录** |
-| 部署 / 使用 / 运维手册 | ✅ | `docs/delivery/deployment.md`、`user-guide.md`、`operations.md`、`monitoring.md` |
+| 部署 / 使用 / 运维手册 | ✅ | `docs/delivery/deployment.md`、`user-guide.md`、`operations.md`、`monitoring.md`、`performance.md` |
 | staging/prod 监控与告警 | ⏳ | 已实现 `/api/v1/system/metrics`（Prometheus 文本 + 可选令牌）与 `docs/delivery/monitoring.md`（采集配置、12 条告警规则、看板查询、未覆盖清单）；**待企业侧**：接入 Prometheus/Grafana、配置 Alertmanager 接收器与值班表 |
-| 发布冒烟 E2E 5 条 + 性能结论 | ⏳ | CI `e2e` 作业覆盖：登录与上报对账、市场安装、云同步（两机）、统计聚合、SSO 真实 IdP（5 条中的 4+1）；**性能验证未做**（建议 k6 压 `usage:batch` 与快照上传，记录 P95/容量拐点） |
+| 发布冒烟 E2E 5 条 + 性能结论 | ⏳ | CI `e2e` 作业覆盖登录与上报对账、市场安装、云同步（两机）、统计聚合、SSO 真实 IdP；性能基线已出（`docs/delivery/performance.md`：4 场景 × 3 并发档、0 失败）。**staging 目标拓扑复测未做**（见该文档第 5 节清单） |
 
 ## 用户与需求方
 

@@ -481,7 +481,7 @@ Authorization: Bearer {{token}}
 - [ ] Windows / macOS 签名安装包，升级与回滚验证通过 —— ⏳ 脚本与文档就绪（`scripts/package.*`、`docs/delivery/signing.md`），缺企业证书与实测记录
 - [x] 部署手册、使用手册、运维/回滚手册完成 —— 证据：`docs/delivery/deployment.md`、`user-guide.md`、`operations.md`、`signing.md`
 - [ ] staging / prod 监控与告警可用，告警联系人与值班方式明确 —— ⏳ 指标端点与告警规则已就绪（`monitoring.md`：采集配置 + 12 条规则 + 看板查询）；待企业侧接入 Prometheus/Grafana 与值班表
-- [ ] 发布冒烟 E2E 5 条全过；性能验证结论已出 —— ⏳ CI `e2e` 作业覆盖登录上报/市场/同步/统计/SSO；性能验证进行中（见 `docs/delivery/performance.md`）
+- [ ] 发布冒烟 E2E 5 条全过；性能验证结论已出 —— ⏳ CI `e2e` 作业覆盖登录上报/市场/同步/统计/SSO；本地性能基线已出（`docs/delivery/performance.md`：登录/上报/统计/快照 4 场景 × 并发 1/4/8，0 失败；含容量推算与局限），**staging 目标拓扑复测待做**
 
 **用户与需求方**
 

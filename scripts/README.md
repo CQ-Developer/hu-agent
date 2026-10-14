@@ -11,6 +11,7 @@
 
 | `package.ps1` / `package.sh` | 打包与签名（Windows/macOS，含校验和生成） | 见 `docs/delivery/signing.md` |
 | `security-scan.sh` | 依赖与静态扫描（pip-audit + bandit + npm audit；CI `security` 作业同源） | `bash scripts/security-scan.sh [--report]` |
+| `benchmark.py` | 服务端性能基准（登录/用量上报/统计/快照，贴合客户端请求形状） | `uv run --project management python scripts/benchmark.py --scenario all --concurrency 1,4,8` |
 | `ci/apply-ddl.py` | CI 用：按编号应用 DDL（不依赖 docker compose） | `uv run --project management python scripts/ci/apply-ddl.py` |
 | `ci/seed-e2e.py` | CI 用：账号/组织/团队/已发布 Skill/用量种子数据（幂等） | `uv run --project management python scripts/ci/seed-e2e.py` |
 | `ci/keycloak-setup.py` | CI 用：Admin REST 准备 Keycloak realm/client/用户（幂等） | `uv run --project management python scripts/ci/keycloak-setup.py --base http://127.0.0.1:8100` |

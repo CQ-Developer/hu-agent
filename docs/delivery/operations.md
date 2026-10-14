@@ -33,7 +33,7 @@ worker 任务：`job_runs` 表记录**每个任务最近一次**执行（`job_id
 
 | 告警 | 处置 |
 | --- | --- |
-| 登录限流频繁触发 | 检查是否被暴力尝试（`audit_logs` 中 `auth.login` 失败集中在同一 IP）；必要时在网关层加封禁 |
+| 登录限流频繁触发 | 先看 `huagent_login_attempts_total`：`result=failure` 集中同一 IP → 可能暴力尝试（`audit_logs` 中 `auth.login`）；`result=locked_ip` 且失败少 → 多为**办公室 NAT 共享出口 IP**，按 `performance.md` 第 4 节调整 `LOGIN_IP_LIMIT` |
 | `QUOTA_EXCEEDED` 增多 | 查看 `GET /workspaces/{id}/quota`；调整 `system_settings.quota.user_bytes/team_bytes` 或引导用户配置 `syncExclude` |
 | 快照上传超时残留 | worker `snapshot.cleanup` 会将 24h 未完成的 `uploading` 置 `aborted` 并删对象 |
 | object store 不可达 | `/ready` 不检查 S3；以 Skill 上传/同步报错为准；检查 MinIO 容器与桶权限 |
