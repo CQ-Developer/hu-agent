@@ -60,14 +60,13 @@
 | 阶段 | 内容 | 依赖（精确 pin） | 出口标准 |
 | --- | --- | --- | --- |
 | **P0 合规基线** ✅ | 遥测审计、许可与依赖策略、ADR-0006、npm 可用性核对 | — | 已完成（`pi-evals` 404 已确认） |
-| **P1 模型层** 🚧 | 用 `pi-ai` 替换自研 provider（**一次性切换，不留 legacy**）；provider 配置读 pi 的 `models.json`；用量取自 pi 事件 | `pi-ai@1.2.0`、`pi-agent-core@1.2.0`、`pi-telemetry@1.2.0`、`typebox@1.3.27`、`pi-coding-agent@1.2.0`（仅库） | 三种 API 类型走 pi + provider 契约测试改对 pi 断言 + **自研 provider 代码删除** + main 包体积增量复核 |
-| **P2 循环层** | `pi-agent-core` 的 `Agent` 替换 `agent/loop.ts`；权限/审批/审计挂 `beforeToolCall`/`afterToolCall`；`transformContext` 接压缩；事件映射 + 契约测试 | 无新增 | 现有 agent/permission/compaction 测试等价覆盖 + 4 个 e2e 门禁 |
+| **P1 引擎切换**（模型层 + 循环层合并）🚧 | ① **P1.1 配置层 ✅**：`pi-config.ts` 读 pi 的 `models.json`（薄适配，不用 `ModelRegistry`；见 ADR 决策 8 的实测理由）② **P1.2**：用 `pi-agent-core` 的 `Agent` 替换 `agent/loop.ts` + 自研 provider/SSE，权限/审批/审计挂 `beforeToolCall`/`afterToolCall`，`transformContext` 接压缩，事件映射 + 契约测试 | `pi-ai@1.2.0`、`pi-agent-core@1.2.0`、`pi-telemetry@1.2.0`、`typebox@1.3.27` | ① 已完成：6 条配置层测试 + typecheck 全绿 ② 待完成：faux 契约测试（文本/工具/用量/阻断）+ 4 个 e2e 门禁 + 真实调用（`pi-real`）+ **自研 provider/SSE/循环代码删除** + main 包体积增量复核 |
 | **P3 会话持久化** | `pi-durable` + `chord` 接管会话/任务（`openNodeSqliteStorage`，写先于展示 = 崩溃恢复）；旧 items 迁移脚本 + 双读校验 | `pi-durable@1.2.0`、`chord@1.2.0` | 杀进程后重开续跑；迁移双读校验；快照/同步/审计语义不回退 |
 | **P4 MCP 与 Code Mode** | `pi-mcp` 替自研 MCP；`pi-codemode` 可选（WASM 沙箱 + 审批，默认关） | `pi-mcp@1.2.0`、`pi-codemode@1.2.0` | MCP e2e 全绿；越权用例被审批/沙箱拦下 |
 | **P5 远程执行** | `pi-env`（SSH daemon）作为企业可选能力：主机指纹校验 + 密钥管理 | `pi-env@1.2.0`（18 MB，含 Rust daemon） | 远端工作区跑通一个工具回合 + 审计就位 |
 | **P6 打包收尾** | 排除未用 SDK（`@aws-sdk/*`、`@google/genai`）、`NOTICE`、体积复核、删自研代码 | — | 安装包体积可接受；安全扫描 0 漏洞 |
 
-轨道 B（UI 令牌 + 动效）不依赖 P1–P5，可与 P1/P2 并行；轨道 C 已落地。
+轨道 B（UI 令牌 + 动效）不依赖 P1–P5，可与引擎切换并行；轨道 C 已落地。
 
 ### 1.4 P1 进度
 
@@ -86,13 +85,14 @@
 3. 密钥按请求注入（`streamSimple(model, ctx, { apiKey })`），不注册进 pi 的凭证存储——与
    「企业模式密钥在服务端 / 个人模式在 safeStorage」的设计一致。
 
-待办（P1 收尾，一次性切换不留 legacy）：用 pi 的 `models.json` + `ModelRegistry` 读 provider 配置 →
-替换 `model/gateway.ts` 与 `model/providers/*` → 删除自研 provider 与 SSE 解析 → 用量从 pi 事件映射进
-usage ledger → 模型目录接入设置页 → main 包体积增量复核。
+待办（P1.2 引擎切换，一次性切换不留 legacy）：以 `Agent` 替换 `agent/loop.ts` 与
+`model/providers/*` + `model/gateway.ts` 的 SSE 适配；用量从 pi 事件映射进 usage ledger；
+模型目录接入设置页；删除自研 provider/SSE/循环代码；复核 main 包体积增量。
 
-## 2. 轨道 B：UI 体系（页面样式 + 交互动画）
+**P1.1 已完成**（配置层，独立可验证）：`app/src/main/model/pi-config.ts` + `app/tests/pi-config.test.ts`
+6 条测试（字段映射、密钥优先级与"密钥不落盘"、缺文件容错、与 pi CLI 配置互通），`npm run typecheck` 全绿。
 
-现状：Tailwind v4 + 524 处工具类，无令牌、无动效、无深色主题。目标是**一套可复用、可主题化、可校验**的样式与动效体系，且**不引入第三方 UI 库**（保持零依赖与包体）。
+式与动效体系，且**不引入第三方 UI 库**（保持零依赖与包体）。
 
 ### 2.1 B1 设计令牌层（Tailwind v4 `@theme`，零依赖）
 

@@ -45,19 +45,31 @@ pi（源码 `C:\Users\chen\Dev\pi`，npm 版本 1.2.0，MIT）提供 11 个包�
 6. **依赖策略**：版本**精确 pin**（不用 `^`）；只按需 import provider 子路径；打包时排除未使用的
    SDK（`@aws-sdk/*`、`@google/genai`）；上游升级必须先过事件协议契约测试。ADR 0006 是唯一允许
    Agent 相关第三方依赖的入口，替代品评估需新开 ADR。
-7. **P0 合规基线 → P1 模型层 → P2 循环层 → P3 会话持久化 → P4 MCP 与 Code Mode → P5 远程执行 →
-   P6 打包与文档收尾**。**不设运行时引擎开关**（用户决策：全面转向 pi）：每个阶段内部先接好 pi、
-   测试全绿，再在同一提交里删除被替换的自研代码；阶段边界即回滚点（`git revert` 该阶段提交）。
+7. **P0 合规基线 → P1 引擎切换（模型层 + 循环层合并）→ P3 会话持久化 → P4 MCP 与 Code Mode →
+   P5 远程执行 → P6 打包与文档收尾**。**不设运行时引擎开关**（用户决策：全面转向 pi）：每个阶段
+   内部先接好 pi、测试全绿，再在同一提交里删除被替换的自研代码；阶段边界即回滚点（`git revert`）。
    只有与产品行为无关的开关才保留（如遥测实现、codemode 的启用位）。
+
+   **为什么原 P1（模型层）与 P2（循环层）合并**：pi 的**工具声明属于 transcript**
+   （见 `pi-ai` 的 `openai-completions` 实现：`transcriptTools.requestTools`，工具随 system 消息声明），
+   而"单次流式 + 工具"需要自己拼装 transcript；`pi-agent-core` 的 `Agent` 正是管理 transcript、
+   工具装载与事件流的组件。若强行只换模型层，就要在网关里自造工具声明注入，等于重复实现 Agent 的一半，
+   随后还要在 P2 删掉。因此两阶段合并为一个"引擎切换"阶段，以 `Agent` 为集成点，
+   **企业治理（权限/审批/审计）继续由我们挂在 `beforeToolCall`/`afterToolCall`**（faux 冒烟已证明可行）。
 
 8. **provider 配置沿用 pi 的格式与实现**：自定义 provider（含企业 OpenAI 兼容网关）配置沿用 pi 的
    `models.json`（`providers.<id>.{api, baseUrl, apiKey, headers, models}`），因此**同一份配置在 pi CLI
    与我们客户端之间可直接互换**。加载路径按此优先级：
-   1. 用 `pi-coding-agent` 导出的 `ModelRegistry` / `ProviderModelConfig` 读取（配置目录由 `getAgentDir()`
-      决定，可用 `PI_AGENT_DIR` 等环境变量指到 `~/.hu-agent/agent`，避免与用户的 pi CLI 配置互相打扰）；
-   2. 若该包把 TUI/CLI 依赖带进 main 包导致体积不可接受，退化为 ~60 行薄适配：读同一个 `models.json`，
-      用 `pi-ai` 的 `createProvider` 构造（补齐 `api`/`provider`/`baseUrl` 三个字段——见 P1 踩坑记录）。
-   两条路径共享同一配置格式，可随时互换，不产生格式迁移。
+   1. ~~用 `pi-coding-agent` 的 `ModelRegistry` 读取~~ → **实测后不采用**：该包解包 31 MB，并会把
+      `pi-tui`(2.8 MB)/`highlight.js`(2.8 MB)/`grok-mermaid`/`photon` 等 CLI 与界面依赖装进桌面应用，
+      而我们只需要它的配置**格式与类型**；
+   2. **采用薄适配**：`app/src/main/model/pi-config.ts` 读同一个 `models.json`（`ProviderModelConfig`
+      仅作类型引入，运行时不加载该包），用 `pi-ai` 的 `createProvider` 构造。构造时补齐
+      `api`/`provider`/`baseUrl` 三个字段——见 P1 踩坑记录（否则报 `Unknown provider: undefined`）。
+   两条路径共享同一配置格式，将来若体积不是问题，把读取函数换成 `ModelRegistry` 即可，无格式迁移。
+   配置目录默认为 `~/.hu-agent/agent`（`HUAGENT_AGENT_DIR` 可覆盖），不与 pi CLI 的 `~/.pi/agent` 互相打扰。
+   密钥优先级：文件内 `apiKey`（兼容手工配置与 pi CLI 配置）> 本机密钥库（`model:<providerId>`，
+   写回文件时不落盘）；企业模式两者都不用，密钥在服务端。
 9. **企业模式不走本地文件存密钥**：`models.json` 里的 `apiKey` 仅用于个人模式与本机开发；企业部署下
    客户端不落密钥，由服务端持有并通过 `streamProxy` 供流（决策 4 的落地方式）。
 
