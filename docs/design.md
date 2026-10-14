@@ -491,6 +491,10 @@ flowchart TB
 - **崩溃恢复与幂等**：打开存储后 `resume()` 继续上次未完成的运行；`requestId` 幂等保证重发不产生
   重复回合（跨重启成立）。
 - 旧 JSONL 会话（`<workspace>/.hu/sessions/*.jsonl`）已停止写入，作为只读归档保留。
+- **artifact（超长工具输出全文）仍归我们**：落在 `<workspace>/.hu/sessions/artifacts/<callId>.txt`
+  （`session/artifacts.ts`），不写入 pi-durable——pi 只存消息与用量条目，没有大文本/blob 存储。
+- **同步语义**：durable 会话文件在 `~/.hu-agent/sessions/`（工作空间之外），不随工作空间同步
+  （会话的云同步留待后续）；同步开关 `includeSessions` 现在只影响 `.hu/sessions/artifacts`（5.11.4）。
 - 会话 ID 即 durable 的 conversation id；工具与治理以扩展 + `beforeTool`/`afterTool` 钩子随会话
   `configure()` 注入。
 
@@ -1049,7 +1053,7 @@ sequenceDiagram
 
 | 项目 | 默认值 |
 | --- | --- |
-| 包含 | 工作空间全部普通文件 + `.hu/sessions` + `.hu/settings.json`（会话默认包含，可排除） |
+| 包含 | 工作空间全部普通文件 + `.hu/sessions`（现为工具输出 artifact；会话正文已迁至 `~/.hu-agent/sessions`，不随工作空间同步，见 5.3.1）+ `.hu/settings.json` |
 | 排除 | `.hu/sync`、`.hu/logs`、`.hu/backups`、`node_modules`、`.git`、`dist`、`.venv`、以及 `workspace.json` 中用户自定义的 `syncExclude` |
 | 单快照大小 | ≤ 2 GB（超出提示用户用排除规则） |
 | 文件数 | ≤ 50,000 |

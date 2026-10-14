@@ -1,11 +1,9 @@
 /**
- * 模型设置来源桥测试（R3）+ 配置合并的回归测试。
+ * 模型设置来源桥测试（R3）。
  *
- * 回归背景：`config.json` 是共用文件（`ui.locale`、全局权限规则、模型设置都在里面）。
- * 保存模型设置时若整体覆盖写，会把用户其它设置一起抹掉——这是本会话调查中实测发现的缺陷。
- * 本文件锁定两条不变式：
- * 1. 桥写 models.json（pi 格式）+ 只往 config.json 写自己的 `defaults`，其它 section 原样保留；
- * 2. 旧 `SettingsStore.save()` 同样必须保留未知键（回归）。
+ * 背景：`config.json` 是共用文件（`ui.locale`、全局权限规则、模型设置都在里面）。
+ * 保存模型设置时若整体覆盖写，会把用户其它设置一起抹掉——本文件锁定不变式：
+ * 桥写 models.json（pi 格式）+ 只往 config.json 写自己的 `defaults`，其它 section 原样保留。
  */
 
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
@@ -15,7 +13,6 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { loadModelSettings, saveModelSettings } from '../src/main/config/pi_model_settings'
-import { SettingsStore, defaultModelSettings } from '../src/main/config/settings_store'
 import type { ModelSettings } from '../src/main/model/types'
 
 async function tempConfig(): Promise<{ dir: string; configPath: string }> {
@@ -96,18 +93,5 @@ describe('模型设置来源桥', () => {
     const loaded = await loadModelSettings({ configPath, agentDir: dir })
     expect(loaded.providers).toEqual([])
     expect(loaded.defaults.primary).toBe('')
-  })
-})
-
-describe('旧 SettingsStore 的合并写（缺陷回归）', () => {
-  it('保存模型设置不会抹掉 config.json 里的其它 section', async () => {
-    const { configPath } = await tempConfig()
-    await writeFile(configPath, JSON.stringify({ ui: { locale: 'zh-CN' } }, null, 2), 'utf8')
-
-    await new SettingsStore(configPath).save(defaultModelSettings())
-
-    const config = JSON.parse(await readFile(configPath, 'utf8')) as Record<string, unknown>
-    expect(config.ui).toEqual({ locale: 'zh-CN' })
-    expect(config.defaults).toBeDefined()
   })
 })

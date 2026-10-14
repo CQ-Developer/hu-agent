@@ -60,11 +60,14 @@
 | 阶段 | 内容 | 依赖（精确 pin） | 出口标准 |
 | --- | --- | --- | --- |
 | **P0 合规基线** ✅ | 遥测审计、许可与依赖策略、ADR-0006、npm 可用性核对 | — | 已完成（`pi-evals` 404 已确认） |
-| **P1 引擎重构（pi 为核）** 🚧 | **不做形状适配**：会话/消息/工具/模型全部改用 pi 原生（`Agent`+`pi-durable`+`AgentTool`+`pi-ai`），旧的 `LlmMessage`/事件联合/工具接口/会话存储/自研 provider/MCP 一律删除；我们的代码只保留企业侧能力（权限/审批/审计/用量/同步/市场/服务端）与 IPC 边界投影 | `pi-ai`、`pi-agent-core`、`pi-durable`+`chord`、`pi-mcp`、`pi-codemode`、`pi-telemetry`、`typebox`（精确 pin） | ① 定向测试全绿 ② 旧模块删除且 import 图干净（无残留引用） ③ 4 个 e2e + 真实调用 ④ main 包体积复核 ⑤ `design.md` 客户端架构章节按 pi 为核心改写 |
+| **P1 引擎重构（pi 为核）** 🚧 | **不做形状适配**：会话/消息/工具/模型全部改用 pi 原生（`Agent`+`pi-durable`+`AgentTool`+`pi-ai`），旧的 `LlmMessage`/事件联合/工具接口/会话存储/自研 provider/MCP 一律删除；我们的代码只保留企业侧能力（权限/审批/审计/用量/同步/市场/服务端）与 IPC 边界投影 | `pi-ai`、`pi-agent-core`、`pi-durable`+`chord`、`pi-mcp`、`pi-codemode`、`pi-telemetry`、`typebox`（精确 pin） | 已完成 R1–R5（引擎已切换、旧模块删净）；剩 ④ main 包体积复核、⑤ `design.md` 客户端架构章节按 pi 为核心改写（R6） |
 
 轨道 B（UI 令牌 + 动效）不依赖 P1–P5，可与引擎切换并行；轨道 C 已落地。
 
 ### 1.5 P1.2-c 蓝图：用 pi 的 `Agent` 替换旧循环
+
+> ⚠️ 本节是当时的实现蓝图（历史记录）。最终落地为 pi-durable 的 `submit` + 扩展钩子，
+> 见 1.6 的 R1 与 ADR-0006「不使用门面」修订。
 
 读完旧循环（388 行）后，它的对外行为可归为 **8 项职责**。逐一给出 pi 的落点，避免"用旧网关写一遍新循环"：
 
@@ -114,11 +117,9 @@ interface HistorySummarizer {
 
 ### 1.6 修订后的重构步骤（pi 为核）
 
-> **R3 进度**：运行器装配 ✅ · 模型设置来源桥 ✅ · **IPC/index 切换 ✅**
-> —— `context.createRunner` 每回合构造 runner（工作空间相关的权限/会话/技能/遥测在工厂注入），
-> `context.settings` 换成桥适配器（与旧 `SettingsStore` 同形接口，ipc 层的设置调用点零改动）；
-> 旧 `ModelGateway` 与 `ToolRegistry` 不再被 ipc/index 引用（随 R5 删文件）。
-> 过渡期 MCP 桥 `tools/mcp_bridge.ts` 把旧 MCP 工具接成原生工具，**R4 换 `pi-mcp` 后删除**。
+> **R3/R4 收尾 ✅**：运行器装配 · 模型设置来源桥（`config/pi_model_settings.ts`）· IPC/index 切换 ·
+> MCP 换 `@earendil-works/pi-mcp`（`mcp/manager.ts`，过渡桥 `tools/mcp_bridge.ts` 已删）。
+> 旧 `ModelGateway` / `ToolRegistry` / `SettingsStore` 已随 R5 删除；回合生命周期最终由 pi-durable 承担（R1）。
 
 > 命名约定（本轮新增）：新文件一律用**下划线**（`read_file.ts` / `pi_governance.ts`），与 Python 侧一致；
 > 客户端的 kebab-case 属遗留，随文件被改动时一并改名。约定已记入 `CONTRIBUTING.md`。
@@ -127,10 +128,10 @@ interface HistorySummarizer {
 | 步 | 内容 | 出口标准 |
 | --- | --- | --- |
 | **R1** ✅ | **直接使用 `pi-durable`（无门面）**：① 回合改为 `root.submit` + 订阅 `viewState` 投影到 IPC 事件；② 会话选项改为 `root.configure`（模型/thinkingLevel/cwd/tools/instructions）；③ 用量改从 `docs["pi.usage"]`/`harness.usage()` 读入我们的 ledger 与上报；④ 旧本地 JSONL 会话归档为只读（导入脚本可后补）；⑤ 删除旧会话路径（`session/{store,items,types,stats}.ts`、`agent/{pi_loop,pi_events,pi_runner,events}.ts`） | `pi-durable@1.2.0`、`chord@1.2.0` | ① 崩溃恢复演练：杀进程重开续跑同一回合 ② 用量落账与 pi 的 usage 一致 ③ 界面（会话列表/消息/工具卡/用量）无回退 ④ 旧会话归档为只读（不阻塞新路径） |
-| R2 🚧 进行中 | 工具换 `AgentTool`（typebox 参数），删除 JSON Schema 工具接口与自研注册表。已落地 `tools/native/read_file.ts`（下划线命名）（4 条测试，含经真实 Agent 直调、无适配层），`NativeTool = AgentTool & { category }` 为产品层字段 | 6 个内置工具等价行为 + 治理钩子测试 |
-| R3 | 用 `Agent.prompt()` 原生生命周期替换 `pi-loop.ts`（删除复刻的 8 项职责代码） | e2e 与真实调用通过时无行为回退 |
-| R4 | MCP 换 `pi-mcp`；`pi-codemode` 作为可选能力 | MCP e2e 通过；越权用例被审批拦下 |
-| R5 | 删除遗留：`model/providers/*`、`gateway.ts`、`model/types.ts`、`agent/loop.ts`、`agent/compaction.ts`、`session/*`、`tools/{types,registry}.ts`、`mcp/*`、`pi-runtime.ts`、`pi-loop.ts` 及对应测试 | `rg` 无残留 import；全量守卫绿 |
+| R2 ✅ | 工具换 `AgentTool`（typebox 参数），删除 JSON Schema 工具接口与自研注册表。6 个内置工具全为 pi 原生（`tools/native/*`，自 `0d6c394` 起），`pi_governance.ts` 只保留 `createDefaultTools`；治理行为由 `durable_loop` 的扩展钩子承担 | 6 个内置工具等价行为 + 治理钩子测试 |
+| R3 ✅ | 回合生命周期交给 pi-durable harness（`agent/durable_loop.ts` + `agent/durable_runner.ts`）；旧 `pi_loop.ts`/`pi_runner.ts` 与复刻的 8 项职责代码已删（R1 最后一批） | e2e 与真实调用通过时无行为回退 |
+| R4 ✅ | MCP 换 `pi-mcp`（stdio；`mcp/manager.ts`）；`pi-codemode` 未接入，留 v1.x 可选 | MCP e2e 通过；越权用例被审批拦下 |
+| R5 ✅ | 删除遗留：旧 provider/gateway/loop/compaction/会话存储早已删（`0d6c394` + R1）；本批清掉死类型（`LlmMessage`/`ToolCall`/`TokenUsage` 等 9 个）与旧 `SettingsStore` 及其测试。artifacts 决策：保留我们的 `session/artifacts.ts`，不并入 pi-durable（它没有大文本/blob 存储） | `rg` 无残留 import；全量守卫绿 |
 | R6 | IPC 事件收敛为「pi 事件的机械投影」+ `design.md` 改写 + **全仓库文件名统一为下划线**（客户端 kebab-case 遗留一次性清理，单独提交并附改动清单） | 渲染层契约无第二套语义 + 无 kebab-case 文件 |
 
 ### 1.4 P1 进度
@@ -150,9 +151,8 @@ interface HistorySummarizer {
 3. 密钥按请求注入（`streamSimple(model, ctx, { apiKey })`），不注册进 pi 的凭证存储——与
    「企业模式密钥在服务端 / 个人模式在 safeStorage」的设计一致。
 
-待办（P1.2 引擎切换，一次性切换不留 legacy）：以 `Agent` 替换 `agent/loop.ts` 与
-`model/providers/*` + `model/gateway.ts` 的 SSE 适配；用量从 pi 事件映射进 usage ledger；
-模型目录接入设置页；删除自研 provider/SSE/循环代码；复核 main 包体积增量。
+已完成（历史待办，见 1.6 R1–R5）：`agent/loop.ts`、`model/providers/*` + `model/gateway.ts` 均已删除；
+模型目录接入设置页；用量改从 pi 的 `pi.usage` 汇入 ledger/上报。仅剩 main 包体积复核（P6）。
 
 **P1.1 已完成**（配置层，独立可验证）：`app/src/main/model/pi-config.ts` + `app/tests/pi-config.test.ts`
 6 条测试（字段映射、密钥优先级与"密钥不落盘"、缺文件容错、与 pi CLI 配置互通），`npm run typecheck` 全绿。
