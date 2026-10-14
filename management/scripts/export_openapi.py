@@ -17,7 +17,9 @@ def main() -> None:
     spec = create_app().openapi()
     out = REPO_ROOT / "openapi" / "openapi.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(spec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    # newline="\n"：避免 Windows 写入 CRLF 导致工作区内容与仓库/CI 不一致
+    with out.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(spec, ensure_ascii=False, indent=2) + "\n")
     print(f"已生成 {out}")
 
 
