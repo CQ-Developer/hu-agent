@@ -108,7 +108,7 @@ interface HistorySummarizer {
 | R3 | 用 `Agent.prompt()` 原生生命周期替换 `pi-loop.ts`（删除复刻的 8 项职责代码） | e2e 与真实调用通过时无行为回退 |
 | R4 | MCP 换 `pi-mcp`；`pi-codemode` 作为可选能力 | MCP e2e 通过；越权用例被审批拦下 |
 | R5 | 删除遗留：`model/providers/*`、`gateway.ts`、`model/types.ts`、`agent/loop.ts`、`agent/compaction.ts`、`session/*`、`tools/{types,registry}.ts`、`mcp/*`、`pi-runtime.ts`、`pi-loop.ts` 及对应测试 | `rg` 无残留 import；全量守卫绿 |
-| R6 | IPC 事件收敛为「pi 事件的机械投影」+ `design.md` 改写 | 渲染层契约无第二套语义 |
+| R6 | IPC 事件收敛为「pi 事件的机械投影」+ `design.md` 改写 + **全仓库文件名统一为下划线**（客户端 kebab-case 遗留一次性清理，单独提交并附改动清单） | 渲染层契约无第二套语义 + 无 kebab-case 文件 |
 
 ### 1.4 P1 进度
 
