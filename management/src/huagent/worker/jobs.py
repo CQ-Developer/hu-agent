@@ -264,7 +264,7 @@ _RECOMPUTE_STORAGE = text(
 async def cleanup_snapshots(session: AsyncSession) -> int:
     """上传超时与超保留版本的清理：先删对象再删记录（design 6.6.2 / 6.6.3）。"""
     settings = get_settings()
-    store = get_object_store()
+    store = get_object_store("snapshots")
     removed = 0
 
     for timeout_row in (

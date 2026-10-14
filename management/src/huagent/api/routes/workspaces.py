@@ -363,7 +363,7 @@ async def init_snapshot(
             },
         )
     ).scalar_one()
-    upload_url = get_object_store().presign_put(object_key, settings.snapshot_upload_url_ttl_seconds)
+    upload_url = get_object_store("snapshots").presign_put(object_key, settings.snapshot_upload_url_ttl_seconds)
     await session.commit()
     return SnapshotInitOut(
         snapshot_id=snapshot_id,
@@ -384,7 +384,7 @@ async def complete_snapshot(
     snapshot = await _require_snapshot_owner(session, actor, snapshot_id)
     if snapshot["status"] != "uploading":
         raise AppError(ErrorCode.CONFLICT, f"快照状态为 {snapshot['status']}，无法完成")
-    store = get_object_store()
+    store = get_object_store("snapshots")
     if not store.exists(str(snapshot["object_key"])):
         raise AppError(ErrorCode.VALIDATION_FAILED, "上传对象不存在或已过期，请重新上传")
 
@@ -428,7 +428,7 @@ async def download_url(
         raise AppError(ErrorCode.CONFLICT, "快照未完成上传，暂不可下载")
     ttl = get_settings().snapshot_download_url_ttl_seconds
     return {
-        "url": get_object_store().presign_get(str(snapshot["object_key"]), ttl),
+        "url": get_object_store("snapshots").presign_get(str(snapshot["object_key"]), ttl),
         "expiresIn": ttl,
         "digest": snapshot["digest"],
         "version": snapshot["version"],
@@ -462,7 +462,7 @@ async def delete_snapshot(
     if workspace["latest_snapshot_id"] == snapshot_id:
         raise AppError(ErrorCode.CONFLICT, "不能删除最新版本")
 
-    get_object_store().delete(str(snapshot["object_key"]))
+    get_object_store("snapshots").delete(str(snapshot["object_key"]))
     await session.execute(text("DELETE FROM workspace_snapshots WHERE id = :id"), {"id": snapshot_id})
     await session.execute(RECOMPUTE_WORKSPACE_STORAGE, {"workspace_id": snapshot["workspace_id"]})
     await record_audit(

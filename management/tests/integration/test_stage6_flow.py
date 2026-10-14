@@ -116,7 +116,7 @@ def sql(database_url: str, statement: str, params: tuple[object, ...] = ()) -> l
 def memory_store() -> Any:
     from huagent.storage.objects import get_object_store
 
-    return get_object_store()
+    return get_object_store("snapshots")
 
 
 async def test_snapshot_lifecycle_conflict_and_quota(client: AsyncClient) -> None:
@@ -167,6 +167,10 @@ async def test_snapshot_lifecycle_conflict_and_quota(client: AsyncClient) -> Non
         (snapshot["snapshotId"],),
     )[0][0]
     store.put(str(object_key_1), payload)  # type: ignore[attr-defined]
+    # 快照必须落在快照桶，而不是技能包桶
+    from huagent.storage.objects import get_object_store
+
+    assert get_object_store("skills").exists(str(object_key_1)) is False
     wrong = await client.post(
         f"/api/v1/snapshots/{snapshot['snapshotId']}:complete",
         json={"digest": f"sha256:{'0' * 64}"},

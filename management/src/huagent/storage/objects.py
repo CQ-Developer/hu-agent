@@ -141,14 +141,27 @@ class MemoryObjectStore:
         return f"sha256:{hashlib.sha256(data).hexdigest()}", len(data)
 
 
-_memory_store: MemoryObjectStore | None = None
+_memory_stores: dict[str, MemoryObjectStore] = {}
+_s3_stores: dict[str, S3ObjectStore] = {}
+
+# 用途 → 配置项（分桶放置：快照与技能包的生命周期/权限策略不同）
+_BUCKET_SETTINGS: dict[str, str] = {
+    "skills": "s3_bucket_skills",
+    "snapshots": "s3_bucket_snapshots",
+}
 
 
-def get_object_store() -> ObjectStore:
+def get_object_store(purpose: str = "skills") -> ObjectStore:
+    """按用途取对象存储（每个桶一个实例，内存实现也同样隔离）。"""
     settings = get_settings()
+    attribute = _BUCKET_SETTINGS.get(purpose)
+    if attribute is None:
+        raise ValueError(f"未知存储用途：{purpose}（可选 {sorted(_BUCKET_SETTINGS)}）")
+    bucket = getattr(settings, attribute)
     if settings.object_store == "memory":
-        global _memory_store
-        if _memory_store is None:
-            _memory_store = MemoryObjectStore()
-        return _memory_store
-    return S3ObjectStore(settings.s3_bucket_skills)
+        if bucket not in _memory_stores:
+            _memory_stores[bucket] = MemoryObjectStore()
+        return _memory_stores[bucket]
+    if bucket not in _s3_stores:
+        _s3_stores[bucket] = S3ObjectStore(bucket)
+    return _s3_stores[bucket]
