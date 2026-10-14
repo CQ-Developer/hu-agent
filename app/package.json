@@ -2,7 +2,7 @@
   "name": "hu-agent-app",
   "version": "0.1.0",
   "private": true,
-  "description": "hu-agent 桌面客户端（Electron + TypeScript）",
+  "description": "hu-agent 桌面客户端：本地 Agent、技能市场与云同步",
   "author": "CQ-Developer",
   "main": "./out/main/index.js",
   "scripts": {
