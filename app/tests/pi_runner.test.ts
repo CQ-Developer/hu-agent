@@ -44,7 +44,7 @@ class MemorySessions {
   }
 }
 
-async function runner() {
+async function createRunner() {
   const faux = fauxProvider({ models: [{ id: 'faux-1', name: 'Faux 1', contextWindow: 64_000 }] })
   const models = createModels()
   models.setProvider(faux.provider)
@@ -76,7 +76,7 @@ async function runner() {
 
 describe('回合运行器（IPC 只需依赖一个函数签名）', () => {
   it('一次 runTurn：事件出口、助手消息、用量三写都到位', async () => {
-    const { runner, faux, sessions, ledger, telemetry } = await runner()
+    const { runner, faux, sessions, ledger, telemetry } = await createRunner()
     faux.setResponses([fauxAssistantMessage([fauxText('你好呀')])])
 
     const events: AgentEvent[] = []
@@ -98,7 +98,7 @@ describe('回合运行器（IPC 只需依赖一个函数签名）', () => {
   })
 
   it('工具回合：默认工具集可被模型调用（write_file 真写盘）', async () => {
-    const { runner, faux, sessions } = await runner()
+    const { runner, faux, sessions } = await createRunner()
     faux.setResponses([
       fauxAssistantMessage([fauxToolCall('write_file', { path: 'note.txt', content: 'hi' })]),
       fauxAssistantMessage([fauxText('写好了')]),
@@ -118,7 +118,7 @@ describe('回合运行器（IPC 只需依赖一个函数签名）', () => {
   })
 
   it('refresh() 可在设置变更后重新注册 provider', async () => {
-    const { runner } = await runner()
+    const { runner } = await createRunner()
     await expect(runner.refresh()).resolves.toBeUndefined()
   })
 })
