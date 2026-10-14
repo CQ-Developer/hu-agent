@@ -23,13 +23,19 @@ def _isolate_settings(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     yield
 
 
-def pytest_asyncio_loop_factories(config: Any, item: Any) -> dict[str, Any] | None:
-    """Windows 下返回 SelectorEventLoop 工厂（psycopg async 要求）。"""
+def pytest_asyncio_loop_factories(config: Any, item: Any) -> dict[str, Any]:
+    """事件循环工厂。
+
+    Windows：psycopg async 不能跑在 ProactorEventLoop 上，用 SelectorEventLoop；
+    其它平台：使用默认实现（本钩子必须返回非空映射，否则 pytest-asyncio 直接报 UsageError）。
+    """
     del config, item
-    if sys.platform != "win32":
-        return None
 
-    def selector_factory() -> asyncio.AbstractEventLoop:
-        return asyncio.SelectorEventLoop(selectors.SelectSelector())
+    if sys.platform == "win32":
 
-    return {"selector": selector_factory}
+        def selector_factory() -> asyncio.AbstractEventLoop:
+            return asyncio.SelectorEventLoop(selectors.SelectSelector())
+
+        return {"selector": selector_factory}
+
+    return {"default": asyncio.new_event_loop}

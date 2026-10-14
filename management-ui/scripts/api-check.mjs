@@ -13,7 +13,10 @@ const here = dirname(fileURLToPath(import.meta.url))
 const root = resolve(here, '..')
 const spec = join(root, '..', 'openapi', 'openapi.json')
 const record = join(root, 'src/api/schema.hash')
-const digest = createHash('sha256').update(readFileSync(spec)).digest('hex')
+// 按 JSON 内容规范化后哈希：跨平台（CRLF/LF）与排版差异都不影响判定；
+// 之前的字节哈希在 Windows（工作区 CRLF）与 Linux（LF）上不一致，导致 CI 误报「不同源」
+const parsed = JSON.parse(readFileSync(spec, 'utf8'))
+const digest = createHash('sha256').update(JSON.stringify(parsed)).digest('hex')
 
 if (process.argv.includes('--write')) {
   writeFileSync(record, `${digest}\n`, 'utf8')
