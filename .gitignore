@@ -39,3 +39,4 @@ openapi/generated/
 
 # 快速开始生成的环境文件（含密钥，绝不入库）
 .env.quickstart
+.pr-deps-batch.md

@@ -186,7 +186,7 @@ export default function Skills() {
       }
     >
       {teams.length === 0 ? (
-        <Alert type="info" showIcon message={t('skills.noAdminTeam')} />
+        <Alert type="info" showIcon title={t('skills.noAdminTeam')} />
       ) : (
         <>
           <Space wrap style={{ marginBottom: 12 }}>
@@ -216,7 +216,7 @@ export default function Skills() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </Space>
-          {list.error && <Alert type="error" showIcon message={list.error} style={{ marginBottom: 12 }} />}
+          {list.error && <Alert type="error" showIcon title={list.error} style={{ marginBottom: 12 }} />}
           <Table<Skill>
             size="small"
             rowKey="id"
@@ -313,7 +313,7 @@ export default function Skills() {
           void runAction(() => skillApi.disable(disableTarget.id, reason), t('skills.disabled'))
         }}
       >
-        <Alert type="warning" showIcon message={t('skills.disableHint')} style={{ marginBottom: 12 }} />
+        <Alert type="warning" showIcon title={t('skills.disableHint')} style={{ marginBottom: 12 }} />
         <Input.TextArea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder={t('skills.reasonPlaceholder')} />
       </Modal>
 
@@ -333,7 +333,7 @@ export default function Skills() {
           void runAction(() => skillApi.revokeVersion(detail.id, revokeVersion, reason), t('skills.revoked'))
         }}
       >
-        <Alert type="warning" showIcon message={t('skills.revokeHint')} style={{ marginBottom: 12 }} />
+        <Alert type="warning" showIcon title={t('skills.revokeHint')} style={{ marginBottom: 12 }} />
         <Input.TextArea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder={t('skills.reasonPlaceholder')} />
       </Modal>
     </Card>

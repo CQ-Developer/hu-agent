@@ -53,7 +53,7 @@ export default function Notifications() {
           { label: t('notifications.unreadOnly'), value: 'unread' },
         ]}
       />
-      {notifications.error && <Alert type="error" showIcon message={notifications.error} style={{ marginBottom: 12 }} />}
+      {notifications.error && <Alert type="error" showIcon title={notifications.error} style={{ marginBottom: 12 }} />}
       <Table<Notification>
         size="small"
         rowKey="id"

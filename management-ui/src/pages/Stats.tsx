@@ -150,7 +150,7 @@ export default function Stats() {
         {statsScope === 'org' && scope.org && <Tag>{scope.org.name}</Tag>}
       </Space>
 
-      {usage.error && <Alert type="error" showIcon message={usage.error} style={{ marginBottom: 12 }} />}
+      {usage.error && <Alert type="error" showIcon title={usage.error} style={{ marginBottom: 12 }} />}
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={4}>

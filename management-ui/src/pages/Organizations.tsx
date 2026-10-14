@@ -74,7 +74,7 @@ export default function Organizations() {
         </Space>
       }
     >
-      {!org && <Alert type="info" showIcon message={t('organizations.noOrg')} />}
+      {!org && <Alert type="info" showIcon title={t('organizations.noOrg')} />}
 
       {org && (
         <>
@@ -231,7 +231,7 @@ export default function Organizations() {
           })
         }}
       >
-        <Alert type="info" showIcon message={t('organizations.applyHint')} style={{ marginBottom: 12 }} />
+        <Alert type="info" showIcon title={t('organizations.applyHint')} style={{ marginBottom: 12 }} />
         <Form form={applyForm} layout="vertical">
           <Form.Item name="name" label={t('organizations.teamName')} rules={[{ required: true }]}>
             <Input />

@@ -159,7 +159,7 @@ export default function Members() {
       }
     >
       {noRights ? (
-        <Alert type="info" showIcon message={t('members.noRights')} />
+        <Alert type="info" showIcon title={t('members.noRights')} />
       ) : (
         <>
           <Tabs
@@ -214,7 +214,7 @@ export default function Members() {
                 : []),
             ]}
           />
-          {members.error && <Alert type="error" showIcon message={members.error} style={{ marginTop: 12 }} />}
+          {members.error && <Alert type="error" showIcon title={members.error} style={{ marginTop: 12 }} />}
         </>
       )}
 
@@ -229,7 +229,7 @@ export default function Members() {
       >
         {inviteToken ? (
           <>
-            <Alert type="success" showIcon message={t('members.inviteCreated')} style={{ marginBottom: 12 }} />
+            <Alert type="success" showIcon title={t('members.inviteCreated')} style={{ marginBottom: 12 }} />
             <Typography.Paragraph type="secondary">{t('members.inviteTokenHint')}</Typography.Paragraph>
             <Typography.Paragraph code copyable={{ icon: <CopyOutlined /> }} style={{ wordBreak: 'break-all' }}>
               {inviteToken}

@@ -149,7 +149,7 @@ export default function Approvals() {
         </Space.Compact>
       </Space>
 
-      {list.error && <Alert type="error" showIcon message={list.error} style={{ marginBottom: 12 }} />}
+      {list.error && <Alert type="error" showIcon title={list.error} style={{ marginBottom: 12 }} />}
 
       <Table<Approval>
         size="small"
