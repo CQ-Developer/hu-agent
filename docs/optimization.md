@@ -45,17 +45,24 @@
 打包排除未用 SDK）与信任边界（企业模式走服务端 `streamProxy`；个人模式保持 ADR-0002 本地密钥）
 均记录在 [`docs/adr/0006-pi-agent-engine.md`](adr/0006-pi-agent-engine.md)。
 
-不采用：`pi-tui`（终端 UI 与桌面壳无对应需求）、`pi-coding-agent`（CLI 应用层，与客户端/管理台重叠，
-它依赖的库已全量采纳）、`pi-evals`（未发布到 npm，职责由我们的测试与 `scripts/benchmark.py` 承担）。
+**不设运行时引擎开关**（决策 2：全面转向 pi）：每阶段内部先接好 pi、测试全绿，再在同一提交里删除自研代码，
+阶段提交本身即回滚点。
+
+采用方式：`pi-coding-agent` **仅作库**（其 provider 配置与模型注册实现：`models.json` 格式、`ModelRegistry`、
+`getAgentDir()`），不发布它的 CLI/TUI；`pi-tui` 只作为它的依赖被装入，界面不采用；
+`pi-evals` 未发布到 npm，职责由我们的测试与 `scripts/benchmark.py` 承担。
+
+**provider 配置**（含企业网关）沿用 pi 的 `models.json`，加载优先用 `pi-coding-agent` 的 `ModelRegistry`，
+体积不可接受时退化为 ~60 行薄适配（同一格式，可互换）；企业模式密钥仍在服务端（`streamProxy`）。
 
 ### 1.3 重组后的实施计划（每阶段可独立验证、可回滚）
 
 | 阶段 | 内容 | 依赖（精确 pin） | 出口标准 |
 | --- | --- | --- | --- |
 | **P0 合规基线** ✅ | 遥测审计、许可与依赖策略、ADR-0006、npm 可用性核对 | — | 已完成（`pi-evals` 404 已确认） |
-| **P1 模型层** 🚧 | 用 `pi-ai` 替换自研 provider；开关 `model.engine = "pi-ai" \| "legacy"`；用量取自 pi 事件 | `pi-ai@1.2.0`、`pi-agent-core@1.2.0`、`pi-telemetry@1.2.0`、`typebox@1.3.27` | 三种 API 类型走 pi + provider 契约测试改对 pi 断言 |
+| **P1 模型层** 🚧 | 用 `pi-ai` 替换自研 provider（**一次性切换，不留 legacy**）；provider 配置读 pi 的 `models.json`；用量取自 pi 事件 | `pi-ai@1.2.0`、`pi-agent-core@1.2.0`、`pi-telemetry@1.2.0`、`typebox@1.3.27`、`pi-coding-agent@1.2.0`（仅库） | 三种 API 类型走 pi + provider 契约测试改对 pi 断言 + **自研 provider 代码删除** + main 包体积增量复核 |
 | **P2 循环层** | `pi-agent-core` 的 `Agent` 替换 `agent/loop.ts`；权限/审批/审计挂 `beforeToolCall`/`afterToolCall`；`transformContext` 接压缩；事件映射 + 契约测试 | 无新增 | 现有 agent/permission/compaction 测试等价覆盖 + 4 个 e2e 门禁 |
-| **P3 会话持久化** | `pi-durable` + `chord` 接管会话/任务（`openNodeSqliteStorage`，写先于展示 = 崩溃恢复）；旧 items 迁移 + 开关 `session.store` | `pi-durable@1.2.0`、`chord@1.2.0` | 杀进程后重开续跑；迁移双读校验；快照/同步/审计语义不回退 |
+| **P3 会话持久化** | `pi-durable` + `chord` 接管会话/任务（`openNodeSqliteStorage`，写先于展示 = 崩溃恢复）；旧 items 迁移脚本 + 双读校验 | `pi-durable@1.2.0`、`chord@1.2.0` | 杀进程后重开续跑；迁移双读校验；快照/同步/审计语义不回退 |
 | **P4 MCP 与 Code Mode** | `pi-mcp` 替自研 MCP；`pi-codemode` 可选（WASM 沙箱 + 审批，默认关） | `pi-mcp@1.2.0`、`pi-codemode@1.2.0` | MCP e2e 全绿；越权用例被审批/沙箱拦下 |
 | **P5 远程执行** | `pi-env`（SSH daemon）作为企业可选能力：主机指纹校验 + 密钥管理 | `pi-env@1.2.0`（18 MB，含 Rust daemon） | 远端工作区跑通一个工具回合 + 审计就位 |
 | **P6 打包收尾** | 排除未用 SDK（`@aws-sdk/*`、`@google/genai`）、`NOTICE`、体积复核、删自研代码 | — | 安装包体积可接受；安全扫描 0 漏洞 |
@@ -79,7 +86,9 @@
 3. 密钥按请求注入（`streamSimple(model, ctx, { apiKey })`），不注册进 pi 的凭证存储——与
    「企业模式密钥在服务端 / 个人模式在 safeStorage」的设计一致。
 
-待办：把 provider 调用切到 pi（feature flag）、用量从 pi 事件取、模型目录接入客户端设置页。
+待办（P1 收尾，一次性切换不留 legacy）：用 pi 的 `models.json` + `ModelRegistry` 读 provider 配置 →
+替换 `model/gateway.ts` 与 `model/providers/*` → 删除自研 provider 与 SSE 解析 → 用量从 pi 事件映射进
+usage ledger → 模型目录接入设置页 → main 包体积增量复核。
 
 ## 2. 轨道 B：UI 体系（页面样式 + 交互动画）
 

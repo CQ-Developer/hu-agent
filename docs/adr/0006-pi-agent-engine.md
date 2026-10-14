@@ -32,8 +32,8 @@ pi（源码 `C:\Users\chen\Dev\pi`，npm 版本 1.2.0，MIT）提供 11 个包�
 | `pi-env` 1.2.0 | ✅ | 新增：工具在远端执行（SSH daemon），企业场景可选启用 | P5 |
 | `pi-telemetry` 1.2.0 | ✅ | 新增：仅取契约与 noop 实现 | P1 |
 | `pi-evals` | ❌ | 未发布到 npm（内部包）；评估需求用我们自己的测试与 `scripts/benchmark.py` 承担 | — |
-| `pi-tui` | ❌ | 终端 UI 与 Electron 壳无对应需求；如未来需要 CLI 运维界面再议 | — |
-| `pi-coding-agent` | ❌（仅参考） | 它是 CLI 应用层，与客户端/管理台重叠；其依赖的库已全量采纳 | — |
+| `pi-tui` | ❌（界面不采用） | 终端 UI 与 Electron 壳无对应需求；它会作为 `pi-coding-agent` 的依赖被装入，但不暴露给用户 | — |
+| `pi-coding-agent` | ✅（仅作库，不发布其 CLI/TUI） | 提供 provider 配置与模型注册的实现：`models.json` 格式、`ModelRegistry`、`getAgentDir()`、凭证存储 | P1 |
 
 3. **治理能力仍归 hu-agent**：权限判定、路径守卫、审批（broker）、审计落盘、用量上报、服务端下架/
    停用校验，全部挂在 pi 的 `beforeToolCall`/`afterToolCall`/事件订阅上。换引擎不降低治理强度。
@@ -45,9 +45,21 @@ pi（源码 `C:\Users\chen\Dev\pi`，npm 版本 1.2.0，MIT）提供 11 个包�
 6. **依赖策略**：版本**精确 pin**（不用 `^`）；只按需 import provider 子路径；打包时排除未使用的
    SDK（`@aws-sdk/*`、`@google/genai`）；上游升级必须先过事件协议契约测试。ADR 0006 是唯一允许
    Agent 相关第三方依赖的入口，替代品评估需新开 ADR。
-7. **分阶段实施，每阶段可回滚**：P0 合规基线 → P1 模型层 → P2 循环层 → P3 会话持久化 → P4 MCP 与
-   Code Mode → P5 远程执行 → P6 打包与文档收尾。每阶段带 feature flag（如 `model.engine`、
-   `agent.engine`、`session.store`），出问题可切回自研实现，删除自研代码放在该阶段稳定之后。
+7. **P0 合规基线 → P1 模型层 → P2 循环层 → P3 会话持久化 → P4 MCP 与 Code Mode → P5 远程执行 →
+   P6 打包与文档收尾**。**不设运行时引擎开关**（用户决策：全面转向 pi）：每个阶段内部先接好 pi、
+   测试全绿，再在同一提交里删除被替换的自研代码；阶段边界即回滚点（`git revert` 该阶段提交）。
+   只有与产品行为无关的开关才保留（如遥测实现、codemode 的启用位）。
+
+8. **provider 配置沿用 pi 的格式与实现**：自定义 provider（含企业 OpenAI 兼容网关）配置沿用 pi 的
+   `models.json`（`providers.<id>.{api, baseUrl, apiKey, headers, models}`），因此**同一份配置在 pi CLI
+   与我们客户端之间可直接互换**。加载路径按此优先级：
+   1. 用 `pi-coding-agent` 导出的 `ModelRegistry` / `ProviderModelConfig` 读取（配置目录由 `getAgentDir()`
+      决定，可用 `PI_AGENT_DIR` 等环境变量指到 `~/.hu-agent/agent`，避免与用户的 pi CLI 配置互相打扰）；
+   2. 若该包把 TUI/CLI 依赖带进 main 包导致体积不可接受，退化为 ~60 行薄适配：读同一个 `models.json`，
+      用 `pi-ai` 的 `createProvider` 构造（补齐 `api`/`provider`/`baseUrl` 三个字段——见 P1 踩坑记录）。
+   两条路径共享同一配置格式，可随时互换，不产生格式迁移。
+9. **企业模式不走本地文件存密钥**：`models.json` 里的 `apiKey` 仅用于个人模式与本机开发；企业部署下
+   客户端不落密钥，由服务端持有并通过 `streamProxy` 供流（决策 4 的落地方式）。
 
 ## 后果与待办
 
@@ -57,5 +69,8 @@ pi（源码 `C:\Users\chen\Dev\pi`，npm 版本 1.2.0，MIT）提供 11 个包�
 - **上游风险**：`pi-durable` 自述 Experimental（API 不通知地变更）。缓解：存储适配层薄化、版本精确 pin、
   迁移脚本 + 回滚开关；若上游破坏性变更影响生产，回落到 P3 之前的自研存储。
 - **迁移成本**：会话数据需从现有 items 迁到 durable entries（P3 提供一次性迁移脚本 + 双读校验）。
+- **`pi-coding-agent` 体积**：23 MB 解包，依赖里含 `pi-tui`/`mermaid`/`highlight.js` 等界面相关包。
+  缓解：只 import `ModelRegistry` 等具体模块，靠 Rollup tree-shaking 收窄；打包阶段用 electron-builder
+  的 files 排除未用包；P1 出口标准包含「main 包体积增量复核」，超出预期就切决策 8 的备选路径。
 - **文档同步**：`design.md` 客户端架构章节、`plan.md` 阶段条目在 **P1–P5 各阶段落地时与代码同提交**
   改写（附录 F）；`docs/optimization.md` 记录计划与进度；新增 `NOTICE` 与第三方许可清单（P6）。
