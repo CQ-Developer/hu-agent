@@ -46,6 +46,8 @@ export interface PiRuntimeOptions {
 export interface PiRuntime {
   resolver: ModelResolver
   summarizer: HistorySummarizer
+  /** 暴露 pi 的 models 集合：`DurableSessions` 必须与运行时共用同一份已注册 provider 的集合 */
+  models: ModelsCollection
   /** 配置变更后重新注册 provider（设置页保存 models.json 后调用） */
   refresh: () => Promise<void>
 }
@@ -137,6 +139,7 @@ export function createPiRuntime(options: PiRuntimeOptions): PiRuntime {
   return {
     resolver: { resolve },
     summarizer,
+    models,
     refresh: async () => {
       loaded = false
       await load()
