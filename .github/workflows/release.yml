@@ -57,7 +57,7 @@ jobs:
           fi
           cat SHA256SUMS-${{ matrix.target }}.txt || echo "（未生成校验和）"
       - name: 上传产物
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installers-${{ matrix.target }}
           path: |
@@ -91,7 +91,7 @@ jobs:
           (cd app && npm ci --omit=dev --ignore-scripts >/dev/null 2>&1 || true)
           (cd app && npm ls --omit=dev --all --json > ../manifests/app-runtime-tree.json 2>/dev/null || true)
           ls -l manifests
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: manifests
           path: manifests/*
