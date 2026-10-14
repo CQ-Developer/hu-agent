@@ -94,7 +94,7 @@ uv run --project management python -c "import asyncio; from huagent.common.runti
 
 ```bash
 bash scripts/check-all.sh                                   # 服务端 + 客户端 + 管理台
-HUAGENT_TESTCONTAINERS=1 uv run --project management pytest -m integration -q   # 23 项集成（真实 PG）
+HUAGENT_TESTCONTAINERS=1 uv run --project management pytest -m integration -q   # 25 项集成（真实 PG）
 cd app && CLOUD_E2E=1 MARKET_E2E=1 SYNC_E2E=1 STATS_E2E=1 npx vitest run tests/integration   # 4 条真实链路
 ```
 
