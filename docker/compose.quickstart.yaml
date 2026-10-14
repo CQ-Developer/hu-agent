@@ -5,8 +5,9 @@
 #   scripts/quickstart.sh admin       # 追加创建/提升系统管理员
 #
 # 生产部署请参考 docs/delivery/deployment.md（受管 PG/Redis/S3、TLS、多副本、监控）。
-
-name: huagent-quickstart
+#
+# 注意：不固定 compose 项目名——项目名默认取所在目录名，这样同一台机器上多个检出的
+# 数据卷/容器互相隔离（否则第二次检出会因旧数据卷的口令与新生成的 .env 不一致而连接失败）。
 
 services:
   postgres:

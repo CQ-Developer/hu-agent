@@ -2,6 +2,7 @@
 # 一条命令起全栈（评估 / 小型自托管）：
 #   scripts/quickstart.sh up [--email you@example.com] [--with-sso]
 #   scripts/quickstart.sh down
+#   scripts/quickstart.sh reset          # 停止并删除数据卷（数据不可恢复，谨慎使用）
 #   scripts/quickstart.sh logs [服务名]
 #   scripts/quickstart.sh admin --email you@example.com
 #
@@ -80,7 +81,15 @@ cmd_up() {
 
   # 迁移必须在 API 启动前完成：API 启动时会校验 schema 版本（design 6.8.3）
   banner "应用数据库 DDL"
-  "${COMPOSE[@]}" run --rm --no-deps api huagent-admin db-migrate
+  if ! "${COMPOSE[@]}" run --rm --no-deps api huagent-admin db-migrate; then
+    cat <<'EOF' >&2
+
+[quickstart] 迁移失败。最常见原因：该目录之前用过不同的 .env.quickstart（数据卷里的库口令与当前配置不一致）。
+             如果这份数据可以丢弃，执行：scripts/quickstart.sh reset  然后重新 up。
+             需要保留数据时，请把原 .env.quickstart 恢复回来再试。
+EOF
+    exit 1
+  fi
 
   banner "启动 API 与 worker"
   "${COMPOSE[@]}" "${profile_args[@]}" up -d --wait api worker
@@ -112,6 +121,17 @@ EOF
 }
 
 cmd_down() { require_docker; ensure_env_file; "${COMPOSE[@]}" down "$@"; }
+
+cmd_reset() {
+  require_docker
+  ensure_env_file
+  printf '[31m将删除本目录的数据卷（PostgreSQL/Redis/MinIO），数据不可恢复。[0m
+'
+  read -r -p "输入 yes 确认: " reply
+  [[ "$reply" == "yes" ]] || fail "已取消"
+  "${COMPOSE[@]}" down -v
+  echo "已删除数据卷；下次 up 会重新初始化。"
+}
 cmd_logs() { require_docker; ensure_env_file; "${COMPOSE[@]}" logs -f --tail=200 "$@"; }
 
 cmd_admin() {
@@ -123,7 +143,8 @@ cmd_admin() {
 case "${1:-up}" in
   up) shift || true; cmd_up "$@" ;;
   down) shift || true; cmd_down "$@" ;;
+  reset) shift || true; cmd_reset "$@" ;;
   logs) shift || true; cmd_logs "$@" ;;
   admin) shift || true; cmd_admin "$@" ;;
-  *) fail "用法：scripts/quickstart.sh {up|down|logs|admin} …" ;;
+  *) fail "用法：scripts/quickstart.sh {up|down|reset|logs|admin} …" ;;
 esac
