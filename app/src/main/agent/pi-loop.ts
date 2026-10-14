@@ -30,7 +30,8 @@ import { ulid } from '../session/ulid'
 import type { NativeTool } from '../tools/native/tool'
 import type { UsageLedger } from '../usage/ledger'
 import type { TelemetryInput, TelemetrySink } from '../usage/telemetry'
-import { COMPACT_THRESHOLD } from './compaction'
+/** 压缩阈值（占上下文窗口比例）：超过即调摘要器压缩。原 compaction.ts 已随旧引擎删除 */
+const COMPACT_THRESHOLD = 0.75
 import { mapPiEvent, type PiEventContext } from './pi-events'
 import { createAfterToolCall, createBeforeToolCall, createGovernanceState } from './pi-governance'
 import { buildSystemPrompt } from './prompt'
