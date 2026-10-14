@@ -1,0 +1,51 @@
+version: 2
+updates:
+  # 服务端 Python 依赖（uv 管理，锁文件 uv.lock）
+  - package-ecosystem: "uv"
+    directory: "/management"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      python-dev:
+        dependency-type: "development"
+    labels: ["dependencies", "python"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # 客户端与管理台（npm）
+  - package-ecosystem: "npm"
+    directory: "/app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      app-dev:
+        dependency-type: "development"
+    labels: ["dependencies", "app"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "npm"
+    directory: "/management-ui"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      console:
+        patterns: ["*"]
+    labels: ["dependencies", "management-ui"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "chore(ci)"

@@ -1,0 +1,141 @@
+name: Release
+
+# 打标签即发布：校验 → 构建安装包（未签名）+ 校验和 → 依赖清单 → 草稿 Release
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# 开源项目不含企业代码签名证书，安装包为**未签名**：Release 说明会引导使用者核对 SHA256，
+# 企业分发请按 docs/delivery/signing.md 自行重签（Windows Authenticode / macOS 公证）。
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  installers:
+    name: 安装包（${{ matrix.label }}）
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows
+            target: win
+            pattern: "*.exe"
+          - os: macos-latest
+            label: macOS
+            target: mac
+            pattern: "*.dmg"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: 安装依赖
+        working-directory: app
+        run: npm ci
+      - name: 构建安装包
+        working-directory: app
+        run: |
+          npm run build
+          npx electron-builder --${{ matrix.target }}
+      - name: 生成校验和
+        shell: bash
+        working-directory: app/dist
+        run: |
+          shopt -s nullglob
+          files=(${{ matrix.pattern }} *.blockmap)
+          if command -v sha256sum >/dev/null 2>&1; then
+            [ ${#files[@]} -gt 0 ] && sha256sum "${files[@]}" > SHA256SUMS-${{ matrix.target }}.txt || true
+          else
+            [ ${#files[@]} -gt 0 ] && shasum -a 256 "${files[@]}" > SHA256SUMS-${{ matrix.target }}.txt || true
+          fi
+          cat SHA256SUMS-${{ matrix.target }}.txt || echo "（未生成校验和）"
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.target }}
+          path: |
+            app/dist/*.exe
+            app/dist/*.dmg
+            app/dist/*.zip
+            app/dist/SHA256SUMS-*.txt
+          if-no-files-found: warn
+
+  manifests:
+    name: 依赖清单（SBOM 源数据）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.14"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: 导出锁定的依赖清单
+        run: |
+          mkdir -p manifests
+          # Python：锁定版本清单 + 锁文件
+          (cd management && uv export --format requirements-txt --no-hashes --no-emit-project \
+             --output-file ../manifests/python-requirements.txt)
+          cp management/uv.lock manifests/uv.lock
+          cp app/package-lock.json manifests/app-package-lock.json
+          cp management-ui/package-lock.json manifests/management-ui-package-lock.json
+          # 安装包的运行时依赖树（生产依赖）
+          (cd app && npm ci --omit=dev --ignore-scripts >/dev/null 2>&1 || true)
+          (cd app && npm ls --omit=dev --all --json > ../manifests/app-runtime-tree.json 2>/dev/null || true)
+          ls -l manifests
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manifests
+          path: manifests/*
+
+  release:
+    name: 创建 Release（草稿）
+    needs: [installers, manifests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: 汇总校验和
+        run: |
+          find artifacts -name 'SHA256SUMS-*.txt' -exec cat {} \; | sort -k2 > artifacts/SHA256SUMS.txt || true
+          cat artifacts/SHA256SUMS.txt || true
+      - name: 生成 Release 说明（摘自 CHANGELOG + 使用提示）
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v v="## [$VERSION]" 'index($0, v) == 1 {flag=1; next} /^## \[/ {flag=0} flag' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then echo "详见 CHANGELOG.md 与 docs/delivery/release-notes.md" > release-notes.md; fi
+          {
+            echo ""
+            echo "---"
+            echo "### 安装与验证"
+            echo ""
+            echo "1. \`HUAGENT_JWT_SECRET\` / \`HUAGENT_MASTER_KEY\` 必须自行提供（非 local 环境缺省会拒绝启动）。"
+            echo "2. 安装包**未签名**：请先核对 \`SHA256SUMS.txt\`；企业分发按 docs/delivery/signing.md 自行重签。"
+            echo "3. 服务端一条命令起全栈：\`scripts/quickstart.sh up --email you@example.com\`。"
+            echo "4. 自验证清单：docs/validation.md；部署与运维：docs/delivery/。"
+          } >> release-notes.md
+          cat release-notes.md
+      - name: 发布草稿
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: |
+            artifacts/installers-*/**/*.exe
+            artifacts/installers-*/**/*.dmg
+            artifacts/installers-*/**/*.zip
+            artifacts/SHA256SUMS.txt
+            artifacts/manifests/*
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

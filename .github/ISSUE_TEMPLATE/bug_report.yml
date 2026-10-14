@@ -1,0 +1,65 @@
+name: Bug report
+description: 报告可复现的缺陷
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请先搜索是否已有同类 issue；安全漏洞请勿在此提交，按 SECURITY.md 私密上报。
+  - type: dropdown
+    id: component
+    attributes:
+      label: 组件
+      options:
+        - 客户端 app/
+        - 服务端 management/
+        - 管理台 management-ui/
+        - 文档 / 部署脚本
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / 提交
+      description: 版本号或 git commit（如 v0.1.0 或 e1e686c）
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 环境
+      description: 操作系统与版本、部署方式（quickstart / 容器 / 裸机）、数据库与对象存储版本
+      placeholder: "Windows 11 + Docker Desktop；quickstart 编排；PostgreSQL 18 / MinIO"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 请附错误信息与 X-Trace-Id（服务端）或诊断包摘要（客户端，已自动脱敏）
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志/截图
+      description: 相关日志片段（请先脱敏：不要粘贴 token、密钥、真实用户数据）
+    validations:
+      required: false

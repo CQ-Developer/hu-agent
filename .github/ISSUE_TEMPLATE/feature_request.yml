@@ -1,0 +1,34 @@
+name: Feature request
+description: 提出功能建议或改进
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 要解决的问题
+      description: 描述场景与痛点，而不是先给方案
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+      description: 可选；如果你有实现想法，请一并说明影响面（接口/数据模型/安全/兼容性）
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 备选方案
+    validations:
+      required: false
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: 相关约束（勾选已知项）
+      options:
+        - label: 该需求涉及设计基线变更（需同步更新 docs/design.md 并新增 ADR）
+        - label: 该需求涉及数据库结构变更（需新增编号 DDL 与回滚脚本）
+        - label: 该需求涉及对外开放接口（需重新生成 openapi/openapi.json）
+        - label: 我可以在维护者确认方向后提交 PR

@@ -43,7 +43,7 @@ scripts/dev-deps.sh up            # 生产请用受管的 PG/Redis/S3 与自建 
 
 # 2) 初始化/升级数据库（只升不降；脚本幂等）
 HUAGENT_DATABASE_URL=postgresql://user:pass@host:5432/huagent \
-  uv run --project management python scripts/ci/apply-ddl.py
+  uv run --project management huagent-admin db-migrate
 
 # 3) 启动 API 与 worker（建议 systemd/supervisor 或容器编排）
 cd management && uv run huagent-api &

@@ -78,7 +78,7 @@ worker 任务：`job_runs` 表记录**每个任务最近一次**执行（`job_id
 ## 5. 升级流程
 
 1. 备份 PG（快照或 WAL 位点）与对象存储版本；
-2. 执行 `scripts/ci/apply-ddl.py`（只升不降、幂等）；
+2. 执行 `uv run --project management huagent-admin db-migrate`（只升不降、幂等）；
 3. 滚动重启 API → worker（worker 启动会先补偿聚合与分区维护）；
 4. 冒烟：健康检查、登录、`POST /usage:batch`、市场列表、一次快照 init/complete、`GET /api/v1/system/metrics`；
 5. 出现问题时按 `docs/delivery/signing.md` 第 3 节回滚客户端；服务端回滚走数据库恢复（DDL 无向下迁移）。

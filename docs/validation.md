@@ -1,9 +1,15 @@
-# 验收演示脚本与确认表（v0.1.0）
+# 自验证清单（v0.1.0）
 
-> 用途：需求方验收当日的**可复现演示**。每个场景给出「前置 / 操作 / 预期」，
-> 场景后可勾选确认。演示环境建议：一台开发/测试机 + Docker，按 `docs/delivery/deployment.md` 起服务。
+> 用途：**采用方/维护者的自验证清单**。每个场景给出「前置 / 操作 / 预期」，逐项可复现；
+> 用于升级前回归、部署验收与问题定位。环境建议：一台开发/测试机 + Docker，按 `docs/delivery/deployment.md` 或 `scripts/quickstart.sh` 起服务。
 
-## 0. 环境准备（约 10 分钟）
+## 0. 环境准备（约 5 分钟：推荐一条命令）
+
+```bash
+scripts/quickstart.sh up --email you@example.com   # 生成密钥 → 起全栈 → 迁移 → 建首个管理员
+```
+
+以下为手工等价步骤（需要自定义部署时使用）：
 
 ```bash
 # 1) 依赖（PostgreSQL 18 / Redis / MinIO（源码构建）/ Keycloak / Mailpit）
@@ -11,7 +17,7 @@ scripts/dev-deps.sh up
 
 # 2) 数据库（幂等，含 V0001–V0005）
 HUAGENT_DATABASE_URL=postgresql://huagent:huagent_dev@localhost:5432/huagent \
-  uv run --project management python scripts/ci/apply-ddl.py
+  uv run --project management huagent-admin db-migrate
 
 # 3) 服务端 + worker
 (cd management && uv run huagent-api > /tmp/huagent-api.log 2>&1 &)
@@ -29,7 +35,7 @@ uv run --project management python -c "import asyncio; from huagent.common.runti
 (cd management-ui && npm run dev &)           # 管理台 http://localhost:5173
 ```
 
-演示账号（种子脚本创建，密码均为 `Str0ng-Passphrase-2026`）：
+演示账号（种子脚本创建，密码均为 `Str0ng-Passphrase-2026`）；自验证时也可直接用 quickstart 创建的管理员账号：
 
 | 账号 | 角色 |
 | --- | --- |
@@ -90,7 +96,7 @@ uv run --project management python -c "import asyncio; from huagent.common.runti
 | 4.5 | 注销账号后 30 天（演示可用 SQL 把 `deletion_requested_at` 提前）→ 触发 worker `user.purge` | 邮箱/昵称/设备/通知被清理，用量统计仍连续（匿名占位） |
 | 4.6 | `bash scripts/security-scan.sh` | 依赖与静态扫描全绿（无高危） |
 
-## 5. 端到端自动回归（约 5 分钟，替代演示或作为补充）
+## 5. 端到端自动回归（约 5 分钟，可与人工验证并行）
 
 ```bash
 bash scripts/check-all.sh                                   # 服务端 + 客户端 + 管理台
@@ -100,9 +106,9 @@ cd app && CLOUD_E2E=1 MARKET_E2E=1 SYNC_E2E=1 STATS_E2E=1 npx vitest run tests/i
 
 CI（`.github/workflows/ci.yml`）在每次推送时执行上述内容 + 真实 S3（源码构建 MinIO）+ 真实 IdP（Keycloak）冒烟。
 
-## 6. 验收确认表
+## 6. 自验证确认表
 
-| 项 | 确认内容 | 结论（通过/不通过/备注） |
+| 项 | 检查内容 | 结论（通过/不通过/备注） |
 | --- | --- | --- |
 | 强制登录 | 无本地绕过路径；服务端不可用时不可进入（ADR 0004） | |
 | 权限与审计 | 越界授权、保护文件拒绝、审计可查 | |
@@ -115,13 +121,13 @@ CI（`.github/workflows/ci.yml`）在每次推送时执行上述内容 + 真实 
 | 国际化 | 客户端/管理台/通知中英双语，语言偏好持久化 | |
 | 可观测 | 健康检查、指标、告警规则、诊断包 | |
 
-演示人：________ 日期：________ 需求方代表：________ 结论：________
+验证人：________ 日期：________ 复核人：________ 结论：________
 
-## 7. 演示前须已知的事项（避免误解）
+## 7. 验证前须已知的边界（避免误判）
 
 1. **必须登录**：企业身份管控要求，服务端不可用时应用不可进入（发布说明已注明）。
-2. **管理台为阶段 A**：组织/团队 CRUD、统计图表、通知中心、审计日志页面、系统设置页面属阶段 B；
-   当前可用 `.http` 脚本或 CLI 代办（`scripts/stage5-admin.http`）。
-3. **安装包为未签名**（缺企业证书）：Windows SmartScreen 会提示未知发布者；签名脚本与流程已就绪（`docs/delivery/signing.md`）。
+2. **管理台已覆盖阶段 A + B**（审批、Skill 治理、成员与邀请、身份源、统计、组织治理、通知、审计、设置）；
+   尚未提供「系统区用户管理页面」，该场景请用 `huagent-admin` CLI（`list-users` / `disable-user` / `reset-password`）。
+3. **安装包未签名**：Windows SmartScreen 会提示未知发布者；请核对 Release 附带的 SHA256SUMS，企业分发按 `docs/delivery/signing.md` 自行重签。
 4. **性能结论为单机基线**（`docs/delivery/performance.md`），生产容量需在 staging 按目标拓扑复测。
-5. **监控需企业侧接入**：指标端点与 12 条告警规则已就绪（`docs/delivery/monitoring.md`），Prometheus/Grafana 与值班需企业提供。
+5. **监控需自行接入**：指标端点与 12 条告警规则已就绪（`docs/delivery/monitoring.md`），Prometheus/Grafana 与值班按自身环境配置。

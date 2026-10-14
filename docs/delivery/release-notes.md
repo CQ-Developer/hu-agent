@@ -1,6 +1,6 @@
 # 发布说明（v0.1.0）
 
-> 交付对象：企业内部（客户端桌面端 + 服务端 + 管理台）。
+> 适用对象：自托管 hu-agent 的企业/团队（桌面客户端 + 服务端 + 管理台）。
 > 完整清单与证据见 `docs/delivery/release-checklist.md`；本文面向最终用户与运维。
 
 ## 1. 交付内容
@@ -33,8 +33,10 @@
 
 ## 4. 安装与升级
 
+- 一条命令起全栈（评估用）：`scripts/quickstart.sh up --email you@example.com`（需 Docker）。
+
 - 安装：运行企业分发的安装包（Windows `.exe` / macOS `.dmg`）；首次启动进入登录门禁。
-- 服务端升级：先执行 DDL（`scripts/ci/apply-ddl.py`，只升不降）→ 重启 API → 重启 worker（启动即补偿聚合与分区维护）。
+- 服务端升级：先执行 DDL（`huagent-admin db-migrate`，只升不降）→ 重启 API → 重启 worker（启动即补偿聚合与分区维护）。
 - 客户端升级与回滚：安装包覆盖安装即可（用户数据在工作空间与 `~/.hu-agent`，不迁移）；回滚见 `docs/delivery/signing.md` 第 3 节。
 
 ## 5. 已知限制（v0.1.0）
@@ -58,7 +60,7 @@
 
 ## 7. 验收与回归
 
-- 演示脚本与确认表：`docs/delivery/acceptance.md`（含前置环境、10 分钟级场景、确认表）。
+- 自验证清单与确认表：`docs/validation.md`（含一键 quickstart、场景清单、确认表）。
 - 自动回归：`bash scripts/check-all.sh`、`HUAGENT_TESTCONTAINERS=1 uv run --project management pytest -m integration -q`、
   `cd app && CLOUD_E2E=1 MARKET_E2E=1 SYNC_E2E=1 STATS_E2E=1 npx vitest run tests/integration`；
   CI 每次推送执行上述内容 + 真实 S3 + 真实 IdP 冒烟（`.github/workflows/ci.yml`）。

@@ -1,0 +1,126 @@
+# 快速开始编排（design 9.x）：一条命令起全栈，供评估与小型自托管使用。
+#
+#   scripts/quickstart.sh up          # 生成 .env.quickstart、起服务、迁移数据库、创建首个管理员
+#   scripts/quickstart.sh down        # 停止（数据保留在 volume）
+#   scripts/quickstart.sh admin       # 追加创建/提升系统管理员
+#
+# 生产部署请参考 docs/delivery/deployment.md（受管 PG/Redis/S3、TLS、多副本、监控）。
+
+name: huagent-quickstart
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: huagent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env.quickstart 中配置}
+      POSTGRES_DB: huagent
+    volumes:
+      # PG18+ 镜像约定：挂载到 /var/lib/postgresql（数据在子目录，便于 pg_upgrade）
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U huagent -d huagent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  minio:
+    build:
+      context: .
+      dockerfile: minio/Dockerfile
+      args:
+        MINIO_GOPROXY: ${MINIO_GOPROXY:-https://proxy.golang.org,direct}
+    image: huagent-minio:local
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?请在 .env.quickstart 中配置}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?请在 .env.quickstart 中配置}
+    volumes:
+      - minio-data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      # 镜像来自 alpine（无 mc 客户端），用 busybox wget 探测存活端点
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:9000/minio/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ..
+      dockerfile: management/Dockerfile
+    image: huagent-management:local
+    command: ["huagent-api"]
+    environment: &app-env
+      HUAGENT_ENV: production
+      HUAGENT_API_HOST: 0.0.0.0
+      HUAGENT_DATABASE_URL: postgresql+psycopg://huagent:${POSTGRES_PASSWORD}@postgres:5432/huagent
+      HUAGENT_REDIS_URL: redis://redis:6379/0
+      HUAGENT_JWT_SECRET: ${JWT_SECRET:?请在 .env.quickstart 中配置}
+      HUAGENT_MASTER_KEY: ${MASTER_KEY:?请在 .env.quickstart 中配置}
+      HUAGENT_RATE_LIMIT_STRICT: "true"
+      HUAGENT_OBJECT_STORE: s3
+      HUAGENT_S3_ENDPOINT: http://minio:9000
+      HUAGENT_S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      HUAGENT_S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      HUAGENT_PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://127.0.0.1:8080}
+      HUAGENT_CORS_ORIGINS: ${CORS_ORIGINS:-[]}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8080/api/v1/system/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  worker:
+    image: huagent-management:local
+    build:
+      context: ..
+      dockerfile: management/Dockerfile
+    command: ["huagent-worker"]
+    environment: *app-env
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # 可选：企业 SSO（profile: sso）
+  keycloak:
+    profiles: ["sso"]
+    image: quay.io/keycloak/keycloak:26.3
+    command: start-dev --http-port=8081
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    ports:
+      - "127.0.0.1:8081:8081"
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

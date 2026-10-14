@@ -3,6 +3,9 @@ name = "hu-agent-management"
 version = "0.1.0"
 description = "hu-agent 服务端（FastAPI + SQLAlchemy + PostgreSQL 18）"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["../LICENSE"]
+authors = [{ name = "CQ-Developer", url = "https://github.com/CQ-Developer" }]
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.115",
@@ -32,6 +35,7 @@ dev = [
 [project.scripts]
 huagent-api = "huagent.api.__main__:main"
 huagent-worker = "huagent.worker.__main__:main"
+huagent-admin = "huagent.admin:main"
 
 [build-system]
 requires = ["hatchling"]

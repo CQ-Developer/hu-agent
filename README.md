@@ -1,20 +1,56 @@
 # hu-agent
 
-企业级 Agent 平台。三个组件同仓开发（monorepo）：
+[![CI](https://github.com/CQ-Developer/hu-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/CQ-Developer/hu-agent/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.14-blue.svg)](management/pyproject.toml)
+[![Node](https://img.shields.io/badge/node-%E2%89%A520-brightgreen.svg)](app/package.json)
+
+企业级 Agent 平台（自托管）：桌面客户端 + 服务端 + 管理台。面向"企业内网自建、数据不出网"的场景，
+v1 已覆盖 Agent 循环与工具沙箱、Skill/MCP 扩展、市场治理、云同步、用量统计、SSO、审计与数据生命周期。
+
+## 快速开始（3 步，约 5 分钟）
+
+需要：Docker（含 compose v2）。网关/Node 仅在你要跑客户端与管理台时需要。
+
+```bash
+git clone https://github.com/CQ-Developer/hu-agent.git && cd hu-agent
+scripts/quickstart.sh up --email you@example.com    # 生成密钥 → 起全栈 → 应用 DDL → 建首个系统管理员
+```
+
+```bash
+# 可选：管理台（另开终端）
+cd management-ui && npm ci && npm run dev           # http://localhost:5173
+# 可选：桌面客户端
+cd app && npm ci && npm run dev                     # 客户端登录页服务器地址填 http://127.0.0.1:8080
+```
+
+快速开始会生成 `.env.quickstart`（含随机密钥，已 gitignore，请自行保存）；首个管理员口令只打印一次。
+完整的自验证清单见 [`docs/validation.md`](docs/validation.md)；生产部署见 [`docs/delivery/`](docs/delivery/)。
+
+## 组件
 
 | 目录 | 组件 | 技术栈 |
 | --- | --- | --- |
-| `app/` | 桌面客户端 | Electron + TypeScript |
+| `app/` | 桌面客户端 | Electron + TypeScript + React |
 | `management/` | 服务端 | Python 3.14 + FastAPI + SQLAlchemy + PostgreSQL 18（uv 管理） |
 | `management-ui/` | 管理台 | Vite + React + Ant Design |
 
-设计文档与执行计划：
+## 文档
 
 - [`docs/design.md`](docs/design.md)：设计基线（接口、数据模型、安全机制）
-- [`docs/plan.md`](docs/plan.md)：执行计划（阶段 0-7、完成标准、延后清单）
+- [`docs/plan.md`](docs/plan.md)：执行计划与完成标准
 - [`docs/adr/`](docs/adr/)：关键决策记录（ADR）
+- [`docs/delivery/`](docs/delivery/)：部署、运维、监控、性能、签名、安全评审、发布说明
+- [`docs/validation.md`](docs/validation.md)：adopters 自验证清单（含验收确认表）
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)：开发环境、命令、PR 流程
+- [`SECURITY.md`](SECURITY.md)：漏洞上报渠道与支持范围
+- [`CHANGELOG.md`](CHANGELOG.md)：版本变更
 
-> 硬性纪律：任何设计与决策变动，必须在同一次提交内同步更新 `docs/` 下的文档（见 `docs/plan.md` 附录 F）。
+> 纪律：任何设计与决策变动，必须在同一次提交内同步更新 `docs/` 下的文档（见 `docs/plan.md` 附录 F）。
+
+## 贡献与许可证
+
+欢迎 issue / PR（见 `CONTRIBUTING.md`）。本项目以 [Apache-2.0](LICENSE) 许可发布，Copyright 2026 CQ-Developer。
 
 ## 当前进度
 

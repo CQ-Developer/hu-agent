@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -85,6 +86,27 @@ class Settings(BaseSettings):
     sso_jwks_cache_seconds: int = 3600
     # 允许的回跳地址：回环地址总是允许；管理台需在 cors_origins 内
     sso_allow_any_loopback: bool = True
+
+
+    @model_validator(mode="after")
+    def _guard_production_secrets(self) -> Settings:
+        """非 local 环境必须显式提供密钥，避免用示例默认值上线（开源项目的常见事故）。"""
+        if self.env == "local":
+            return self
+        missing: list[str] = []
+        if not self.jwt_secret or self.jwt_secret.startswith("dev-only-change-me") or len(self.jwt_secret) < 32:
+            missing.append("HUAGENT_JWT_SECRET（≥32 字节随机串）")
+        if not self.master_key:
+            missing.append("HUAGENT_MASTER_KEY（32 字节 Base64/hex，用于加密身份源密钥）")
+        if missing:
+            hint = (
+                "uv run python -c \"import secrets,base64;print(base64.b64encode(secrets.token_bytes(32)).decode())\""
+            )
+            raise ValueError(
+                f"HUAGENT_ENV={self.env} 时必须显式配置：{'、'.join(missing)}；"
+                f"生成示例：{hint}（详见 docs/delivery/deployment.md）"
+            )
+        return self
 
 
 @lru_cache(maxsize=1)

@@ -18,7 +18,7 @@ jobs:
         with:
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync
+      - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run mypy src
       - run: uv run pytest -q
@@ -130,7 +130,7 @@ jobs:
 
       - name: 安装依赖
         run: |
-          (cd management && uv sync)
+          (cd management && uv sync --frozen)
           (cd app && npm ci)
 
       - name: 构建 MinIO 本地镜像（社区版已不发布官方镜像）
@@ -147,7 +147,7 @@ jobs:
 
       - name: 应用 DDL
         working-directory: management
-        run: uv run python ../scripts/ci/apply-ddl.py
+        run: uv run huagent-admin db-migrate
 
       - name: 启动服务端并等待健康检查
         working-directory: management

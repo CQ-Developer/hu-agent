@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "hu-agent 桌面客户端（Electron + TypeScript）",
-  "author": "hu-agent",
+  "author": "CQ-Developer",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -37,5 +37,6 @@
     "typescript": "^5.7.3",
     "vite": "^6.1.0",
     "vitest": "^3.0.0"
-  }
+  },
+  "license": "Apache-2.0"
 }
