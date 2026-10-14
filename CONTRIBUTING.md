@@ -70,7 +70,7 @@ cd ../management-ui && npm run api:gen                      # 重新生成前端
 
 ## 发布流程（维护者）
 
-1. 更新 `CHANGELOG.md`（把 `Unreleased` 下的条目归入新版本）与 `docs/delivery/release-notes.md` 的已知限制。
+1. 更新 `CHANGELOG.md`（中文）与 `CHANGELOG.en.md`（英文，Release 说明取自它）——把 `Unreleased` 下的条目归入新版本，并更新 `docs/delivery/release-notes.md` 的已知限制。
 2. 本地验证：`bash scripts/check-all.sh` + `bash scripts/security-scan.sh`，并按 `docs/validation.md` 走一遍自验证清单。
 3. 打标签并推送：`git tag v0.1.0 && git push origin v0.1.0` —— 触发 `.github/workflows/release.yml`：
    校验 → 构建 Windows/macOS 安装包（未签名）+ SHA256 → 依赖清单 → **草稿** Release。

@@ -67,38 +67,9 @@ jobs:
             app/dist/SHA256SUMS-*.txt
           if-no-files-found: warn
 
-  manifests:
-    name: 依赖清单（SBOM 源数据）
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.14"
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-      - name: 导出锁定的依赖清单
-        run: |
-          mkdir -p manifests
-          # Python：锁定版本清单 + 锁文件
-          (cd management && uv export --format requirements-txt --no-hashes --no-emit-project \
-             --output-file ../manifests/python-requirements.txt)
-          cp management/uv.lock manifests/uv.lock
-          cp app/package-lock.json manifests/app-package-lock.json
-          cp management-ui/package-lock.json manifests/management-ui-package-lock.json
-          # 安装包的运行时依赖树（生产依赖）
-          (cd app && npm ci --omit=dev --ignore-scripts >/dev/null 2>&1 || true)
-          (cd app && npm ls --omit=dev --all --json > ../manifests/app-runtime-tree.json 2>/dev/null || true)
-          ls -l manifests
-      - uses: actions/upload-artifact@v7
-        with:
-          name: manifests
-          path: manifests/*
-
   release:
     name: 创建 Release（草稿）
-    needs: [installers, manifests]
+    needs: [installers]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -111,20 +82,26 @@ jobs:
         run: |
           find artifacts -name 'SHA256SUMS-*.txt' -exec cat {} \; | sort -k2 > artifacts/SHA256SUMS.txt || true
           cat artifacts/SHA256SUMS.txt || true
-      - name: 生成 Release 说明（摘自 CHANGELOG + 使用提示）
+      - name: 生成 Release 说明（英文，取自 CHANGELOG.en.md）
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          awk -v v="## [$VERSION]" 'index($0, v) == 1 {flag=1; next} /^## \[/ {flag=0} flag' CHANGELOG.md > release-notes.md
-          if [ ! -s release-notes.md ]; then echo "详见 CHANGELOG.md 与 docs/delivery/release-notes.md" > release-notes.md; fi
+          awk -v v="## [$VERSION]" 'index($0, v) == 1 {flag=1; next} /^## \[/ {flag=0} flag' CHANGELOG.en.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "See CHANGELOG.en.md and docs/delivery/release-notes.md." > release-notes.md
+          fi
           {
             echo ""
             echo "---"
-            echo "### 安装与验证"
+            echo "### Install and verify"
             echo ""
-            echo "1. \`HUAGENT_JWT_SECRET\` / \`HUAGENT_MASTER_KEY\` 必须自行提供（非 local 环境缺省会拒绝启动）。"
-            echo "2. 安装包**未签名**：请先核对 \`SHA256SUMS.txt\`；企业分发按 docs/delivery/signing.md 自行重签。"
-            echo "3. 服务端一条命令起全栈：\`scripts/quickstart.sh up --email you@example.com\`。"
-            echo "4. 自验证清单：docs/validation.md；部署与运维：docs/delivery/。"
+            echo "1. Windows: run the NSIS installer. macOS: open the .dmg and drag the app into Applications."
+            echo "2. The installers are **unsigned**: verify the checksums in \`SHA256SUMS.txt\` before installing."
+            echo "   For internal distribution, re-sign them as described in docs/delivery/signing.md."
+            echo "3. Server: \`scripts/quickstart.sh up --email you@example.com\` (Docker Compose, one command)."
+            echo "   \`HUAGENT_JWT_SECRET\` and \`HUAGENT_MASTER_KEY\` are required outside \`local\` environments."
+            echo "4. Self-validation checklist: docs/validation.md - deployment and operations: docs/delivery/."
+            echo ""
+            echo "Client sign-in is mandatory (no offline mode); the workspace and keychain data stay on the device."
           } >> release-notes.md
           cat release-notes.md
       - name: 发布草稿
@@ -136,6 +113,5 @@ jobs:
             artifacts/installers-*/**/*.dmg
             artifacts/installers-*/**/*.zip
             artifacts/SHA256SUMS.txt
-            artifacts/manifests/*
           draft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
