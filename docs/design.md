@@ -264,6 +264,39 @@ sequenceDiagram
 
 ## 5. hu-agent-app 详细设计
 
+### 5.0 引擎架构（pi 为核）—— 现状与归属
+
+> 本节记录 v1.x 引擎重构后的客户端**实际架构**。5.2 / 5.3 / 5.4 / 5.8 / 5.9 描述的是重构前的自研实现，
+> 已被 pi 原生实现取代，保留作为历史对照。决策、迁移过程与删除清单见 `docs/adr/0006-pi-agent-engine.md`。
+
+**归属划分（谁拥有什么）**
+
+| 领域 | 归属 | 客户端实现位置 |
+| --- | --- | --- |
+| 模型与 provider | pi（`pi-ai` + `models.json`） | `model/pi_config.ts`（配置层）、`model/pi_runtime.ts`（运行时装配：`ModelResolver` / `HistorySummarizer`） |
+| 回合生命周期 | pi（`pi-agent-core` 的 `Agent`） | `agent/pi_loop.ts`（回合与落库）、`agent/pi_runner.ts`（每回合装配） |
+| 消息与会话 | pi（`AgentMessage`；存储换 `pi-durable` 为 R1 目标） | 当前仍为 `session/store.ts`（迁移中） |
+| 工具 | pi（`AgentTool` + typebox） | `tools/native/*`（read/write/edit/bash/powershell/ask_guide） |
+| MCP | pi（`pi-mcp`：stdio + streamable HTTP） | `mcp/manager.ts` |
+| 权限 / 审批 / 审计 | **我们**（挂 `beforeToolCall` / `afterToolCall`） | `agent/pi_governance.ts`（纯钩子，不包装工具） |
+| 用量与成本 | pi 产出用量 → 我们落账与上报 | `usage/ledger.ts`、`cloud/reporter.ts` |
+| IPC 事件 | **我们**，定义为 pi 事件在边界的机械投影 | `agent/pi_events.ts`（映射表 + 契约完整性测试） |
+
+**关键不变式（换引擎不降级）**
+
+1. 权限判定与审批仍在 `PermissionEngine`（含敏感路径、保护文件硬规则）；被拒绝的调用在 `beforeToolCall`
+   被 block，**工具体不执行**，拒绝状态由事件映射层补 `denied`（UI 能与执行报错区分）；
+2. 超长输出落 artifact 并在 `afterToolCall` 中段截断（避免撑爆上下文）；
+3. 用量三写（会话 + ledger + telemetry）由回合循环完成，数据源是 pi 的 `usage`；
+4. 停止原因（`done` / `cancelled` / `max_steps` / `error`，含 `OUTPUT_TRUNCATED` / `MAX_STEPS` 错误项）
+   由循环决定并写入会话。
+
+**工作空间隔离与密钥**
+
+- 每个工作空间的权限引擎、会话与产物存储、技能段、遥测出口在**每回合装配**（`ipc.ts` 的 `context.createRunner`）；
+- 个人模式：密钥在本机密钥库（safeStorage），**按请求注入 pi**，不写进 `models.json`；
+- 企业模式：密钥只在服务端，由 `streamProxy` 供流（客户端不持有）。
+
 ### 5.1 进程与模块架构
 
 ```mermaid
@@ -335,6 +368,9 @@ flowchart TB
 - 启动门禁：未登录（或服务端拒绝会话）时渲染全屏登录/注册页，不渲染主界面；令牌被服务端撤销/账号被禁用时，主进程广播 `cloud:session-lost`，界面立即退回门禁。
 
 ### 5.2 Core Agent Loop
+
+> ⚠️ 本节描述重构前的自研循环，已被 `pi-agent-core` 的 `Agent` 取代：实现见 `agent/pi_loop.ts`
+> 与 `agent/pi_runner.ts`，归属与不变式见 5.0 与 `docs/adr/0006-pi-agent-engine.md`。
 
 #### 5.2.1 消息与事件模型
 
@@ -443,6 +479,9 @@ flowchart TB
 
 ### 5.3 会话与 JSONL 持久化
 
+> ⚠️ 会话存储正在迁移到 `pi-durable`（SQLite 单文件 + `requestId` 跨重启幂等 + `resume()` 续跑，
+> 已 spike 验证）。归属见 5.0；迁移完成后本节整体重写为 pi-durable 的 entries/storage 模型。
+
 #### 5.3.1 文件布局
 
 ```
@@ -514,6 +553,9 @@ flowchart TB
 | 分支 | 从某 `checkpoint` 复制前缀为新的会话文件（v1.1 计划） |
 
 ### 5.4 工具系统
+
+> ⚠️ 工具已改为 pi 原生 `AgentTool`（typebox 参数、失败抛错、`workspaceRoot` 工厂闭包），
+> 实现在 `tools/native/*`；旧 JSON Schema 工具接口与注册表已删除。归属见 5.0。
 
 #### 5.4.1 工具接口
 
@@ -807,6 +849,9 @@ min_app_version: 0.5.0
 
 ### 5.8 MCP 集成
 
+> ⚠️ MCP 客户端已换成 `pi-mcp`（`mcp/manager.ts`），支持 stdio 与 streamable HTTP；
+> 自研客户端与过渡桥已删除。归属见 5.0。
+
 #### 5.8.1 配置格式
 
 Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Workspace 同名 server **按字段覆盖** Global（只写 `enabled` 字段即可单独启停，`enabled.workspaces` 取并集）：
@@ -860,6 +905,9 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
 | 更新 | 拉取新版本描述与配置模板；若 `env_schema` 新增必填项，强制引导补齐；保留旧配置快照便于回滚 |
 
 ### 5.9 本地大模型配置（Global）
+
+> ⚠️ provider 配置已改成 pi 的 `models.json` 格式（薄适配加载，见 `model/pi_config.ts`），
+> 与 pi CLI 的配置可互换；企业模式由服务端持密钥。归属见 5.0。
 
 ```json
 {
