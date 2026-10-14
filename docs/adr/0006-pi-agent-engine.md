@@ -154,6 +154,19 @@ await submission.wait(ctx)   // 运行是异步的：必须等 settle 或订阅 
 3. 用 faux provider 在 durable harness 里跑工具派发不可靠（它吞工具调用，settle 仍为 `done`）——
    这类“派发/钩子”验证必须走真实模型（已有门禁用例 `PI_E2E=1`）。
 
+### 读取面形状（真实模型勘察结果，编码依据）
+
+数据来源：`tests/integration/pi_durable_shapes_real.test.ts`（一次运行即得，可重跑复核）。
+
+| 读取对象 | 实际形状 | 用法 |
+| --- | --- | --- |
+| `viewState().value.entries` | 数组；条目形如 `{ model: [pi 消息], kind: 'pi.user'／'pi.system'／…, id, conversationId, byTaskId? }` | 界面历史与消息投影读它（system 条目携带 `toolsAdded`、`sections`，可用于回放工具变更） |
+| `docs['pi.live']` | **运行中才有内容，settle 后为 `{}`** | 实时增量（流式文本/思考、进行中的工具调用）靠**订阅** viewState/watch 拿，不能事后读 |
+| `docs['pi.usage']` | `{ models: { 'provider/model': { input, output, cacheRead, cacheWrite, reasoning, totalTokens, cost } }, tools: {} }` | 用量落账与上报的数据源（比我们自算的更全：含 reasoning 与 cost） |
+| `docs['pi.agent']` | 已解析的会话配置（model/extensions/tools/modelTools/…） | 会话选项展示 |
+| `docs['pi.inbox']` | `{ items: [] }`（队列） | 排队的输入/跟进 |
+| `harness.usage()` | 与 `docs['pi.usage']` 同形（整会话汇总） | 会话级汇总 |
+
 原计划是写一个"会话门面"：用 pi-durable 的存储去实现我们旧的 `SessionStore` 接口
 （`append/loadContextMessages/loadOptions/touch`）。用户直接指出这仍是"用 pi 适配旧编程模式"，判断正确：
 门面会重建一套我们自己定义的消息/条目形状与读写时机，等于把旧模型永久保留下来。
