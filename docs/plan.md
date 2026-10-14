@@ -490,7 +490,11 @@ Authorization: Bearer {{token}}
 
 ### 附：v1.x 候选方向（讨论稿）
 
-`docs/optimization.md` 汇总 v1.x 的三条候选轨道：Agent 引擎交给 pi（分阶段 A1→A2）、UI 体系（设计令牌 + 动效 + 原语组件，替代现状零令牌/零动效）、可观测性一键部署（compose 叠加层）。文中 D-1…D-9 为待决策项，决策后按附录 F 转为 ADR 并回填本文件。
+**ADR-0006 已接受**：Agent 引擎全量采用 pi 组件（`pi-ai`/`pi-agent-core`/`pi-durable`+`chord`/
+`pi-mcp`/`pi-codemode`/`pi-env`/`pi-telemetry`），分 P0–P6 阶段推进，每阶段带开关可回滚；
+P0 合规基线（遥测审计）与 P1 冒烟已完成。详见 `docs/adr/0006-pi-agent-engine.md`。
+
+`docs/optimization.md` 汇总 v1.x 的候选轨道：Agent 引擎交给 pi（分阶段 A1→A2）、UI 体系（设计令牌 + 动效 + 原语组件，替代现状零令牌/零动效）、可观测性一键部署（compose 叠加层）。文中 D-1…D-9 为待决策项，决策后按附录 F 转为 ADR 并回填本文件。
 
 ### F. 设计与文档变更纪律（硬性要求）
 

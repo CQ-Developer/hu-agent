@@ -38,37 +38,38 @@
 | `pi-codemode` | 独立包 | 新增能力：模型写 JS 调用工具（企业场景需评估沙箱与审计） |
 | `pi-durable` | 独立包 | 可替换自研会话存储（63k 行，能力更强，但耦合更深） |
 
-### 1.2 方案对比
+### 1.2 决策（已采纳）：全量采用 pi 组件
 
-| 方案 | 做法 | 优点 | 代价 | 结论 |
-| --- | --- | --- | --- | --- |
-| A1 只换模型层 | 用 `pi-ai` 的 provider/模型目录替换自研 `model/providers/*`，Agent 循环不动 | 风险最小、可当天验证；立刻获得模型目录与多 provider；保留全部治理代码路径 | 只解决 1/3 问题（循环与工具仍自研） | ✅ **第一步** |
-| A2 引擎层替换 | 用 `pi-agent-core` 的 `Agent` 替换 `agent/loop.ts`，治理能力挂 hooks | 循环/并行/取消/引导/压缩交上游；我们专注治理与产品 | 需要事件映射层、工具适配层，回归面较大 | ✅ **第二步（分阶段开关）** |
-| A3 进程内全量 | 直接嵌 `pi-coding-agent`（含 CLI 层） | 功能最全（会话、资源、扩展） | 引入 TUI/CLI/配置等与桌面壳重复的层，打包与行为不可控 | ❌ 不采用 |
-| A4 子进程 | 以 `pi` CLI 的 **rpc 模式**（`rpc-entry.ts`）当引擎，JSON-RPC over stdio | 隔离好、几乎不写引擎代码；可跟上游快速同步 | 无法在进程内拦截工具调用 → **审批/审计/沙箱会失效**（企业合规红线）；跨平台启动、TLS 代理、事件粒度、装机体积都变差 | ❌ 不作为主路径；可留作"高级/兼容模式" |
+用户决策：**使用 pi 提供的所有组件**。采纳矩阵、许可与合规（`pi-telemetry` 审计结论：596 行纯契约、
+无 `fetch`/URL/环境变量读取、我们显式注入 noop）、依赖策略（精确 pin、provider 子路径按需引入、
+打包排除未用 SDK）与信任边界（企业模式走服务端 `streamProxy`；个人模式保持 ADR-0002 本地密钥）
+均记录在 [`docs/adr/0006-pi-agent-engine.md`](adr/0006-pi-agent-engine.md)。
 
-**推荐：A1 → A2 分阶段，A3/A4 不采用。**
+不采用：`pi-tui`（终端 UI 与桌面壳无对应需求）、`pi-coding-agent`（CLI 应用层，与客户端/管理台重叠，
+它依赖的库已全量采纳）、`pi-evals`（未发布到 npm，职责由我们的测试与 `scripts/benchmark.py` 承担）。
 
-### 1.3 分阶段计划（每阶段独立可验证、可回滚）
+### 1.3 重组后的实施计划（每阶段可独立验证、可回滚）
 
-1. **A1 模型层**（1 个提交，feature flag `model.engine = "pi-ai" | "legacy"`）
-   - `pi-ai` provider 注册表 + `models.streamSimple` 作为 `streamFn`；保留我们的用量上报（从 pi 事件里取 usage）与错误码映射
-   - 验证：三种 API 类型各跑一次真实调用 + 现有 `app/tests/*-provider*.test.ts` 全绿（provider 契约测试改为对 pi 层断言）
-2. **A2 循环层**（治理不动，循环换）
-   - `Agent` + `beforeToolCall`（审批/守卫/`enabled` 判定）+ `afterToolCall`（审计/结果改写）+ `transformContext`（压缩）
-   - 事件映射：`pi event → app/src/shared/events.ts`，并为映射写契约测试（每个 pi 事件类型都有对应渲染事件）
-   - 验证：`app/tests/{agent-loop,permissions-engine,compaction}.test.ts` 等价覆盖 + 4 个 e2e 门禁
-3. **A3 外围替换**：`pi-mcp` 换自研 MCP；`pi-codemode` 作为可选能力（默认关闭，需评估沙箱）
-4. **A4（可选）** 会话持久化迁移到 `pi-durable`——仅在 A2/A3 稳定后评估
+| 阶段 | 内容 | 依赖（精确 pin） | 出口标准 |
+| --- | --- | --- | --- |
+| **P0 合规基线** ✅ | 遥测审计、许可与依赖策略、ADR-0006、npm 可用性核对 | — | 已完成（`pi-evals` 404 已确认） |
+| **P1 模型层** 🚧 | 用 `pi-ai` 替换自研 provider；开关 `model.engine = "pi-ai" \| "legacy"`；用量取自 pi 事件 | `pi-ai@1.2.0`、`pi-agent-core@1.2.0`、`pi-telemetry@1.2.0`、`typebox@1.3.27` | 三种 API 类型走 pi + provider 契约测试改对 pi 断言 |
+| **P2 循环层** | `pi-agent-core` 的 `Agent` 替换 `agent/loop.ts`；权限/审批/审计挂 `beforeToolCall`/`afterToolCall`；`transformContext` 接压缩；事件映射 + 契约测试 | 无新增 | 现有 agent/permission/compaction 测试等价覆盖 + 4 个 e2e 门禁 |
+| **P3 会话持久化** | `pi-durable` + `chord` 接管会话/任务（`openNodeSqliteStorage`，写先于展示 = 崩溃恢复）；旧 items 迁移 + 开关 `session.store` | `pi-durable@1.2.0`、`chord@1.2.0` | 杀进程后重开续跑；迁移双读校验；快照/同步/审计语义不回退 |
+| **P4 MCP 与 Code Mode** | `pi-mcp` 替自研 MCP；`pi-codemode` 可选（WASM 沙箱 + 审批，默认关） | `pi-mcp@1.2.0`、`pi-codemode@1.2.0` | MCP e2e 全绿；越权用例被审批/沙箱拦下 |
+| **P5 远程执行** | `pi-env`（SSH daemon）作为企业可选能力：主机指纹校验 + 密钥管理 | `pi-env@1.2.0`（18 MB，含 Rust daemon） | 远端工作区跑通一个工具回合 + 审计就位 |
+| **P6 打包收尾** | 排除未用 SDK（`@aws-sdk/*`、`@google/genai`）、`NOTICE`、体积复核、删自研代码 | — | 安装包体积可接受；安全扫描 0 漏洞 |
 
-### 1.4 决策点（需你确认）
+轨道 B（UI 令牌 + 动效）不依赖 P1–P5，可与 P1/P2 并行；轨道 C 已落地。
 
-- **D-1 密钥归属**：维持现状（客户端 safeStorage 存用户自己的 key，ADR-0002）还是新增**企业网关模式**（服务端持密钥 + 实现 `streamProxy` 协议，客户端不发密钥）？建议：**两者并存**——个人模式用本地 key，企业模式走网关；新增 ADR-0006 记录数据流与信任边界。
-- **D-2 上游耦合**：`pi-*` 采用**精确版本 pin**（不用 `^`）+ 薄适配层（`app/src/main/agent/pi-adapter/*`），并加一条上游升级检查清单（含事件协议契约测试）。是否接受为 pi 新增 `typebox` 依赖（MIT，约 100KB）？
-- **D-3 许可与归属**：pi 为 MIT（Copyright 2025 Mario Zechner）。嵌入后需在 `NOTICE`/`docs` 声明并保留 MIT 文本。是否接受？（Apache-2.0 项目包含 MIT 组件无冲突）
-- **D-4 MCP 是否替换**：自研 MCP 客户端（stdio）换成 `pi-mcp`，还是保留自研（已通过 e2e 与安全校验）？
+### 1.4 P1 进度
 
----
+已完成：依赖安装（精确 1.2.0；`pi-ai` 5.9 MB + `pi-agent-core` 319 KB + `pi-telemetry` 175 KB，传递依赖
+约 60 MB 待 P6 排除）；`app/tests/pi-engine.test.ts` 5 条零网络冒烟（模型目录、完整回合、工具结果回灌、
+`beforeToolCall` 阻断、三种 API 类型目录覆盖）；全量客户端测试 195 passed / 13 skipped；
+`npm audit --omit=dev` 0 漏洞。
+
+待办：把 provider 调用切到 pi（feature flag）、用量从 pi 事件取、模型目录接入客户端设置页。
 
 ## 2. 轨道 B：UI 体系（页面样式 + 交互动画）
 
@@ -147,7 +148,8 @@ dev-only 路由 `/gallery`（生产构建剔除）：令牌可视化（色板/�
 
 ## 5. 建议执行顺序
 
-1. **轨道 C（监控栈）**：无需讨论即可开工，独立可验证 —— 我直接做
-2. **轨道 B（UI 体系）**：等 D-5/D-6/D-7 决策后开工（B1+B2 基建 → 页面迁移）
-3. **轨道 A（pi 集成）**：等 D-1…D-4 决策 → 先出 ADR-0006 → 从 A1 开始
-4. 轨道 D 与 A/B 并行讨论，不阻塞
+1. **P1 模型层**（进行中）：切 provider + 用量取数 + 契约测试
+2. **P2 循环层**：换 `Agent`，治理挂钩子（企业能力不回退是硬门槛）
+3. **B1 + B2**（可并行）：设计令牌 + 动效系统，零依赖
+4. **P3 会话持久化** → **P4 MCP/Code Mode** → **P5 远程执行** → **P6 打包收尾**
+5. 轨道 D（v1.x 功能议题）与 P2/P3 之后逐个议
