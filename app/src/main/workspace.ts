@@ -5,6 +5,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
 
 import { defaultWorkspaceDir } from './config/paths'
+import { t } from './i18n'
 
 export interface WorkspacePaths {
   id: string
@@ -48,7 +49,7 @@ export class WorkspaceManager {
 
   async active(): Promise<WorkspacePaths> {
     const record = this.index.workspaces.find((item) => item.id === this.index.activeId) ?? this.index.workspaces[0]
-    if (!record) throw new Error('工作空间未初始化')
+    if (!record) throw new Error(t('工作空间未初始化'))
     return this.materialize(record)
   }
 
@@ -73,7 +74,7 @@ export class WorkspaceManager {
 
   async setActive(id: string): Promise<WorkspacePaths> {
     if (!this.index.workspaces.some((record) => record.id === id)) {
-      throw new Error(`未知工作空间：${id}`)
+      throw new Error(t('未知工作空间：{id}', { id }))
     }
     this.index.activeId = id
     await this.saveIndex()

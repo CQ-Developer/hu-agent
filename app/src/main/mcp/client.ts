@@ -7,6 +7,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 
 import { terminateTree } from '../tools/shell'
+import { t } from '../i18n'
 
 export interface McpToolDefinition {
   name: string
@@ -82,10 +83,10 @@ export class McpStdioClient {
       this.stderrTail = (this.stderrTail + chunk.toString('utf8')).slice(-STDERR_LIMIT)
     })
     child.stdout?.on('data', (chunk: Buffer) => this.onData(chunk))
-    child.on('error', (error) => this.failAll(`MCP 进程启动失败：${error.message}`))
+    child.on('error', (error) => this.failAll(t('MCP 进程启动失败：{message}', { message: error.message })))
     child.on('exit', (code, signal) => {
       this.connected = false
-      this.failAll(`MCP 进程退出（code=${code ?? 'null'}, signal=${signal ?? 'null'}）${this.stderr ? `：${this.stderr}` : ''}`)
+      this.failAll(t('MCP 进程退出（code={0}, signal={1}）{2}', { 0: code ?? 'null', 1: signal ?? 'null', 2: this.stderr ? `：${this.stderr}` : '' }))
     })
 
     const result = (await this.request('initialize', {
@@ -130,7 +131,7 @@ export class McpStdioClient {
 
   async close(): Promise<void> {
     this.connected = false
-    this.failAll('MCP 连接已关闭')
+    this.failAll(t('MCP 连接已关闭'))
     const child = this.child
     this.child = null
     if (child && !child.killed) {
@@ -142,25 +143,25 @@ export class McpStdioClient {
 
   private request(method: string, params: unknown, signal?: AbortSignal): Promise<unknown> {
     const child = this.child
-    if (!child) return Promise.reject(new Error('MCP 进程未启动'))
+    if (!child) return Promise.reject(new Error(t('MCP 进程未启动')))
     const id = this.nextId
     this.nextId += 1
     return new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id)
         const detail = this.stderr ? `：${this.stderr}` : ''
-        reject(new Error(`MCP 请求超时：${method}（${this.serverName}）${detail}`))
+        reject(new Error(t('MCP 请求超时：{method}（{serverName}）{detail}', { method, serverName: this.serverName, detail })))
       }, method === 'tools/call' ? CALL_TIMEOUT_MS : CONNECT_TIMEOUT_MS)
       const onAbort = (): void => {
         this.pending.delete(id)
         clearTimeout(timer)
         this.send({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: id, reason: 'user' } })
-        reject(new Error('已取消'))
+        reject(new Error(t('已取消')))
       }
       const cleanup = (): void => signal?.removeEventListener('abort', onAbort)
       if (signal) {
         if (signal.aborted) {
-          reject(new Error('已取消'))
+          reject(new Error(t('已取消')))
           return
         }
         signal.addEventListener('abort', onAbort, { once: true })
@@ -211,7 +212,7 @@ export class McpStdioClient {
       pending.cleanup()
       if (message.error) {
         const error = message.error as { message?: string; code?: number }
-        pending.reject(new Error(`MCP 错误：${error.message ?? JSON.stringify(message.error)}`))
+        pending.reject(new Error(t('MCP 错误：{0}', { 0: error.message ?? JSON.stringify(message.error) })))
       } else {
         pending.resolve(message.result)
       }
@@ -224,7 +225,7 @@ export class McpStdioClient {
         this.send({
           jsonrpc: '2.0',
           id: message.id,
-          error: { code: -32601, message: `不支持的服务端请求：${message.method}` },
+          error: { code: -32601, message: t('不支持的服务端请求：{method}', { method: message.method }) },
         })
       }
       return
@@ -273,14 +274,14 @@ function normalizeTool(value: unknown): McpToolDefinition | null {
 }
 
 function formatContent(content: unknown[] | undefined): string {
-  if (!Array.isArray(content) || content.length === 0) return '(无输出)'
+  if (!Array.isArray(content) || content.length === 0) return t('(无输出)')
   const parts: string[] = []
   for (const item of content) {
     if (typeof item !== 'object' || item === null) continue
     const record = item as { type?: string; text?: string; mimeType?: string; uri?: string; data?: string }
     if (record.type === 'text' && typeof record.text === 'string') parts.push(record.text)
-    else if (record.type === 'image') parts.push(`[图片 ${record.mimeType ?? 'unknown'}]`)
-    else if (record.type === 'resource') parts.push(`[资源 ${record.uri ?? ''}]`)
+    else if (record.type === 'image') parts.push(t('[图片 {0}]', { 0: record.mimeType ?? 'unknown' }))
+    else if (record.type === 'resource') parts.push(t('[资源 {0}]', { 0: record.uri ?? '' }))
     else parts.push(JSON.stringify(item))
   }
   return parts.join('\n')

@@ -91,6 +91,18 @@ src/renderer/   # 渲染进程（React 界面）
 
 > 注意：服务端不可达时无法进入应用（企业身份管控要求），门禁只提供重试。
 
+## 国际化（D13）
+
+- 词典：`src/shared/i18n/en-US.ts`（**中文原文即键**，zh-CN 无需词典）；业务码文案见 `src/shared/i18n/error-codes.ts`。
+- 新增文案：直接在代码里写中文并包 `t('中文')`（插值写成 `t('已选 {count} 项', { count })`），
+  然后跑 `node scripts/i18n-check.mjs` 把缺的键补进词典；`tests/i18n.test.ts` 会在 CI 里强制。
+- 工具（`app/scripts/`）：
+  - `i18n-scan.mjs`：AST 扫描「应翻译但未包 t()」的文案（迁移与测试共用）
+  - `i18n-migrate.mjs --write [--target main|renderer|both]`：把文案包进 `t()`
+  - `i18n-report.mjs --keys out.json | --untranslated`：导出键清单 / 列出漏翻
+  - `i18n-check.mjs [out.txt]`：词典一致性检查（缺译文、死键）
+- 模型面向文案（系统提示、压缩指令、工具描述）不翻译，仅注入回复语言指令；白名单见 `scripts/i18n-config.mjs`。
+
 ## 真实模型集成测试（需要密钥，默认跳过）
 
 ```bash

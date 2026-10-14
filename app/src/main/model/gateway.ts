@@ -15,6 +15,7 @@ import type {
   StreamEvent,
   ToolDefinitionForModel,
 } from './types'
+import { t } from '../i18n'
 
 export interface GatewayDeps {
   getSettings(): ModelSettings
@@ -51,10 +52,10 @@ export class ModelGateway {
     const provider =
       settings.providers.find((item) => item.id === providerId) ??
       settings.providers.find((item) => item.models.some((model) => model.name === modelName))
-    if (!provider) throw new ModelError('bad_request', `未找到模型配置：${wanted}`)
+    if (!provider) throw new ModelError('bad_request', t('未找到模型配置：{wanted}', { wanted }))
 
     const model = provider.models.find((item) => item.name === modelName) ?? provider.models[0]
-    if (!model) throw new ModelError('bad_request', `供应商 ${provider.id} 未配置模型`)
+    if (!model) throw new ModelError('bad_request', t('供应商 {id} 未配置模型', { id: provider.id }))
     return { provider, model }
   }
 

@@ -11,6 +11,7 @@ import { parseArguments } from './json-args'
 import { readSseData } from './sse'
 import type { ProviderStreamOptions } from './types'
 import type { LlmMessage, StreamEvent } from '../types'
+import { t } from '../../i18n'
 
 export async function* streamOpenAiResponses(options: ProviderStreamOptions): AsyncIterable<StreamEvent> {
   const url = `${options.baseUrl.replace(/\/+$/, '')}/responses`
@@ -123,7 +124,7 @@ export async function* streamOpenAiResponses(options: ProviderStreamOptions): As
       }
       case 'response.failed':
       case 'error': {
-        throw new ModelError('server', `Responses API 错误：${JSON.stringify(payload).slice(0, 500)}`)
+        throw new ModelError('server', t('Responses API 错误：{0}', { 0: JSON.stringify(payload).slice(0, 500) }))
       }
       default:
         break

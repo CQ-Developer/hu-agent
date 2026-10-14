@@ -14,6 +14,7 @@ import { join } from 'node:path'
 import { globalDir, cloudConfigFile, configFilePath, workspacesIndexFile } from './config/paths'
 import { logDir } from './logging'
 import { writeZipToFile, type ZipSource } from './sync/zip-write'
+import { t } from './i18n'
 
 const SENSITIVE_KEY = /(token|secret|password|api[-_]?key|authorization)/i
 
@@ -105,14 +106,14 @@ export async function exportDiagnostics(targetPath: string, appVersion: string):
   }
 
   const summary = [
-    `hu-agent 诊断包`,
+    t(`hu-agent 诊断包`),
     `appVersion: ${appVersion}`,
     `platform: ${process.platform} ${process.arch}`,
     `node: ${process.versions.node}`,
     `electron: ${process.versions.electron}`,
     `generatedAt: ${new Date().toISOString()}`,
     '',
-    '说明：已自动脱敏（密钥字段 ***、主目录 ~）；不含 secrets.enc.json。',
+    t('说明：已自动脱敏（密钥字段 ***、主目录 ~）；不含 secrets.enc.json。'),
   ].join('\n')
   const { writeFile } = await import('node:fs/promises')
   const summaryPath = join(staging, 'system-info.txt')

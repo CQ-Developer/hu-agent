@@ -18,6 +18,7 @@ import { toModelTool, type AnyTool, type ToolContext } from '../tools/types'
 import type { AgentEvent, TurnStopReason } from '../../shared/events'
 import { COMPACT_THRESHOLD, compactHistory, estimateTokens } from './compaction'
 import { buildSystemPrompt } from './prompt'
+import { t } from '../i18n'
 
 export interface LoopDeps {
   gateway: ModelGateway
@@ -235,7 +236,7 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
           await deps.sessions.append(sessionId, {
             type: 'error',
             code: 'OUTPUT_TRUNCATED',
-            message: '模型输出达到长度上限',
+            message: t('模型输出达到长度上限'),
             createdAt: now(),
           })
         }
@@ -286,7 +287,7 @@ export async function runTurn(deps: LoopDeps, options: TurnOptions): Promise<voi
         await deps.sessions.append(sessionId, {
           type: 'error',
           code: 'MAX_STEPS',
-          message: `达到最大工具轮次（${maxSteps}）`,
+          message: t('达到最大工具轮次（{maxSteps}）', { maxSteps }),
           createdAt: now(),
         })
       }
@@ -317,7 +318,7 @@ async function recordTelemetry(
   try {
     await deps.telemetry.record({ ...rest, sessionId, purpose: role })
   } catch (error) {
-    console.warn('[telemetry] 入队失败：', error)
+    console.warn(t('[telemetry] 入队失败：'), error)
   }
 }
 
@@ -329,7 +330,7 @@ async function executeTool(
   const startedAt = Date.now()
   const tool = deps.tools.get(call.name) ?? deps.extraTools?.find((item) => item.name === call.name)
   if (!tool) {
-    return { status: 'error', output: `未知工具：${call.name}`, durationMs: 0, truncated: false }
+    return { status: 'error', output: t('未知工具：{name}', { name: call.name }), durationMs: 0, truncated: false }
   }
 
   const context: ToolContext = {
@@ -354,7 +355,7 @@ async function executeTool(
   if (permission.action !== 'allow') {
     return {
       status: 'denied',
-      output: permission.reason ?? '权限拒绝',
+      output: permission.reason ?? t('权限拒绝'),
       durationMs: Date.now() - startedAt,
       truncated: false,
     }
@@ -372,10 +373,10 @@ async function executeTool(
       rawOutput = error.message
     } else if (scope.signal.aborted) {
       status = 'timeout'
-      rawOutput = '工具执行已取消'
+      rawOutput = t('工具执行已取消')
     } else {
       status = 'error'
-      rawOutput = `工具执行失败：${error instanceof Error ? error.message : String(error)}`
+      rawOutput = t('工具执行失败：{0}', { 0: error instanceof Error ? error.message : String(error) })
     }
   }
 

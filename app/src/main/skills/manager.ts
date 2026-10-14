@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { globalDir } from '../config/paths'
 import type { WorkspacePaths } from '../workspace'
 import { compareSemver, parseSkillFile, type SkillRequires } from './parser'
+import { t } from '../i18n'
 
 export type SkillScope = 'global' | 'workspace'
 
@@ -64,7 +65,7 @@ export class SkillManager {
     const file = scope === 'workspace' ? join(workspace.huDir, 'skills.json') : this.globalStateFile
     const skills = await this.list(workspace)
     const skill = skills.find((item) => item.name === name)
-    if (!skill) throw new Error(`未找到 Skill：${name}`)
+    if (!skill) throw new Error(t('未找到 Skill：{name}', { name }))
     await this.saveEnabled(file, keyOf(skill))
   }
 
@@ -72,7 +73,7 @@ export class SkillManager {
     const file = scope === 'workspace' ? join(workspace.huDir, 'skills.json') : this.globalStateFile
     const skills = await this.list(workspace)
     const skill = skills.find((item) => item.name === name)
-    if (!skill) throw new Error(`未找到 Skill：${name}`)
+    if (!skill) throw new Error(t('未找到 Skill：{name}', { name }))
     await this.saveDisabled(file, keyOf(skill))
   }
 
@@ -83,14 +84,14 @@ export class SkillManager {
     const lines = enabled.map((skill) => {
       const details = [
         skill.version ? `v${skill.version}` : null,
-        skill.whenToUse ? `适用：${skill.whenToUse}` : null,
+        skill.whenToUse ? t('适用：{whenToUse}', { whenToUse: skill.whenToUse }) : null,
         `path：${skill.path}`,
       ]
         .filter(Boolean)
         .join('；')
       return `- ${skill.name}：${skill.description}（${details}）`
     })
-    return ['可用 Skill（需要时用 read_file 读取其 SKILL.md 全文再执行）：', ...lines].join('\n')
+    return [t('可用 Skill（需要时用 read_file 读取其 SKILL.md 全文再执行）：'), ...lines].join('\n')
   }
 
   private async scanRoot(root: string, scope: SkillScope): Promise<SkillInfo[]> {

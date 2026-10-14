@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import type { ApiTypeView, ModelEntryView, SettingsView } from '@shared/ipc'
+import { t } from '../../i18n'
 
 interface FormState {
   id: string
@@ -59,7 +60,7 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
 
   const save = async (): Promise<void> => {
     if (!form.id.trim() || !form.modelName.trim() || !form.baseUrl.trim()) {
-      setMessage('请填写供应商 ID、Base URL 与模型名称')
+      setMessage(t('请填写供应商 ID、Base URL 与模型名称'))
       return
     }
     setSaving(true)
@@ -89,7 +90,7 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
       }
       await refresh()
       setForm({ ...form, apiKey: '' })
-      setMessage('已保存')
+      setMessage(t('已保存'))
       onChanged()
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : String(cause))
@@ -101,7 +102,7 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
   return (
     <div className="space-y-4">
       <section>
-        <h3 className="mb-2 text-xs font-semibold text-neutral-500">已配置供应商</h3>
+        <h3 className="mb-2 text-xs font-semibold text-neutral-500">{t('已配置供应商')}</h3>
         {settings?.providers.length ? (
           <ul className="space-y-2">
             {settings.providers.map((provider) => (
@@ -116,34 +117,34 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
                   </div>
                   <div className="text-neutral-400">
                     {provider.baseUrl} · {provider.models.map((model) => model.name).join(', ')}
-                    {provider.apiKeyRef && settings.secretsConfigured[provider.apiKeyRef] ? ' · 已配置密钥' : ''}
+                    {provider.apiKeyRef && settings.secretsConfigured[provider.apiKeyRef] ? t(' · 已配置密钥') : ''}
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button type="button" className="text-blue-600 hover:underline" onClick={() => edit(provider.id)}>
-                    编辑
+                    {t('编辑')}
                   </button>
                   <button
                     type="button"
                     className="text-rose-600 hover:underline"
                     onClick={() => void window.huAgent.settings.removeProvider(provider.id).then(setSettings)}
                   >
-                    删除
+                    {t('删除')}
                   </button>
                 </div>
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-neutral-400">尚未配置模型供应商</p>
+          <p className="text-xs text-neutral-400">{t('尚未配置模型供应商')}</p>
         )}
       </section>
 
       <section className="space-y-2 rounded-lg border border-neutral-200 p-3">
-        <h3 className="text-xs font-semibold text-neutral-500">新增 / 编辑供应商</h3>
+        <h3 className="text-xs font-semibold text-neutral-500">{t('新增 / 编辑供应商')}</h3>
         <input
           className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
-          placeholder="供应商 ID（如 openai、deepseek-anthropic）"
+          placeholder={t("供应商 ID（如 openai、deepseek-anthropic）")}
           value={form.id}
           onChange={(event) => setForm({ ...form, id: event.target.value })}
         />
@@ -158,26 +159,26 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
         </select>
         <input
           className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
-          placeholder="Base URL（如 https://api.deepseek.com）"
+          placeholder={t("Base URL（如 https://api.deepseek.com）")}
           value={form.baseUrl}
           onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
         />
         <input
           className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
           type="password"
-          placeholder="API Key（留空保留原密钥；本地服务可留空）"
+          placeholder={t("API Key（留空保留原密钥；本地服务可留空）")}
           value={form.apiKey}
           onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
         />
         <input
           className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
-          placeholder="模型名称（如 deepseek-flash）"
+          placeholder={t("模型名称（如 deepseek-flash）")}
           value={form.modelName}
           onChange={(event) => setForm({ ...form, modelName: event.target.value })}
         />
         <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-600">
           <label className="flex items-center gap-1">
-            上下文窗口
+            {t('上下文窗口')}
             <input
               className="w-24 rounded border border-neutral-300 px-2 py-1"
               value={form.contextWindow}
@@ -186,15 +187,15 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
           </label>
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={form.supportsTools} onChange={(event) => setForm({ ...form, supportsTools: event.target.checked })} />
-            支持工具
+            {t('支持工具')}
           </label>
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={form.supportsReasoning} onChange={(event) => setForm({ ...form, supportsReasoning: event.target.checked })} />
-            支持思考强度
+            {t('支持思考强度')}
           </label>
           <label className="flex items-center gap-1">
             <input type="checkbox" checked={form.isPrimary} onChange={(event) => setForm({ ...form, isPrimary: event.target.checked })} />
-            设为默认
+            {t('设为默认')}
           </label>
         </div>
         <button
@@ -203,13 +204,13 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
           onClick={() => void save()}
           className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-40"
         >
-          {saving ? '保存中…' : '保存供应商'}
+          {saving ? t('保存中…') : t('保存供应商')}
         </button>
         {message && <p className="text-xs text-neutral-500">{message}</p>}
       </section>
 
       <p className="text-[11px] leading-relaxed text-neutral-400">
-        密钥经 Electron safeStorage 加密后存于 ~/.hu-agent/secrets.enc.json，不会写入配置文件或日志。
+        {t('密钥经 Electron safeStorage 加密后存于 ~/.hu-agent/secrets.enc.json，不会写入配置文件或日志。')}
       </p>
     </div>
   )

@@ -12,6 +12,7 @@ import { parseArguments } from './json-args'
 import { readSseData } from './sse'
 import type { ProviderStreamOptions } from './types'
 import type { LlmMessage, StreamEvent } from '../types'
+import { t } from '../../i18n'
 
 const API_VERSION = '2023-06-01'
 
@@ -135,7 +136,7 @@ export async function* streamAnthropicMessages(options: ProviderStreamOptions): 
         break
       }
       case 'error': {
-        throw new ModelError('server', `Anthropic API 错误：${JSON.stringify(payload).slice(0, 500)}`)
+        throw new ModelError('server', t('Anthropic API 错误：{0}', { 0: JSON.stringify(payload).slice(0, 500) }))
       }
       default:
         break

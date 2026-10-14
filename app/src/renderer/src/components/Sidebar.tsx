@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import type { SessionMetaView, SessionSearchHitView, WorkspaceInfoView } from '@shared/ipc'
+import { t } from '../i18n'
 
 interface Props {
   sessions: SessionMetaView[]
@@ -45,7 +46,7 @@ export default function Sidebar({
           onClick={onNew}
           className="rounded-md bg-neutral-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-neutral-700"
         >
-          ＋ 新会话
+          {t('＋ 新会话')}
         </button>
       </div>
 
@@ -65,10 +66,10 @@ export default function Sidebar({
         <button
           type="button"
           onClick={onPickWorkspace}
-          title="打开其他目录作为工作空间"
+          title={t("打开其他目录作为工作空间")}
           className="rounded-md border border-neutral-300 px-2 py-1 text-xs hover:bg-neutral-100"
         >
-          打开目录
+          {t('打开目录')}
         </button>
       </div>
 
@@ -79,7 +80,7 @@ export default function Sidebar({
             setQuery(event.target.value)
             onSearch(event.target.value)
           }}
-          placeholder="搜索会话内容…"
+          placeholder={t("搜索会话内容…")}
           className="w-full rounded-md border border-neutral-300 px-2 py-1 text-xs"
         />
       </div>
@@ -108,12 +109,12 @@ export default function Sidebar({
               >
                 <div className="truncate">{session.title}</div>
                 <div className={`text-[11px] ${session.id === currentId ? 'text-neutral-300' : 'text-neutral-400'}`}>
-                  {session.messageCount} 条消息
+                  {session.messageCount} {t('条消息')}
                 </div>
               </button>
             ))}
         {searching && searchHits.length === 0 && (
-          <div className="px-3 py-2 text-[11px] text-neutral-400">没有匹配的会话内容</div>
+          <div className="px-3 py-2 text-[11px] text-neutral-400">{t('没有匹配的会话内容')}</div>
         )}
       </div>
 
@@ -124,7 +125,7 @@ export default function Sidebar({
           className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-100"
         >
           <span className="grid h-6 w-6 place-items-center rounded-full bg-neutral-200 text-xs">👤</span>
-          <span className="flex-1">个人中心</span>
+          <span className="flex-1">{t('个人中心')}</span>
           <span className="max-w-[110px] truncate text-[10px] text-neutral-400">{accountLabel}</span>
         </button>
       </div>

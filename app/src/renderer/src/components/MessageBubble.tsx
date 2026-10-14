@@ -1,5 +1,6 @@
 import ReactMarkdown from 'react-markdown'
 import rehypeSanitize from 'rehype-sanitize'
+import { t } from '../i18n'
 
 interface Props {
   role: 'user' | 'assistant' | 'system'
@@ -32,7 +33,7 @@ export default function MessageBubble({ role, text, reasoning, streaming = false
             className="mb-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2"
           >
             <summary className="cursor-pointer select-none text-xs font-medium text-amber-700">
-              {streaming ? '思考中…' : '思考过程'}
+              {streaming ? t('思考中…') : t('思考过程')}
             </summary>
             <div className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-amber-900/80">
               {reasoning}
@@ -44,7 +45,7 @@ export default function MessageBubble({ role, text, reasoning, streaming = false
             <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{text}</ReactMarkdown>
           </div>
         )}
-        {!hasText && streaming && !reasoning && <div className="text-xs text-neutral-400">思考中…</div>}
+        {!hasText && streaming && !reasoning && <div className="text-xs text-neutral-400">{t('思考中…')}</div>}
       </div>
     </div>
   )

@@ -9,6 +9,7 @@ import { appendFileSync, existsSync, mkdirSync, renameSync, rmSync, statSync } f
 import { join } from 'node:path'
 
 import { globalDir } from './config/paths'
+import { t } from './i18n'
 
 const DEFAULT_MAX_BYTES = 10 * 1024 * 1024
 const DEFAULT_KEEP_FILES = 5
@@ -113,5 +114,5 @@ function formatArgs(args: unknown[]): string {
 }
 
 function truncate(text: string): string {
-  return text.length > 8000 ? `${text.slice(0, 8000)}…（截断）` : text
+  return text.length > 8000 ? t('{0}…（截断）', { 0: text.slice(0, 8000) }) : text
 }

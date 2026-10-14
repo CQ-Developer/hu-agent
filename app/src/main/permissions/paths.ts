@@ -5,6 +5,7 @@ import { basename, dirname, isAbsolute, join, normalize, resolve, sep } from 'no
 import { realpath } from 'node:fs/promises'
 
 import { PermissionPathError } from './types'
+import { t } from '../i18n'
 
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i
 const UNC_OR_DEVICE = /^[\\/]{2}/
@@ -45,14 +46,14 @@ export function expandUser(input: string): string {
 }
 
 export function assertPathShape(input: string): void {
-  if (!input || input.trim().length === 0) throw new PermissionPathError('路径不能为空')
+  if (!input || input.trim().length === 0) throw new PermissionPathError(t('路径不能为空'))
   if (process.platform === 'win32') {
     if (UNC_OR_DEVICE.test(input)) {
-      throw new PermissionPathError(`不支持 UNC 或设备路径：${input}`)
+      throw new PermissionPathError(t('不支持 UNC 或设备路径：{input}', { input }))
     }
     for (const segment of input.split(/[\\/]+/)) {
       if (WINDOWS_RESERVED.test(segment)) {
-        throw new PermissionPathError(`Windows 保留设备名：${segment}`)
+        throw new PermissionPathError(t('Windows 保留设备名：{segment}', { segment }))
       }
     }
   }

@@ -11,6 +11,7 @@ import { globalDir } from '../config/paths'
 import { SkillParseError, parseSkillFile } from '../skills/parser'
 import type { MarketClient } from './client'
 import { extractZip, type ZipLimits } from './zip'
+import { t } from '../i18n'
 
 export const DEFAULT_ZIP_LIMITS: ZipLimits = {
   maxFiles: 500,
@@ -62,14 +63,14 @@ export class SkillInstaller {
     const data = await this.market.download(info.url)
     const digest = `sha256:${createHash('sha256').update(data).digest('hex')}`
     if (info.digest && digest !== info.digest) {
-      throw new Error(`包校验失败：期望 ${info.digest}，实际 ${digest}`)
+      throw new Error(t('包校验失败：期望 {digest}，实际 {0}', { digest: info.digest, 0: digest }))
     }
 
     const extracted = extractZip(data, this.limits)
     const skillMdPath = locateSkillMd(extracted.entries.map((entry) => entry.path))
     const prefix = skillMdPath === 'SKILL.md' ? '' : skillMdPath.slice(0, -'SKILL.md'.length)
     const skillMd = extracted.files.find((file) => file.path === skillMdPath)
-    if (!skillMd) throw new Error('包内缺少 SKILL.md')
+    if (!skillMd) throw new Error(t('包内缺少 SKILL.md'))
 
     let name: string
     let declaredVersion: string | undefined
@@ -78,11 +79,11 @@ export class SkillInstaller {
       name = parsed.frontMatter.name
       declaredVersion = parsed.frontMatter.version
     } catch (error) {
-      throw new Error(`SKILL.md 解析失败：${error instanceof SkillParseError ? error.message : String(error)}`)
+      throw new Error(t('SKILL.md 解析失败：{0}', { 0: error instanceof SkillParseError ? error.message : String(error) }))
     }
-    if (!NAME_PATTERN.test(name)) throw new Error(`Skill 名称不合法：${name}`)
+    if (!NAME_PATTERN.test(name)) throw new Error(t('Skill 名称不合法：{name}', { name }))
     if (declaredVersion && declaredVersion !== version) {
-      throw new Error(`版本不一致：服务端 ${version}，SKILL.md ${declaredVersion}`)
+      throw new Error(t('版本不一致：服务端 {version}，SKILL.md {declaredVersion}', { version, declaredVersion }))
     }
 
     const targetDir = join(this.skillsRoot, name, version)
@@ -93,7 +94,7 @@ export class SkillInstaller {
       for (const file of extracted.files) {
         const relative = prefix && file.path.startsWith(prefix) ? file.path.slice(prefix.length) : file.path
         const destination = join(tempDir, relative)
-        if (!destination.startsWith(tempDir)) throw new Error(`非法路径：${file.path}`)
+        if (!destination.startsWith(tempDir)) throw new Error(t('非法路径：{path}', { path: file.path }))
         await mkdir(dirname(destination), { recursive: true })
         await writeFile(destination, file.data)
       }
@@ -159,5 +160,5 @@ function locateSkillMd(paths: string[]): string {
   const candidates = paths.filter((path) => path.endsWith('/SKILL.md'))
   const topLevels = new Set(paths.map((path) => path.split('/')[0]))
   if (candidates.length === 1 && topLevels.size === 1) return candidates[0]!
-  throw new Error('包内需在根目录或单一顶层目录下包含 SKILL.md')
+  throw new Error(t('包内需在根目录或单一顶层目录下包含 SKILL.md'))
 }

@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 /** SKILL.md 解析（design 5.7.1）：front matter（YAML 子集）+ 正文。 */
 
 export interface SkillRequires {
@@ -45,18 +46,18 @@ export function compareSemver(left: string, right: string): number {
 export function parseSkillFile(content: string): ParsedSkill {
   const normalized = content.replace(/\r\n/g, '\n')
   if (!normalized.startsWith('---\n')) {
-    throw new SkillParseError('SKILL.md 缺少 front matter（应以 --- 开头）')
+    throw new SkillParseError(t('SKILL.md 缺少 front matter（应以 --- 开头）'))
   }
   const end = normalized.indexOf('\n---', 4)
-  if (end < 0) throw new SkillParseError('SKILL.md front matter 未闭合（缺少结束的 ---）')
+  if (end < 0) throw new SkillParseError(t('SKILL.md front matter 未闭合（缺少结束的 ---）'))
   const yamlText = normalized.slice(4, end)
   const body = normalized.slice(end + 4).replace(/^\n+/, '')
 
   const raw = parseYamlSubset(yamlText)
   const name = typeof raw.name === 'string' ? raw.name : ''
   const description = typeof raw.description === 'string' ? raw.description : ''
-  if (!name) throw new SkillParseError('front matter 缺少 name')
-  if (!description) throw new SkillParseError('front matter 缺少 description')
+  if (!name) throw new SkillParseError(t('front matter 缺少 name'))
+  if (!description) throw new SkillParseError(t('front matter 缺少 description'))
 
   const requiresRaw = isRecord(raw.requires) ? raw.requires : undefined
   const requires: SkillRequires | undefined = requiresRaw

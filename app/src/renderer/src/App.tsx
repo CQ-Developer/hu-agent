@@ -26,8 +26,11 @@ import SkillsSection from './components/settings/SkillsSection'
 import StatsSection from './components/settings/StatsSection'
 import SyncSection from './components/settings/SyncSection'
 import WorkspaceSection from './components/settings/WorkspaceSection'
+import { applyResolved, t, useI18n } from './i18n'
 
 export default function App() {
+  // 订阅语言：切换语言时由根组件带动整树重渲染（design 5.13）
+  useI18n()
   const [sessions, setSessions] = useState<SessionMetaView[]>([])
   const [currentId, setCurrentId] = useState<string | null>(null)
   const [items, setItems] = useState<SessionItemView[]>([])
@@ -37,7 +40,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<AppTab>('chat')
   const [profileOpen, setProfileOpen] = useState(false)
-  const [accountLabel, setAccountLabel] = useState('未登录')
+  const [accountName, setAccountName] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<'loading' | 'required' | 'ready'>('loading')
   const [gateNotice, setGateNotice] = useState<string | null>(null)
   const [gateRetryOnly, setGateRetryOnly] = useState(false)
@@ -105,7 +108,7 @@ export default function App() {
     const view = await window.huAgent.settings.get()
     setModels(view.availableModels)
     const cloud = await window.huAgent.cloud.status()
-    setAccountLabel(cloud.loggedIn && cloud.user ? cloud.user.displayName || cloud.user.email : '未登录')
+    setAccountName(cloud.loggedIn && cloud.user ? cloud.user.displayName || cloud.user.email : null)
   }, [loadWorkspaceState])
 
   /** 启动门禁探测：未登录/会话失效一律停在上登录页（不能绕过）。 */
@@ -127,6 +130,13 @@ export default function App() {
   useEffect(() => {
     void probeSession()
   }, [probeSession])
+
+  /** 启动时同步语言（偏好存 config.json，默认跟随系统，design 5.13） */
+  useEffect(() => {
+    void window.huAgent.settings.getLocale().then((locale) => {
+      applyResolved(locale.preference, locale.resolved)
+    })
+  }, [])
 
   // 服务端拒绝会话（令牌撤销/账号禁用）：立即退回门禁
   useEffect(
@@ -331,7 +341,7 @@ export default function App() {
     void window.huAgent.usage.stats().then(setUsage)
     void window.huAgent.settings.get().then((view) => setModels(view.availableModels))
     void window.huAgent.cloud.status().then((cloud) => {
-      setAccountLabel(cloud.loggedIn && cloud.user ? cloud.user.displayName || cloud.user.email : '未登录')
+      setAccountName(cloud.loggedIn && cloud.user ? cloud.user.displayName || cloud.user.email : null)
       // 主动登出后回到门禁（强制登录，ADR 0004）
       if (!cloud.loggedIn) {
         setGateNotice(null)
@@ -345,7 +355,7 @@ export default function App() {
   if (sessionState === 'loading') {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-neutral-100 text-sm text-neutral-500">
-        正在连接服务端…
+        {t('正在连接服务端…')}
       </div>
     )
   }
@@ -369,7 +379,7 @@ export default function App() {
         workspace={workspace}
         workspaces={workspaces}
         searchHits={searchHits}
-        accountLabel={accountLabel}
+        accountLabel={accountName ?? t('未登录')}
         onSelect={(id) => void openSession(id)}
         onNew={() => void createSession()}
         onOpenProfile={() => setProfileOpen(true)}

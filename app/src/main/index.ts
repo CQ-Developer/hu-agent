@@ -25,6 +25,7 @@ import { FileLogger } from './logging'
 import { createDefaultToolRegistry } from './tools/registry'
 import { UsageLedger } from './usage/ledger'
 import { WorkspaceManager } from './workspace'
+import { initI18n, t } from './i18n'
 
 /** 移除无意义的默认应用菜单栏（Windows/Linux 完全移除；macOS 保留最小菜单以维持系统快捷键）。 */
 function configureApplicationMenu(): void {
@@ -67,7 +68,9 @@ async function bootstrap(): Promise<void> {
   // 文件日志（10MB × 5 滚动）最先安装，后续所有日志同时落盘
   const logger = new FileLogger()
   logger.install()
-  console.log(`hu-agent ${app.getVersion()} 启动（${process.platform} ${process.arch}）`)
+  // 语言必须在产生任何用户可见文案前初始化（design 5.13）
+  await initI18n(configFilePath())
+  console.log(t('hu-agent {0} 启动（{platform} {arch}）', { 0: app.getVersion(), platform: process.platform, arch: process.arch }))
 
   const workspaces = new WorkspaceManager(workspacesIndexFile())
   await workspaces.init()
@@ -116,7 +119,7 @@ async function bootstrap(): Promise<void> {
     },
     onResult: (view) => {
       broadcastSyncEvent(view)
-      if (view.status === 'error') console.warn('[sync] 自动同步失败：', view.lastError)
+      if (view.status === 'error') console.warn(t('[sync] 自动同步失败：'), view.lastError)
     },
   })
 
@@ -155,7 +158,7 @@ async function bootstrap(): Promise<void> {
     try {
       await context.reporter.tick(await context.workspaces.list())
     } catch (error) {
-      console.warn('[telemetry] tick 失败：', error)
+      console.warn(t('[telemetry] tick 失败：'), error)
     }
   }
   void tickReporter()

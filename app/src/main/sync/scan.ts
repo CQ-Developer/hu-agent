@@ -8,6 +8,7 @@
 import { createHash } from 'node:crypto'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
+import { t } from '../i18n'
 
 export interface ScannedFile {
   path: string
@@ -72,7 +73,7 @@ export async function scanWorkspace(root: string, options: ScanOptions = {}): Pr
       const info = await stat(absolute)
       files.push({ path: relativePath, size: info.size, mtimeMs: info.mtimeMs })
       if (options.maxFiles !== undefined && files.length > options.maxFiles) {
-        throw new Error(`文件数超过上限（${options.maxFiles}）`)
+        throw new Error(t('文件数超过上限（{maxFiles}）', { maxFiles: options.maxFiles }))
       }
     }
   }

@@ -1,6 +1,7 @@
 /** 市场 API 客户端（design 6.4.4 / 5.7.4）：列表、详情、预签名下载、状态查询、激活上报。 */
 
 import type { CloudClient } from '../cloud/client'
+import { t } from '../i18n'
 
 export interface MarketSkill {
   id: string
@@ -112,7 +113,7 @@ export class MarketClient {
   /** 下载预签名对象（S3 直连，不需要鉴权头）。 */
   async download(url: string): Promise<Buffer> {
     const response = await fetch(url, { signal: AbortSignal.timeout(120_000) })
-    if (!response.ok) throw new Error(`下载失败（HTTP ${response.status}）`)
+    if (!response.ok) throw new Error(t('下载失败（HTTP {status}）', { status: response.status }))
     return Buffer.from(await response.arrayBuffer())
   }
 

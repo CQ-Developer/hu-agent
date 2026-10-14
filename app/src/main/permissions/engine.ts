@@ -4,6 +4,7 @@ import type { AuditLog } from './audit'
 import type { InteractionBroker } from './broker'
 import { canonicalizePath, isProtectedWritePath, isSensitivePath, matchesAnyPattern } from './paths'
 import type { PermissionCheck, PermissionDecision, PolicyRule, ToolCategory } from './types'
+import { t } from '../i18n'
 
 export interface EngineDeps {
   workspaceRoot: string
@@ -39,7 +40,7 @@ export class PermissionEngine {
     // 内置硬规则（不可覆盖）
     for (const path of paths) {
       if (isSensitivePath(path.absolute, this.deps.workspaceRoot)) {
-        const reason = `敏感路径拒绝访问：${path.absolute}`
+        const reason = t('敏感路径拒绝访问：{absolute}', { absolute: path.absolute })
         await this.record(check, 'deny', reason)
         return { action: 'deny', reason }
       }
@@ -47,7 +48,7 @@ export class PermissionEngine {
     if (check.category === 'write') {
       for (const path of paths) {
         if (isProtectedWritePath(path.absolute, this.deps.workspaceRoot)) {
-          const reason = `保护文件不可写入，请在设置界面修改：${path.absolute}`
+          const reason = t('保护文件不可写入，请在设置界面修改：{absolute}', { absolute: path.absolute })
           await this.record(check, 'deny', reason)
           return { action: 'deny', reason }
         }
@@ -58,12 +59,12 @@ export class PermissionEngine {
     const action = matched ?? this.defaultAction(check, paths)
 
     if (action === 'allow') {
-      await this.record(check, 'allow', '策略允许')
+      await this.record(check, 'allow', t('策略允许'))
       return { action: 'allow' }
     }
     if (action === 'deny') {
-      await this.record(check, 'deny', '策略拒绝')
-      return { action: 'deny', reason: '当前权限策略拒绝该操作' }
+      await this.record(check, 'deny', t('策略拒绝'))
+      return { action: 'deny', reason: t('当前权限策略拒绝该操作') }
     }
 
     // ask：先看会话内已有授权
@@ -81,12 +82,12 @@ export class PermissionEngine {
       summary,
       paths: paths.map((path) => path.absolute),
       command: typeof check.input.command === 'string' ? check.input.command : undefined,
-      scopeHint: paths.length > 0 ? `允许访问 ${paths[0]?.absolute ?? ''}` : `始终允许 ${check.toolName}`,
+      scopeHint: paths.length > 0 ? t('允许访问 {0}', { 0: paths[0]?.absolute ?? '' }) : t('始终允许 {toolName}', { toolName: check.toolName }),
     })
 
     if (choice === 'deny') {
-      await this.record(check, 'deny', '用户拒绝', check.toolCallId)
-      return { action: 'deny', reason: '用户拒绝了该操作' }
+      await this.record(check, 'deny', t('用户拒绝'), check.toolCallId)
+      return { action: 'deny', reason: t('用户拒绝了该操作') }
     }
     if (choice === 'allow_session') this.grant(check.sessionId, scope)
     if (choice === 'allow_always') {

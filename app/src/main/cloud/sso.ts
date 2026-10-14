@@ -8,6 +8,7 @@ import { createHash, randomBytes } from 'node:crypto'
 import { createServer, type Server } from 'node:http'
 
 import type { CloudClient, CloudUser } from './client'
+import { t } from '../i18n'
 
 export interface SsoProviderView {
   id: string
@@ -47,13 +48,13 @@ export class LoopbackServer {
       }
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
       response.end(
-        '<html><body style="font-family:sans-serif;padding:40px"><h3>登录完成</h3><p>请返回 hu-agent 应用。</p></body></html>',
+        t('<html><body style="font-family:sans-serif;padding:40px"><h3>登录完成</h3><p>请返回 hu-agent 应用。</p></body></html>'),
       )
       this.onCallback?.(Object.fromEntries(url.searchParams.entries()))
     })
     await new Promise<void>((resolve) => this.server!.listen(0, LOOPBACK_HOST, resolve))
     const address = this.server.address()
-    if (address === null || typeof address === 'string') throw new Error('无法启动回环回调服务')
+    if (address === null || typeof address === 'string') throw new Error(t('无法启动回环回调服务'))
     this.port = address.port
     return `http://${LOOPBACK_HOST}:${this.port}/callback`
   }
@@ -109,19 +110,19 @@ export class SsoLoginFlow {
         deviceId: config.deviceId,
         appVersion: this.cloud.appVersionValue(),
       })
-      if (!this.options.openBrowser) throw new Error('未配置浏览器打开方式')
+      if (!this.options.openBrowser) throw new Error(t('未配置浏览器打开方式'))
       await this.options.openBrowser(authorizeUrl)
 
       const params = await Promise.race([
         waitForCallback,
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('SSO 登录超时（未收到浏览器回调）')), timeoutMs).unref?.(),
+          setTimeout(() => reject(new Error(t('SSO 登录超时（未收到浏览器回调）'))), timeoutMs).unref?.(),
         ),
       ])
       if (params.error) {
         throw new Error(params.error_description ?? params.error)
       }
-      if (!params.code) throw new Error('回调缺少一次性 code')
+      if (!params.code) throw new Error(t('回调缺少一次性 code'))
       return await this.cloud.ssoExchange(serverUrl, params.code, pair.verifier)
     } finally {
       await loopback.close()
@@ -149,7 +150,7 @@ export function buildAuthorizeUrl(
     deviceId: params.deviceId,
     platform: currentPlatform(),
     appVersion: params.appVersion,
-    deviceName: 'hu-agent 桌面客户端',
+    deviceName: t('hu-agent 桌面客户端'),
   })
   return `${base}/api/v1/auth/sso/${providerId}/authorize?${query.toString()}`
 }

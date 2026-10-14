@@ -8,6 +8,7 @@ import { parseArguments } from './json-args'
 import { readSseData } from './sse'
 import type { ProviderStreamOptions } from './types'
 import type { LlmMessage, StreamEvent, ToolCall } from '../types'
+import { t } from '../../i18n'
 
 export type OpenAiChatOptions = ProviderStreamOptions
 
@@ -80,7 +81,7 @@ export async function* streamOpenAiChat(options: OpenAiChatOptions): AsyncIterab
     const text = await response.text().catch(() => '')
     throw classifyHttpError(response.status, text)
   }
-  if (!response.body) throw new ModelError('server', '模型服务返回空响应体')
+  if (!response.body) throw new ModelError('server', t('模型服务返回空响应体'))
 
   const pendingToolCalls = new Map<number, PendingToolCall>()
   let stopReason: 'stop' | 'tool_use' | 'length' = 'stop'

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import type { SkillView } from '@shared/ipc'
+import { t } from '../../i18n'
 
 export default function SkillsSection({ onChanged }: { onChanged: () => void }) {
   const [skills, setSkills] = useState<SkillView[]>([])
@@ -37,13 +38,13 @@ export default function SkillsSection({ onChanged }: { onChanged: () => void }) 
   return (
     <div className="space-y-3">
       <p className="text-[11px] leading-relaxed text-neutral-400">
-        Skill 目录：全局 <code>~/.hu-agent/skills/&lt;name&gt;/SKILL.md</code>；工作空间{' '}
-        <code>&lt;workspace&gt;/.hu/skills/&lt;name&gt;/SKILL.md</code>。同名时工作空间优先。
+        {t('Skill 目录：全局')} <code>~/.hu-agent/skills/&lt;name&gt;/SKILL.md</code>{t('；工作空间')}{' '}
+        <code>&lt;workspace&gt;/.hu/skills/&lt;name&gt;/SKILL.md</code>{t('。同名时工作空间优先。')}
       </p>
 
       {skills.length === 0 && (
         <div className="rounded-lg border border-dashed border-neutral-300 p-4 text-xs text-neutral-400">
-          未发现 Skill。把包含 SKILL.md 的目录放入上述任一位置后点击「刷新」。
+          {t('未发现 Skill。把包含 SKILL.md 的目录放入上述任一位置后点击「刷新」。')}
         </div>
       )}
 
@@ -55,37 +56,37 @@ export default function SkillsSection({ onChanged }: { onChanged: () => void }) 
                 <span className="text-sm font-medium">{skill.name}</span>
                 {skill.version && <span className="text-[11px] text-neutral-400">v{skill.version}</span>}
                 <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
-                  {skill.scope === 'workspace' ? '工作空间' : '全局'}
+                  {skill.scope === 'workspace' ? t('工作空间') : t('全局')}
                 </span>
                 {skill.market && (
-                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700">市场</span>
+                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700">{t('市场')}</span>
                 )}
                 <span
                   className={`rounded px-1.5 py-0.5 text-[10px] ${
                     skill.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-neutral-100 text-neutral-500'
                   }`}
                 >
-                  {skill.enabled ? '已启用' : skill.intentEnabled ? '已启用（被服务端暂停）' : '未启用'}
+                  {skill.enabled ? t('已启用') : skill.intentEnabled ? t('已启用（被服务端暂停）') : t('未启用')}
                 </span>
                 {skill.state && skill.state !== 'active' && (
                   <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">
                     {skill.state === 'delisted'
-                      ? '已下架'
+                      ? t('已下架')
                       : skill.state === 'disabled'
-                        ? '服务端已停用'
+                        ? t('服务端已停用')
                         : skill.state === 'revoked'
-                          ? '版本已撤回'
+                          ? t('版本已撤回')
                           : skill.state === 'not_found'
-                            ? '服务端已删除'
-                            : '状态未知'}
+                            ? t('服务端已删除')
+                            : t('状态未知')}
                   </span>
                 )}
               </div>
               <div className="mt-1 text-xs text-neutral-600">{skill.description}</div>
-              {skill.whenToUse && <div className="mt-0.5 text-[11px] text-neutral-400">适用：{skill.whenToUse}</div>}
+              {skill.whenToUse && <div className="mt-0.5 text-[11px] text-neutral-400">{t('适用：')}{skill.whenToUse}</div>}
               {skill.stateReason && <div className="mt-0.5 text-[11px] text-amber-700">{skill.stateReason}</div>}
               {skill.replacementVersion && (
-                <div className="text-[11px] text-neutral-500">建议升级到 v{skill.replacementVersion}</div>
+                <div className="text-[11px] text-neutral-500">{t('建议升级到 v')}{skill.replacementVersion}</div>
               )}
               <div className="mt-1 truncate text-[11px] text-neutral-400" title={skill.path}>
                 {skill.path}
@@ -100,17 +101,17 @@ export default function SkillsSection({ onChanged }: { onChanged: () => void }) 
                   : 'bg-neutral-900 text-white hover:bg-neutral-700'
               }`}
             >
-              {skill.intentEnabled ? '停用' : '启用'}
+              {skill.intentEnabled ? t('停用') : t('启用')}
             </button>
           </div>
 
           {confirming?.name === skill.name && confirming.scope === skill.scope && (
             <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
-              <div className="font-medium">该 Skill 声明了额外权限，启用前请确认：</div>
+              <div className="font-medium">{t('该 Skill 声明了额外权限，启用前请确认：')}</div>
               <ul className="mt-1 list-disc pl-4">
-                {confirming.requires?.tools?.map((tool) => <li key={tool}>需要工具权限：{tool}</li>)}
-                {confirming.requires?.bins?.map((bin) => <li key={bin}>依赖可执行程序：{bin}</li>)}
-                {confirming.requires?.network && <li>需要访问网络</li>}
+                {confirming.requires?.tools?.map((tool) => <li key={tool}>{t('需要工具权限：')}{tool}</li>)}
+                {confirming.requires?.bins?.map((bin) => <li key={bin}>{t('依赖可执行程序：')}{bin}</li>)}
+                {confirming.requires?.network && <li>{t('需要访问网络')}</li>}
               </ul>
               <div className="mt-2 flex gap-2">
                 <button
@@ -118,10 +119,10 @@ export default function SkillsSection({ onChanged }: { onChanged: () => void }) 
                   onClick={() => void toggle(confirming, true)}
                   className="rounded bg-amber-700 px-2.5 py-1 text-white hover:bg-amber-600"
                 >
-                  确认启用
+                  {t('确认启用')}
                 </button>
                 <button type="button" onClick={() => setConfirming(null)} className="rounded border border-amber-400 px-2.5 py-1">
-                  取消
+                  {t('取消')}
                 </button>
               </div>
             </div>
@@ -132,7 +133,7 @@ export default function SkillsSection({ onChanged }: { onChanged: () => void }) 
       {error && <div className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>}
 
       <button type="button" onClick={() => void refresh()} className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100">
-        刷新
+        {t('刷新')}
       </button>
     </div>
   )

@@ -10,6 +10,8 @@ const api: HuAgentApi = {
     saveProvider: (input) => ipcRenderer.invoke('settings:save-provider', input),
     removeProvider: (id) => ipcRenderer.invoke('settings:remove-provider', id),
     setDefault: (role, target) => ipcRenderer.invoke('settings:set-default', role, target),
+    getLocale: () => ipcRenderer.invoke('settings:get-locale'),
+    setLocale: (preference) => ipcRenderer.invoke('settings:set-locale', preference),
   },
   sessions: {
     list: () => ipcRenderer.invoke('sessions:list'),
@@ -88,6 +90,7 @@ const api: HuAgentApi = {
     session: () => ipcRenderer.invoke('cloud:session'),
     providers: (serverUrl: string) => ipcRenderer.invoke('cloud:providers', serverUrl),
     ssoLogin: (serverUrl: string, providerId: string) => ipcRenderer.invoke('cloud:sso-login', serverUrl, providerId),
+    updateLocale: (locale) => ipcRenderer.invoke('cloud:update-locale', locale),
     login: (serverUrl, email, password) => ipcRenderer.invoke('cloud:login', serverUrl, email, password),
     register: (serverUrl, email, displayName, password) =>
       ipcRenderer.invoke('cloud:register', serverUrl, email, displayName, password),

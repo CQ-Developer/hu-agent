@@ -8,6 +8,7 @@ import Composer from './Composer'
 import GuideCard from './GuideCard'
 import MessageBubble from './MessageBubble'
 import ToolCard from './ToolCard'
+import { t } from '../i18n'
 
 interface Props {
   items: SessionItemView[]
@@ -55,7 +56,7 @@ export default function ChatView({
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-4">
         {items.length === 0 && !streamingText && !streamingReasoning && (
           <div className="mt-16 text-center text-sm text-neutral-400">
-            新建会话后，描述一个任务试试：比如「读取 package.json 并总结项目脚本」
+            {t('新建会话后，描述一个任务试试：比如「读取 package.json 并总结项目脚本」')}
           </div>
         )}
         {items.map((item) =>

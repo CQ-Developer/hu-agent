@@ -10,16 +10,17 @@ import { join } from 'node:path'
 
 import type { SyncStatusView } from '../../shared/ipc'
 import type { WorkspacePaths } from '../workspace'
+import { t } from '../i18n'
 
 export type SyncSchedule = 'off' | '15m' | '30m' | '1h' | '6h' | '24h'
 
 export const SYNC_SCHEDULES: { value: SyncSchedule; label: string; minutes: number }[] = [
-  { value: 'off', label: '关闭', minutes: 0 },
-  { value: '15m', label: '每 15 分钟', minutes: 15 },
-  { value: '30m', label: '每 30 分钟', minutes: 30 },
-  { value: '1h', label: '每 1 小时', minutes: 60 },
-  { value: '6h', label: '每 6 小时', minutes: 360 },
-  { value: '24h', label: '每 24 小时', minutes: 1440 },
+  { value: 'off', label: t('关闭'), minutes: 0 },
+  { value: '15m', label: t('每 15 分钟'), minutes: 15 },
+  { value: '30m', label: t('每 30 分钟'), minutes: 30 },
+  { value: '1h', label: t('每 1 小时'), minutes: 60 },
+  { value: '6h', label: t('每 6 小时'), minutes: 360 },
+  { value: '24h', label: t('每 24 小时'), minutes: 1440 },
 ]
 
 export interface SyncSettings {
@@ -109,7 +110,7 @@ export class SyncScheduler {
       }
       this.consecutiveFailures = view.status === 'error' ? this.consecutiveFailures + 1 : 0
       if (view.status === 'error' && this.consecutiveFailures >= 3) {
-        view = { ...view, lastError: `${view.lastError ?? '同步失败'}（已连续失败 ${this.consecutiveFailures} 次）` }
+        view = { ...view, lastError: `${view.lastError ?? t('同步失败')}（已连续失败 ${this.consecutiveFailures} 次）` }
       }
       this.deps.onResult?.(view)
       if (view.status === 'conflict' || this.deps.shouldPause?.(view)) {

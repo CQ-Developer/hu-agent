@@ -1,3 +1,4 @@
+import { t } from '../i18n'
 export type AppTab =
   | 'chat'
   | 'market'
@@ -11,16 +12,16 @@ export type AppTab =
   | 'about'
 
 export const APP_TABS: { id: AppTab; label: string }[] = [
-  { id: 'chat', label: '对话' },
-  { id: 'market', label: '市场' },
-  { id: 'models', label: '模型配置' },
-  { id: 'skills', label: 'Skill 配置' },
-  { id: 'mcp', label: 'MCP 配置' },
-  { id: 'workspace', label: '工作空间' },
-  { id: 'sync', label: '云同步' },
-  { id: 'stats', label: '用量统计' },
-  { id: 'permissions', label: '权限与审计' },
-  { id: 'about', label: '关于' },
+  { id: 'chat', label: t('对话') },
+  { id: 'market', label: t('市场') },
+  { id: 'models', label: t('模型配置') },
+  { id: 'skills', label: t('Skill 配置') },
+  { id: 'mcp', label: t('MCP 配置') },
+  { id: 'workspace', label: t('工作空间') },
+  { id: 'sync', label: t('云同步') },
+  { id: 'stats', label: t('用量统计') },
+  { id: 'permissions', label: t('权限与审计') },
+  { id: 'about', label: t('关于') },
 ]
 
 interface Props {

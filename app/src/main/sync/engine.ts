@@ -14,6 +14,7 @@ import type { SyncConflictView, SyncStatusCode, SyncStatusView, SyncVersionView 
 import { extractZip } from '../market/zip'
 import { LOCAL_ONLY_DIRS, diffManifests, readSyncExcludes, scanWorkspace, type ManifestEntry, type ScanResult } from './scan'
 import { writeZipToFile } from './zip-write'
+import { t } from '../i18n'
 
 export interface BackendSnapshot {
   id: string
@@ -198,7 +199,7 @@ export class SyncEngine {
   async resolve(choice: 'keep-local' | 'cancel' | 'export-diff'): Promise<SyncStatusView> {
     const state = await this.loadState()
     const conflict = state.conflict
-    if (!conflict) throw new Error('当前没有待处理的同步冲突')
+    if (!conflict) throw new Error(t('当前没有待处理的同步冲突'))
     if (choice === 'cancel') return this.status()
 
     if (choice === 'export-diff') {
@@ -219,9 +220,9 @@ export class SyncEngine {
     }
 
     // keep-local：先把本地改动复制到冲突目录，再应用服务端版本
-    if (!state.serverWorkspaceId) throw new Error('尚未关联服务端工作空间')
+    if (!state.serverWorkspaceId) throw new Error(t('尚未关联服务端工作空间'))
     const latest = await this.backend.latest(state.serverWorkspaceId)
-    if (!latest) throw new Error('服务端快照不存在')
+    if (!latest) throw new Error(t('服务端快照不存在'))
     const conflictsDir = join(this.workspace.huDir, 'sync', 'conflicts', `local-${Date.now()}`)
     await this.backupChangedFiles(conflict.diff, conflictsDir)
     await this.applySnapshot(latest, { ...state, conflict: undefined }, { backupAll: true })
@@ -247,10 +248,10 @@ export class SyncEngine {
 
   async restore(version: number, options: { keepLocalCopy?: boolean } = {}): Promise<SyncStatusView> {
     const state = await this.loadState()
-    if (!state.serverWorkspaceId) throw new Error('尚未关联服务端工作空间')
+    if (!state.serverWorkspaceId) throw new Error(t('尚未关联服务端工作空间'))
     const snapshots = await this.backend.listSnapshots(state.serverWorkspaceId)
     const snapshot = snapshots.find((item) => item.version === version)
-    if (!snapshot) throw new Error(`未找到版本 ${version}`)
+    if (!snapshot) throw new Error(t('未找到版本 {version}', { version }))
 
     const scan = await this.scan()
     if (options.keepLocalCopy && this.hasLocalChanges(scan, state)) {

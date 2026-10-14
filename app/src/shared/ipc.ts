@@ -37,6 +37,16 @@ export interface ModelOptionView {
   reasoningEffort: boolean
 }
 
+/** 语言偏好：system 表示跟随操作系统 */
+export type LocalePreferenceView = 'system' | 'zh-CN' | 'en-US'
+
+export interface LocaleView {
+  preference: LocalePreferenceView
+  resolved: 'zh-CN' | 'en-US'
+  /** 操作系统语言解析结果，用于「跟随系统」时展示实际生效值 */
+  system: 'zh-CN' | 'en-US'
+}
+
 export interface SettingsView {
   providers: ProviderView[]
   defaults: { primary: string; fast?: string }
@@ -425,6 +435,9 @@ export interface HuAgentApi {
     saveProvider(input: SaveProviderInput): Promise<SettingsView>
     removeProvider(id: string): Promise<SettingsView>
     setDefault(role: 'primary' | 'fast', target: string): Promise<SettingsView>
+    /** 语言偏好与生效值（design 5.13；system = 跟随操作系统） */
+    getLocale(): Promise<LocaleView>
+    setLocale(preference: LocalePreferenceView): Promise<LocaleView>
   }
   sessions: {
     list(): Promise<SessionMetaView[]>
@@ -516,6 +529,8 @@ export interface HuAgentApi {
     revokeDevice(deviceId: string): Promise<CloudDeviceView[]>
     flush(): Promise<CloudFlushResultView>
     clearQueue(): Promise<CloudStatusView>
+    /** 同步语言到 users.locale（通知/邮件用；未登录或离线时静默失败） */
+    updateLocale(locale: 'zh-CN' | 'en-US'): Promise<void>
     /** 会话被服务端撤销时触发（如设备被吊销/账号被禁用） */
     onSessionLost(listener: (reason: string) => void): () => void
   }

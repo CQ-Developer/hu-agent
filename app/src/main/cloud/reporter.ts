@@ -15,6 +15,7 @@ import type { WorkspacePaths } from '../workspace'
 import type { TelemetryInput } from '../usage/telemetry'
 import type { CloudConfig } from './store'
 import { uuidv7 } from './uuidv7'
+import { t } from '../i18n'
 
 /** 上报所需的最小云端能力（CloudClient 满足），便于单测替换。 */
 export interface TelemetryClient {
@@ -133,7 +134,7 @@ export class UsageReporter {
   async flush(ws: WorkspacePaths, options: { force?: boolean } = {}): Promise<FlushResult> {
     if (this.flushing) return { sent: 0, pending: await this.pendingCount(ws) }
     if (!(await this.cloud.isLoggedIn())) {
-      return { sent: 0, pending: await this.pendingCount(ws), error: '未登录' }
+      return { sent: 0, pending: await this.pendingCount(ws), error: t('未登录') }
     }
 
     const state = await this.readState(ws)
@@ -193,7 +194,7 @@ export class UsageReporter {
         if (pending === 0 || !this.isDue(state)) continue
         await this.flush(ws, { force: true })
       } catch (error) {
-        console.warn(`[telemetry] 上报失败（${ws.name}）：`, error)
+        console.warn(t('[telemetry] 上报失败（{name}）：', { name: ws.name }), error)
       }
     }
   }
@@ -307,7 +308,7 @@ export class UsageReporter {
     }
     kept.reverse()
     const dropped = lines.length - kept.length
-    console.warn(`[telemetry] 队列超过上限，丢弃最旧 ${dropped} 条记录（${ws.name}）`)
+    console.warn(t('[telemetry] 队列超过上限，丢弃最旧 {dropped} 条记录（{name}）', { dropped, name: ws.name }))
     const temp = `${file}.tmp`
     await writeFile(temp, kept.length > 0 ? `${kept.join('\n')}\n` : '', 'utf8')
     await rename(temp, file)

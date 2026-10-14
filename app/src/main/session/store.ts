@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import type { LlmMessage, ReasoningEffort, ToolCall } from '../model/types'
 import type { MessageLine, SessionIndex, SessionLine, SessionMeta, SummaryLine, ToolResultLine } from './types'
 import { ulid } from './ulid'
+import { t } from '../i18n'
 
 export interface SessionSearchHit {
   sessionId: string
@@ -31,7 +32,7 @@ export class SessionStore {
     await mkdir(this.sessionDir, { recursive: true })
   }
 
-  async create(title = '新会话'): Promise<SessionMeta> {
+  async create(title = t('新会话')): Promise<SessionMeta> {
     await this.init()
     const id = ulid()
     const now = new Date().toISOString()
@@ -99,7 +100,7 @@ export class SessionStore {
 
     const messages = buildMessages(lines.slice(start))
     const summaryMessage: LlmMessage | null = summary
-      ? { role: 'system', content: `以下是较早对话的摘要，供你参考：\n${summary.text}` }
+      ? { role: 'system', content: t('以下是较早对话的摘要，供你参考：\n{text}', { text: summary.text }) }
       : null
 
     if (!summaryMessage) {
@@ -219,7 +220,7 @@ export class SessionStore {
       const createdAt = metaLine?.type === 'meta' ? metaLine.createdAt : new Date().toISOString()
       sessions.push({
         id,
-        title: '未命名会话',
+        title: t('未命名会话'),
         createdAt,
         updatedAt: createdAt,
         messageCount: messageLines.length,

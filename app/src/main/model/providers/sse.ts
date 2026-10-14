@@ -1,9 +1,10 @@
 /** SSE 读取：把 `data:` 负载逐个产出（各家事件类型由调用方按 JSON.type 分派）。 */
 
 import { ModelError } from '../errors'
+import { t } from '../../i18n'
 
 export async function* readSseData(response: Response): AsyncGenerator<string> {
-  if (!response.body) throw new ModelError('server', '模型服务返回空响应体')
+  if (!response.body) throw new ModelError('server', t('模型服务返回空响应体'))
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()

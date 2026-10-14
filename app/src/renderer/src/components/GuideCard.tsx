@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import type { GuideRequestView } from '@shared/events'
+import { t } from '../i18n'
 
 interface Props {
   request: GuideRequestView
@@ -28,7 +29,7 @@ export default function GuideCard({ request, onAnswer }: Props) {
             <div className="flex items-center gap-2">
               <span className="font-medium">{option.label}</span>
               {option.value === request.recommended && (
-                <span className="rounded bg-sky-200 px-1.5 py-0.5 text-[10px] text-sky-900">推荐</span>
+                <span className="rounded bg-sky-200 px-1.5 py-0.5 text-[10px] text-sky-900">{t('推荐')}</span>
               )}
             </div>
             {option.description && <div className="mt-0.5 text-neutral-500">{option.description}</div>}
@@ -40,7 +41,7 @@ export default function GuideCard({ request, onAnswer }: Props) {
           <input
             value={freeText}
             onChange={(event) => setFreeText(event.target.value)}
-            placeholder="或输入自定义内容…"
+            placeholder={t("或输入自定义内容…")}
             className="flex-1 rounded-lg border border-neutral-300 px-2 py-1.5 text-xs"
           />
           <button
@@ -49,12 +50,12 @@ export default function GuideCard({ request, onAnswer }: Props) {
             disabled={!freeText.trim()}
             className="rounded-lg bg-sky-700 px-3 py-1.5 text-xs text-white disabled:opacity-40"
           >
-            提交
+            {t('提交')}
           </button>
         </div>
       )}
       <button type="button" onClick={() => onAnswer('')} className="mt-2 text-[11px] text-neutral-500 hover:underline">
-        跳过（取消本次提问）
+        {t('跳过（取消本次提问）')}
       </button>
     </div>
   )

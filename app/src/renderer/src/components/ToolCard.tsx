@@ -1,4 +1,5 @@
 import type { SessionItemView } from '@shared/ipc'
+import { t } from '../i18n'
 
 type ToolItem = Extract<SessionItemView, { kind: 'tool' }>
 
@@ -21,20 +22,20 @@ export default function ToolCard({ item }: { item: ToolItem }) {
         {typeof item.durationMs === 'number' && (
           <span className="text-[11px] text-neutral-400">{item.durationMs}ms</span>
         )}
-        {item.truncated && <span className="text-[11px] text-amber-600">已截断</span>}
+        {item.truncated && <span className="text-[11px] text-amber-600">{t('已截断')}</span>}
       </summary>
       <div className="mt-2 space-y-2">
         <div>
-          <div className="mb-1 text-[11px] text-neutral-400">参数</div>
+          <div className="mb-1 text-[11px] text-neutral-400">{t('参数')}</div>
           <pre className="max-h-40 overflow-auto rounded bg-neutral-50 p-2 text-xs">{JSON.stringify(item.input, null, 2)}</pre>
         </div>
         {item.output !== undefined && (
           <div>
-            <div className="mb-1 text-[11px] text-neutral-400">输出</div>
+            <div className="mb-1 text-[11px] text-neutral-400">{t('输出')}</div>
             <pre className="max-h-72 overflow-auto rounded bg-neutral-50 p-2 text-xs whitespace-pre-wrap">{item.output}</pre>
           </div>
         )}
-        {item.artifactPath && <div className="text-[11px] text-neutral-400">全文：{item.artifactPath}</div>}
+        {item.artifactPath && <div className="text-[11px] text-neutral-400">{t('全文：')}{item.artifactPath}</div>}
       </div>
     </details>
   )

@@ -1,6 +1,7 @@
 import type { UsageStatsView, WorkspaceInfoView } from '@shared/ipc'
 
 import ProfileSection from './settings/ProfileSection'
+import { t } from '../i18n'
 
 interface Props {
   usage: UsageStatsView | null
@@ -18,9 +19,9 @@ export default function ProfileDialog({ usage, workspaces, activeWorkspace, onCl
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-3">
-          <span className="text-sm font-semibold">个人中心</span>
+          <span className="text-sm font-semibold">{t('个人中心')}</span>
           <button type="button" onClick={onClose} className="text-xs text-neutral-500 hover:text-neutral-900">
-            关闭
+            {t('关闭')}
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">

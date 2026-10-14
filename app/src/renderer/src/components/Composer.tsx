@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import type { ModelOptionView, ReasoningEffortView, SessionOptionsView, SessionUsageView } from '@shared/ipc'
+import { t } from '../i18n'
 
 interface Props {
   running: boolean
@@ -13,10 +14,10 @@ interface Props {
 }
 
 const EFFORT_LABELS: Record<ReasoningEffortView, string> = {
-  off: '思考：关闭',
-  low: '思考：低',
-  medium: '思考：中',
-  high: '思考：高',
+  off: t('思考：关闭'),
+  low: t('思考：低'),
+  medium: t('思考：中'),
+  high: t('思考：高'),
 }
 
 function formatTokens(value: number): string {
@@ -44,9 +45,9 @@ export default function Composer({ running, models, options, stats, onOptionsCha
           value={selected?.target ?? ''}
           onChange={(event) => options && onOptionsChange({ ...options, model: event.target.value })}
           className="rounded border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700"
-          title="本会话使用的模型"
+          title={t("本会话使用的模型")}
         >
-          {models.length === 0 && <option value="">（未配置模型）</option>}
+          {models.length === 0 && <option value="">{t('（未配置模型）')}</option>}
           {models.map((model) => (
             <option key={model.target} value={model.target}>
               {model.providerId} / {model.name}
@@ -61,7 +62,7 @@ export default function Composer({ running, models, options, stats, onOptionsCha
             options && onOptionsChange({ ...options, reasoningEffort: event.target.value as ReasoningEffortView })
           }
           className="rounded border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700 disabled:opacity-40"
-          title={effortDisabled ? '当前模型未声明支持思考强度（可在模型设置中开启）' : '思考强度'}
+          title={effortDisabled ? t('当前模型未声明支持思考强度（可在模型设置中开启）') : t('思考强度')}
         >
           {(['off', 'low', 'medium', 'high'] as const).map((level) => (
             <option key={level} value={level}>
@@ -72,8 +73,8 @@ export default function Composer({ running, models, options, stats, onOptionsCha
 
         {stats && (
           <span className="ml-auto tabular-nums">
-            输入 {formatTokens(stats.inputTokens)} · 输出 {formatTokens(stats.outputTokens)} · 缓存命中{' '}
-            {Math.round(stats.cacheHitRate * 100)}% · 上下文剩余 {Math.round(stats.contextRemainingPercent)}%
+            {t('输入')} {formatTokens(stats.inputTokens)} {t('· 输出')} {formatTokens(stats.outputTokens)} {t('· 缓存命中')}{' '}
+            {Math.round(stats.cacheHitRate * 100)}{t('% · 上下文剩余')} {Math.round(stats.contextRemainingPercent)}%
           </span>
         )}
       </div>
@@ -89,7 +90,7 @@ export default function Composer({ running, models, options, stats, onOptionsCha
             }
           }}
           rows={3}
-          placeholder="描述你的任务…（Enter 发送，Shift+Enter 换行）"
+          placeholder={t("描述你的任务…（Enter 发送，Shift+Enter 换行）")}
           className="min-h-[64px] flex-1 resize-none rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-500"
         />
         {running ? (
@@ -98,7 +99,7 @@ export default function Composer({ running, models, options, stats, onOptionsCha
             onClick={onStop}
             className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500"
           >
-            停止
+            {t('停止')}
           </button>
         ) : (
           <button
@@ -107,7 +108,7 @@ export default function Composer({ running, models, options, stats, onOptionsCha
             disabled={!text.trim()}
             className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            发送
+            {t('发送')}
           </button>
         )}
       </div>

@@ -8,7 +8,7 @@
 | 项 | 状态 | 证据 / 说明 |
 | --- | --- | --- |
 | 管理台可完成全部管理操作 | ❌ | 5-09 延后；当前用 `scripts/stage5-admin.http`、`scripts/sso-live-check.py` 代办。**需需求方确认是否可延后到 v1.x**，否则需实现管理台 |
-| 英文 i18n（D13） | ❌ | 客户端与管理台目前中文；i18n 结构未接入。发布前补齐或确认延后 |
+| 英文 i18n（D13） | ✅ | 客户端：496 键中英齐平、渲染层与主进程零漏翻（`i18n.test.ts` 13 项 + AST 扫描工具）、语言切换即时生效并同步 `users.locale`；管理台现有页面双语 + 顶部切换。**约束：5-09 新增页面必须同步双语** |
 | 统计图表与 CSV 导出 | ✅ | 客户端「用量统计」Tab（按日柱状图、维度明细、激活明细、CSV UTF-8 BOM）；`app/tests/stats-csv.test.ts`、`STATS_E2E` 实测 |
 | 定时同步 + 冲突处理 | ✅ | 档位 关闭/15m/30m/1h/6h/24h；单飞/冲突暂停/失败重试；`app/tests/sync-scheduler.test.ts`、`tests/market-status.test.ts` |
 | SSO 真实 IdP 验证 | ✅ | Keycloak 26.3 实测（RS256+JWKS、JIT、绑定、禁用撤销）：`scripts/sso-live-check.py`；CI `e2e` 作业每次回归 |
@@ -40,6 +40,8 @@
 
 ## 本次（阶段 7）新增产物
 
+- i18n：`app/src/shared/i18n/`（词典 + 业务码）、`app/src/renderer/src/i18n.ts`、`app/src/main/i18n.ts`、
+  `app/scripts/i18n-*.mjs`（AST 扫描/迁移/报告/一致性检查）
 - 客户端：文件日志（10MB × 5 滚动）+ 诊断包导出（脱敏、不含密钥库）与「关于」页入口
 - CI：`security` 作业（依赖与静态扫描）、`e2e` 作业（源码构建 MinIO + PG/Redis + 真实 API + Keycloak），失败自动收集日志
 - 打包：`scripts/package.sh`、`scripts/package.ps1`、electron-builder 签名配置、macOS 公证开关与 entitlements

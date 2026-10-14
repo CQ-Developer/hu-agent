@@ -6,6 +6,8 @@
  */
 
 import type { CloudConfig, CloudStore } from './store'
+import { getLocale, t } from '../i18n'
+import { localizeServerError } from '../../shared/i18n/error-codes'
 
 export const REFRESH_TOKEN_KEY = 'cloud.refreshToken'
 
@@ -135,7 +137,7 @@ export class CloudClient {
   async listProviders(serverUrl?: string): Promise<{ id: string; type: string; name: string; enabled: boolean }[]> {
     const config = await this.store.load()
     const base = normalizeServerUrl(serverUrl ?? config.serverUrl)
-    if (!base) throw new CloudError('VALIDATION_FAILED', '请填写服务器地址', 0)
+    if (!base) throw new CloudError('VALIDATION_FAILED', t('请填写服务器地址'), 0)
     const response = await this.fetchJson(`${base}/api/v1/auth/providers`, { timeoutMs: 15_000 })
     const providers = (response.providers ?? []) as { id: string; type: string; name: string; enabled: boolean }[]
     return providers
@@ -144,7 +146,7 @@ export class CloudClient {
   /** SSO 一次性 code 换本地会话（design 6.12.3）。 */
   async ssoExchange(serverUrl: string, code: string, codeVerifier: string): Promise<CloudUser> {
     const base = normalizeServerUrl(serverUrl)
-    if (!base) throw new CloudError('VALIDATION_FAILED', '请填写服务器地址', 0)
+    if (!base) throw new CloudError('VALIDATION_FAILED', t('请填写服务器地址'), 0)
     const response = await this.fetchJson(`${base}/api/v1/auth/sso/exchange`, {
       method: 'POST',
       body: { code, codeVerifier },
@@ -155,7 +157,7 @@ export class CloudClient {
 
   async login(serverUrl: string, email: string, password: string): Promise<CloudUser> {
     const base = normalizeServerUrl(serverUrl)
-    if (!base) throw new CloudError('VALIDATION_FAILED', '请填写服务器地址', 0)
+    if (!base) throw new CloudError('VALIDATION_FAILED', t('请填写服务器地址'), 0)
     const config = await this.store.load()
     const response = await this.fetchJson(`${base}/api/v1/auth/login`, {
       method: 'POST',
@@ -194,7 +196,7 @@ export class CloudClient {
   /** 邮箱注册（服务端可通过配置关闭，此时返回 FORBIDDEN）。 */
   async register(serverUrl: string, email: string, displayName: string, password: string): Promise<CloudUser> {
     const base = normalizeServerUrl(serverUrl)
-    if (!base) throw new CloudError('VALIDATION_FAILED', '请填写服务器地址', 0)
+    if (!base) throw new CloudError('VALIDATION_FAILED', t('请填写服务器地址'), 0)
     await this.fetchJson(`${base}/api/v1/auth/register`, {
       method: 'POST',
       body: { email, password, displayName },
@@ -241,10 +243,15 @@ export class CloudClient {
     if (deviceId === config.deviceId) await this.clearSession()
   }
 
+  /** 同步语言偏好到 users.locale（通知/邮件按该值渲染，design 5.13）。 */
+  async updateLocale(locale: 'zh-CN' | 'en-US'): Promise<void> {
+    await this.request('/api/v1/me', { method: 'PATCH', body: { locale } })
+  }
+
   /** 上报等外部调用使用的鉴权请求。 */
   async request(path: string, options: RequestOptions = {}): Promise<unknown> {
     const config = await this.store.load()
-    if (!config.serverUrl) throw new CloudError('UNAUTHENTICATED', '未配置服务器地址', 0)
+    if (!config.serverUrl) throw new CloudError('UNAUTHENTICATED', t('未配置服务器地址'), 0)
 
     let retried = false
     for (;;) {
@@ -271,7 +278,7 @@ export class CloudClient {
   private async ensureAccessToken(): Promise<string | null> {
     if (this.accessToken && Date.now() < this.accessExpiresAt - 30_000) return this.accessToken
     const refreshToken = this.secrets.get(REFRESH_TOKEN_KEY)
-    if (!refreshToken) throw new CloudError('UNAUTHENTICATED', '未登录', 401)
+    if (!refreshToken) throw new CloudError('UNAUTHENTICATED', t('未登录'), 401)
     const config = await this.store.load()
     try {
       const response = await this.fetchJson(`${config.serverUrl}/api/v1/auth/refresh`, {
@@ -318,9 +325,12 @@ export class CloudClient {
         const text = await response.text()
         const data = text ? (JSON.parse(text) as Record<string, unknown>) : {}
         if (!response.ok) {
+          // 业务码由客户端本地化（design 6.9.1）：服务端文案仅作为中文界面下的细节
+          const code = String(data.code ?? 'INTERNAL')
+          const fallback = t('请求失败（HTTP {status}）', { status: response.status })
           throw new CloudError(
-            String(data.code ?? 'INTERNAL'),
-            String(data.message ?? `请求失败（HTTP ${response.status}）`),
+            code,
+            localizeServerError(getLocale(), code, String(data.message ?? fallback)),
             response.status,
           )
         }
@@ -334,7 +344,7 @@ export class CloudClient {
       }
     }
     if (lastError instanceof CloudError) throw lastError
-    throw new CloudError('NETWORK', lastError instanceof Error ? lastError.message : '网络请求失败', 0)
+    throw new CloudError('NETWORK', lastError instanceof Error ? lastError.message : t('网络请求失败'), 0)
   }
 }
 

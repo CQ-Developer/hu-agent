@@ -33,6 +33,8 @@ import { SyncScheduler, loadSyncSettings, saveSyncSettings, type SyncSchedule } 
 import { SsoLoginFlow } from './cloud/sso'
 import { exportDiagnostics } from './diagnostics'
 import { StatsClient } from './stats/client'
+import type { LocaleView } from '../shared/ipc'
+import type { LocalePreference } from '../shared/i18n'
 import type { SyncStatusView } from '../shared/ipc'
 import type { SessionOptionsView } from '../shared/ipc'
 import type { SkillView } from '../shared/ipc'
@@ -42,6 +44,7 @@ import type { ToolRegistry } from './tools/registry'
 import type { UsageLedger } from './usage/ledger'
 import type { WorkspaceManager, WorkspacePaths } from './workspace'
 import { appendWorkspaceRule, loadGlobalRules, loadWorkspaceRules } from './workspace-settings'
+import { getLocale, getLocalePreference, setLocale, systemLocale, t } from './i18n'
 
 export interface AppContext {
   workspaces: WorkspaceManager
@@ -149,6 +152,16 @@ export function registerIpc(context: AppContext): void {
 
   // ---------- 设置 ----------
   ipcMain.handle('settings:get', () => buildSettingsView(context))
+  ipcMain.handle('settings:get-locale', () => localeView())
+  ipcMain.handle('cloud:update-locale', async (_event, locale: 'zh-CN' | 'en-US') => {
+    // 未登录/离线时静默失败：本地语言已切换（users.locale 仅影响通知与邮件）
+    await context.cloud.updateLocale(locale).catch(() => undefined)
+  })
+  ipcMain.handle('settings:set-locale', async (_event, preference: LocalePreference) => {
+    const resolved = await setLocale(preference)
+    console.log(t('语言已切换为 {0}', { 0: resolved }))
+    return localeView()
+  })
   ipcMain.handle('settings:save-provider', async (_event, input: SaveProviderInputWire) => {
     const settings = await context.settings.load()
     const secretKey = input.apiKeyRef ?? `provider.${input.id}`
@@ -214,7 +227,7 @@ export function registerIpc(context: AppContext): void {
 
   // ---------- Agent ----------
   ipcMain.handle('agent:send', async (_event, sessionId: string, text: string) => {
-    if (activeTurns.has(sessionId)) throw new Error('该会话已有运行中的任务')
+    if (activeTurns.has(sessionId)) throw new Error(t('该会话已有运行中的任务'))
     const { ws, sessions, artifacts } = await scoped(context)
     const permissions = await buildEngine(context, ws)
     const settings = await context.settings.load()
@@ -242,7 +255,7 @@ export function registerIpc(context: AppContext): void {
                 // 入队后后台尝试上报（未到退避时间会自动跳过）
                 void context.reporter.tick([ws])
               } catch (error) {
-                console.warn('[telemetry] 入队失败：', error)
+                console.warn(t('[telemetry] 入队失败：'), error)
               }
             },
           },
@@ -282,7 +295,7 @@ export function registerIpc(context: AppContext): void {
   })
   ipcMain.handle('workspace:pick', async () => {
     const result = await dialog.showOpenDialog({
-      title: '选择工作空间目录',
+      title: t('选择工作空间目录'),
       properties: ['openDirectory', 'createDirectory'],
     })
     const picked = result.filePaths[0]
@@ -473,9 +486,9 @@ export function registerIpc(context: AppContext): void {
   ipcMain.handle('mcp:save', async (_event, input: McpSaveInputWire) => {
     const { ws } = await scoped(context)
     const name = input.name.trim()
-    if (!name) throw new Error('请填写 server 名称')
-    if (input.transport === 'stdio' && !input.command?.trim()) throw new Error('stdio 传输需要填写 command')
-    if (input.transport !== 'stdio' && !input.url?.trim()) throw new Error(`${input.transport} 传输需要填写 URL`)
+    if (!name) throw new Error(t('请填写 server 名称'))
+    if (input.transport === 'stdio' && !input.command?.trim()) throw new Error(t('stdio 传输需要填写 command'))
+    if (input.transport !== 'stdio' && !input.url?.trim()) throw new Error(t('{transport} 传输需要填写 URL', { transport: input.transport }))
     const file = input.scope === 'global' ? globalMcpFile() : workspaceMcpFile(ws)
     const existing = (await loadMcpFile(file))[name]
     const config: McpServerConfig = {
@@ -510,7 +523,7 @@ export function registerIpc(context: AppContext): void {
       const { ws } = await scoped(context)
       const file = scope === 'global' ? globalMcpFile() : workspaceMcpFile(ws)
       const current = (await loadMcpFile(file))[name]
-      if (!current && scope === 'global') throw new Error('该 server 未在全局定义，无法全局启停')
+      if (!current && scope === 'global') throw new Error(t('该 server 未在全局定义，无法全局启停'))
       const next: McpServerConfig = {
         ...(current ?? {}),
         enabled: {
@@ -565,7 +578,7 @@ export function registerIpc(context: AppContext): void {
   ipcMain.handle('cloud:providers', async (_event, serverUrl: string) => context.cloud.listProviders(serverUrl))
   ipcMain.handle('diagnostics:export', async () => {
     const target = await dialog.showSaveDialog({
-      title: '导出诊断包',
+      title: t('导出诊断包'),
       defaultPath: join(app.getPath('downloads'), `hu-agent-diagnostics-${Date.now()}.zip`),
       filters: [{ name: 'Zip', extensions: ['zip'] }],
     })
@@ -633,6 +646,11 @@ async function resolveSessionOptions(context: AppContext, sessionId: string): Pr
     model: stored.model ?? settings.defaults.primary,
     reasoningEffort: (stored.reasoningEffort ?? 'off') as ReasoningEffort,
   }
+}
+
+/** 语言视图：偏好 + 生效值 + 操作系统解析值（design 5.13） */
+function localeView(): LocaleView {
+  return { preference: getLocalePreference(), resolved: getLocale(), system: systemLocale() }
 }
 
 async function buildSettingsView(context: AppContext): Promise<import('../shared/ipc').SettingsView> {
@@ -764,6 +782,6 @@ async function reportScope(
       installed,
     })
   } catch (error) {
-    console.warn('[market] 激活上报失败：', error)
+    console.warn(t('[market] 激活上报失败：'), error)
   }
 }

@@ -5,6 +5,7 @@ import { stat } from 'node:fs/promises'
 
 import { CloudError, type CloudClient } from '../cloud/client'
 import type { BackendSnapshot, InitPayload, SyncBackend } from './engine'
+import { t } from '../i18n'
 
 export class CloudSyncBackend implements SyncBackend {
   constructor(private readonly cloud: CloudClient) {}
@@ -67,7 +68,7 @@ export class CloudSyncBackend implements SyncBackend {
       signal: AbortSignal.timeout(3600_000),
       duplex: 'half',
     } as RequestInit)
-    if (!response.ok) throw new Error(`快照上传失败（HTTP ${response.status}）`)
+    if (!response.ok) throw new Error(t('快照上传失败（HTTP {status}）', { status: response.status }))
   }
 
   async complete(snapshotId: string, digest: string): Promise<BackendSnapshot> {
@@ -88,7 +89,7 @@ export class CloudSyncBackend implements SyncBackend {
 
   async download(url: string): Promise<Buffer> {
     const response = await fetch(url, { signal: AbortSignal.timeout(600_000) })
-    if (!response.ok) throw new Error(`快照下载失败（HTTP ${response.status}）`)
+    if (!response.ok) throw new Error(t('快照下载失败（HTTP {status}）', { status: response.status }))
     return Buffer.from(await response.arrayBuffer())
   }
 

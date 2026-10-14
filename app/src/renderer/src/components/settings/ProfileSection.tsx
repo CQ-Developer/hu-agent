@@ -1,6 +1,49 @@
 import { useCallback, useEffect, useState } from 'react'
 
-import type { CloudDeviceView, CloudStatusView, UsageStatsView, WorkspaceInfoView } from '@shared/ipc'
+import type {
+  CloudDeviceView,
+  CloudStatusView,
+  LocalePreferenceView,
+  LocaleView,
+  UsageStatsView,
+  WorkspaceInfoView,
+} from '@shared/ipc'
+import { applyResolved, t } from '../../i18n'
+
+/** 语言设置（design 5.13 / D13）：默认跟随系统，切换后立即生效并同步到服务端（通知/邮件用）。 */
+function LocaleSetting() {
+  const [locale, setLocale] = useState<LocaleView | null>(null)
+
+  useEffect(() => {
+    void window.huAgent.settings.getLocale().then(setLocale)
+  }, [])
+
+  const change = async (preference: LocalePreferenceView): Promise<void> => {
+    const next = await window.huAgent.settings.setLocale(preference)
+    applyResolved(next.preference, next.resolved)
+    setLocale(next)
+    // 同步 users.locale：失败不影响本地切换
+    void window.huAgent.cloud.updateLocale(next.resolved).catch(() => undefined)
+  }
+
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-semibold text-neutral-500">{t('语言')}</h3>
+      <div className="flex items-center gap-2 text-xs">
+        <select
+          className="rounded border border-neutral-300 bg-white px-2 py-1"
+          value={locale?.preference ?? 'system'}
+          onChange={(event) => void change(event.target.value as LocalePreferenceView)}
+        >
+          <option value="system">{t('跟随系统（{0}）', { 0: locale?.system === 'en-US' ? 'English' : t('中文') })}</option>
+          <option value="zh-CN">{t('简体中文')}</option>
+          <option value="en-US">English</option>
+        </select>
+        <span className="text-neutral-400">{t('切换语言立即生效，并用于通知与邮件')}</span>
+      </div>
+    </section>
+  )
+}
 
 interface Props {
   usage: UsageStatsView | null
@@ -58,7 +101,7 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
   const register = (): Promise<void> =>
     run(async () => {
       if (!form.displayName.trim()) {
-        setMessage('注册需要填写昵称')
+        setMessage(t('注册需要填写昵称'))
         return
       }
       setStatus(
@@ -75,13 +118,13 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
   const flush = (): Promise<void> =>
     run(async () => {
       const result = await window.huAgent.cloud.flush()
-      setMessage(result.error ? `上报失败：${result.error}（待上报 ${result.pending} 条）` : `已上报 ${result.sent} 条，剩余 ${result.pending} 条`)
+      setMessage(result.error ? t('上报失败：{error}（待上报 {pending} 条）', { error: result.error, pending: result.pending }) : t('已上报 {sent} 条，剩余 {pending} 条', { sent: result.sent, pending: result.pending }))
     })
 
   const clearQueue = (): Promise<void> =>
     run(async () => {
       setStatus(await window.huAgent.cloud.clearQueue())
-      setMessage('已清空本工作空间的待上报队列')
+      setMessage(t('已清空本工作空间的待上报队列'))
     })
 
   return (
@@ -95,7 +138,7 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
                 <div className="text-sm font-medium">
                   {status.user.displayName}
                   {status.user.isSystemAdmin && (
-                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">系统管理员</span>
+                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">{t('系统管理员')}</span>
                   )}
                 </div>
                 <div className="truncate text-xs text-neutral-500">{status.user.email}</div>
@@ -109,7 +152,7 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
                 onClick={() => void logout(false)}
                 className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100 disabled:opacity-40"
               >
-                退出登录
+                {t('退出登录')}
               </button>
               <button
                 type="button"
@@ -117,7 +160,7 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
                 onClick={() => void logout(true)}
                 className="rounded-md border border-rose-300 px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 disabled:opacity-40"
               >
-                全部设备下线
+                {t('全部设备下线')}
               </button>
             </div>
           </div>
@@ -126,27 +169,27 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
             <div className="flex items-center gap-3">
               <div className="grid h-12 w-12 place-items-center rounded-full bg-neutral-200 text-lg">👤</div>
               <div>
-                <div className="text-sm font-medium">本地用户</div>
-                <div className="text-xs text-neutral-400">未登录（本地 Agent 可用；上报与后续市场/同步需要登录）</div>
+                <div className="text-sm font-medium">{t('本地用户')}</div>
+                <div className="text-xs text-neutral-400">{t('未登录（本地 Agent 可用；上报与后续市场/同步需要登录）')}</div>
               </div>
             </div>
             <div className="grid gap-2 pt-1">
               <input
                 className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
-                placeholder="服务器地址（如 http://127.0.0.1:8080）"
+                placeholder={t("服务器地址（如 http://127.0.0.1:8080）")}
                 value={form.serverUrl}
                 onChange={(event) => setForm({ ...form, serverUrl: event.target.value })}
               />
               <div className="flex gap-2">
                 <input
                   className="flex-1 rounded border border-neutral-300 px-2 py-1.5 text-sm"
-                  placeholder="邮箱"
+                  placeholder={t("邮箱")}
                   value={form.email}
                   onChange={(event) => setForm({ ...form, email: event.target.value })}
                 />
                 <input
                   className="flex-1 rounded border border-neutral-300 px-2 py-1.5 text-sm"
-                  placeholder="昵称（注册时用）"
+                  placeholder={t("昵称（注册时用）")}
                   value={form.displayName}
                   onChange={(event) => setForm({ ...form, displayName: event.target.value })}
                 />
@@ -154,7 +197,7 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
               <input
                 className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
                 type="password"
-                placeholder="密码（至少 10 位，不能是常见弱口令）"
+                placeholder={t("密码（至少 10 位，不能是常见弱口令）")}
                 value={form.password}
                 onChange={(event) => setForm({ ...form, password: event.target.value })}
                 onKeyDown={(event) => {
@@ -168,7 +211,7 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
                   onClick={() => void login()}
                   className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-40"
                 >
-                  {busy ? '登录中…' : '登录'}
+                  {busy ? t('登录中…') : t('登录')}
                 </button>
                 <button
                   type="button"
@@ -176,10 +219,10 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
                   onClick={() => void register()}
                   className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm hover:bg-neutral-100 disabled:opacity-40"
                 >
-                  注册并登录
+                  {t('注册并登录')}
                 </button>
                 <span className="text-[11px] text-neutral-400">
-                  设备指纹 {status?.deviceId.slice(0, 8) ?? '-'}…（首启动生成，登录时绑定）
+                  {t('设备指纹')} {status?.deviceId.slice(0, 8) ?? '-'}{t('…（首启动生成，登录时绑定）')}
                 </span>
               </div>
             </div>
@@ -190,7 +233,7 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
 
       {status?.loggedIn && (
         <section>
-          <h3 className="mb-2 text-xs font-semibold text-neutral-500">设备与安全</h3>
+          <h3 className="mb-2 text-xs font-semibold text-neutral-500">{t('设备与安全')}</h3>
           <ul className="space-y-2">
             {devices.map((device) => (
               <li key={device.deviceId} className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2 text-xs">
@@ -198,12 +241,12 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
                   <div className="font-medium">
                     {device.name || device.deviceId.slice(0, 12)}
                     {device.current && (
-                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">当前</span>
+                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">{t('当前')}</span>
                     )}
                   </div>
                   <div className="truncate text-neutral-400">
                     {device.platform} · v{device.appVersion}
-                    {device.lastSeenAt ? ` · 最后活跃 ${new Date(device.lastSeenAt).toLocaleString()}` : ''}
+                    {device.lastSeenAt ? t(' · 最后活跃 {0}', { 0: new Date(device.lastSeenAt).toLocaleString() }) : ''}
                   </div>
                 </div>
                 <button
@@ -212,21 +255,21 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
                   onClick={() => void run(async () => setDevices(await window.huAgent.cloud.revokeDevice(device.deviceId)))}
                   className="shrink-0 text-rose-600 hover:underline disabled:opacity-40"
                 >
-                  吊销
+                  {t('吊销')}
                 </button>
               </li>
             ))}
-            {devices.length === 0 && <li className="text-xs text-neutral-400">暂无设备记录（登录后自动登记）</li>}
+            {devices.length === 0 && <li className="text-xs text-neutral-400">{t('暂无设备记录（登录后自动登记）')}</li>}
           </ul>
         </section>
       )}
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold text-neutral-500">用量上报</h3>
+        <h3 className="mb-2 text-xs font-semibold text-neutral-500">{t('用量上报')}</h3>
         <div className="rounded-lg border border-neutral-200 p-3 text-xs">
           <div className="flex flex-wrap items-center gap-3">
             <span>
-              待上报：<b>{status?.pending ?? 0}</b> 条
+              {t('待上报：')}<b>{status?.pending ?? 0}</b> {t('条')}
             </span>
             <button
               type="button"
@@ -234,7 +277,7 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
               onClick={() => void flush()}
               className="rounded-md border border-neutral-300 px-2.5 py-1 hover:bg-neutral-100 disabled:opacity-40"
             >
-              立即上报
+              {t('立即上报')}
             </button>
             <button
               type="button"
@@ -242,35 +285,34 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
               onClick={() => void clearQueue()}
               className="rounded-md border border-neutral-300 px-2.5 py-1 hover:bg-neutral-100 disabled:opacity-40"
             >
-              清空队列
+              {t('清空队列')}
             </button>
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-neutral-400">
-            上报只含模型/token/耗时/状态与设备、会话哈希（盐值本地随机），<b>不含提示词、回复内容、文件路径与工具参数</b>；
-            队列存于 <code>&lt;workspace&gt;/.hu/telemetry/</code>，失败按 1m/5m/30m/2h 退避重试。
+            {t('上报只含模型/token/耗时/状态与设备、会话哈希（盐值本地随机），')}<b>{t('不含提示词、回复内容、文件路径与工具参数')}</b>{t('； 队列存于')} <code>&lt;workspace&gt;/.hu/telemetry/</code>{t('，失败按 1m/5m/30m/2h 退避重试。')}
           </p>
         </div>
       </section>
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold text-neutral-500">本地用量</h3>
+        <h3 className="mb-2 text-xs font-semibold text-neutral-500">{t('本地用量')}</h3>
         {usage ? (
           <div className="rounded-lg border border-neutral-200 p-3">
             <div className="flex gap-6 text-xs">
               <div>
-                <div className="text-neutral-400">调用次数</div>
+                <div className="text-neutral-400">{t('调用次数')}</div>
                 <div className="text-lg">{usage.calls}</div>
               </div>
               <div>
-                <div className="text-neutral-400">输入 tokens</div>
+                <div className="text-neutral-400">{t('输入 tokens')}</div>
                 <div className="text-lg">{usage.inputTokens}</div>
               </div>
               <div>
-                <div className="text-neutral-400">输出 tokens</div>
+                <div className="text-neutral-400">{t('输出 tokens')}</div>
                 <div className="text-lg">{usage.outputTokens}</div>
               </div>
               <div>
-                <div className="text-neutral-400">失败</div>
+                <div className="text-neutral-400">{t('失败')}</div>
                 <div className="text-lg">{usage.errors}</div>
               </div>
             </div>
@@ -278,10 +320,10 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
               <table className="mt-3 w-full text-xs">
                 <thead className="text-left text-neutral-400">
                   <tr>
-                    <th className="py-1">模型</th>
-                    <th>调用</th>
-                    <th>输入</th>
-                    <th>输出</th>
+                    <th className="py-1">{t('模型')}</th>
+                    <th>{t('调用')}</th>
+                    <th>{t('输入')}</th>
+                    <th>{t('输出')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -298,19 +340,21 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
             )}
           </div>
         ) : (
-          <p className="text-xs text-neutral-400">暂无用量记录</p>
+          <p className="text-xs text-neutral-400">{t('暂无用量记录')}</p>
         )}
       </section>
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold text-neutral-500">工作空间</h3>
+        <h3 className="mb-2 text-xs font-semibold text-neutral-500">{t('工作空间')}</h3>
         <div className="rounded-lg border border-neutral-200 p-3 text-xs">
           <div>
-            共 {workspaces.length} 个，当前：{activeWorkspace?.name ?? '-'}
+            {t('共')} {workspaces.length} {t('个，当前：')}{activeWorkspace?.name ?? '-'}
           </div>
           {activeWorkspace && <div className="mt-1 truncate text-neutral-400">{activeWorkspace.root}</div>}
         </div>
       </section>
+
+      <LocaleSetting />
     </div>
   )
 }
