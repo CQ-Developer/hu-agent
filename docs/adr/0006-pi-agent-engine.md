@@ -124,6 +124,36 @@ pi（源码 `C:\Users\chen\Dev\pi`，npm 版本 1.2.0，MIT）提供 11 个包�
 
 ## 修订（2026-10-14，用户决策）：不使用门面，直接使用 `pi-durable`
 
+### 集成方式已用真实模型验证（R1 落地配方）
+
+回合由 harness 自跑，我们的能力以**扩展 + 钩子**接入（已实测，测试见
+`app/tests/integration/pi_durable_hooks_real.test.ts`，仅用 `deepseek-v4.1-flash`）：
+
+```ts
+const Tools = defineExtension({ name: 'huagent.tools', tools: nativeTools })
+const Guard = defineExtension({
+  name: 'huagent.guard',
+  sections: [section('workspace', () => buildSystemPrompt(...), { tag: false })],
+  hooks: [hook(ToolTask, {
+    // 异步钩子受支持：我们的权限引擎要 await 审批
+    beforeTool: async (call) => { const d = await permissions.check(call); return d.action === 'allow' ? undefined : { block: d.reason } },
+    // afterTool 可用于产物/截断（与现有 pi_governance 逻辑合并）
+  })],
+})
+registry.install(Tools); registry.install(Guard)
+await root.configure({ extensions: [Tools, Guard], tools: nativeTools, modelTools: nativeTools })
+const submission = await root.submit({ type: 'input', content, requestId }, ctx)
+await submission.wait(ctx)   // 运行是异步的：必须等 settle 或订阅 viewState
+```
+
+**实测得到的三个落地要点**：
+
+1. 扩展只是**安装**；会话还需通过 `configure({ extensions, tools, modelTools })` **选择**扩展与工具，
+   缺了 `tools`/`modelTools` 模型就看不到工具（这是最初 spike 卡住的真实原因）；
+2. 运行是**异步任务**：`submit()` 返回 submission，必须 `submission.wait()`/`waitForIdle()` 或订阅 `viewState()`；
+3. 用 faux provider 在 durable harness 里跑工具派发不可靠（它吞工具调用，settle 仍为 `done`）——
+   这类“派发/钩子”验证必须走真实模型（已有门禁用例 `PI_E2E=1`）。
+
 原计划是写一个"会话门面"：用 pi-durable 的存储去实现我们旧的 `SessionStore` 接口
 （`append/loadContextMessages/loadOptions/touch`）。用户直接指出这仍是"用 pi 适配旧编程模式"，判断正确：
 门面会重建一套我们自己定义的消息/条目形状与读写时机，等于把旧模型永久保留下来。

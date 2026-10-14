@@ -101,6 +101,13 @@ interface HistorySummarizer {
 > 且不阻塞；④ `harness.submission(id)` 重开后可取回历史。据此认为 pi-durable 虽自标 Experimental，
 > 但其**存储与提交语义足以承载我们的会话**。
 
+> **R1 进度**：① 会话服务（`session/durable.ts`，直接使用 pi-durable，无门面）✅
+> ② **集成方式已实测**：回合由 harness 跑，工具与治理以**扩展 + `beforeTool`/`afterTool` 钩子**接入
+> （异步钩子受支持；真实模型下已验证“钩子阻断 → 工具体不执行”，
+> 用例 `tests/integration/pi_durable_hooks_real.test.ts`）
+> ③ 待做：把 `pi_loop.ts` 的回合改写为 submit + 订阅 `viewState`；IPC 切到会话服务；
+> 删除 `session/{store,items,types}.ts` 与会话形状
+
 ### 1.6 修订后的重构步骤（pi 为核）
 
 > **R3 进度**：运行器装配 ✅ · 模型设置来源桥 ✅ · **IPC/index 切换 ✅**
