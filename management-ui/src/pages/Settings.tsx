@@ -67,8 +67,8 @@ function PlatformSettings() {
         </Space>
       }
     >
-      <Alert type="info" showIcon message={t('settings.platformHint')} style={{ marginBottom: 12 }} />
-      {settings.error && <Alert type="error" showIcon message={settings.error} style={{ marginBottom: 12 }} />}
+      <Alert type="info" showIcon title={t('settings.platformHint')} style={{ marginBottom: 12 }} />
+      {settings.error && <Alert type="error" showIcon title={settings.error} style={{ marginBottom: 12 }} />}
       <Form layout="vertical" style={{ maxWidth: 520 }}>
         {items.map((item) => (
           <Form.Item
@@ -136,8 +136,8 @@ function PriceTable() {
         </Button>
       }
     >
-      <Alert type="info" showIcon message={t('settings.pricesHint')} style={{ marginBottom: 12 }} />
-      {prices.error && <Alert type="error" showIcon message={prices.error} style={{ marginBottom: 12 }} />}
+      <Alert type="info" showIcon title={t('settings.pricesHint')} style={{ marginBottom: 12 }} />
+      {prices.error && <Alert type="error" showIcon title={prices.error} style={{ marginBottom: 12 }} />}
 
       <Form form={form} layout="inline" style={{ marginBottom: 16, rowGap: 8 }}>
         <Form.Item name="provider" label={t('settings.provider')} rules={[{ required: true }]}>

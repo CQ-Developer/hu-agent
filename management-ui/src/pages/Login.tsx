@@ -51,7 +51,7 @@ export default function Login() {
         <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
           {t('login.hint')}
         </Typography.Paragraph>
-        {error && <Alert type="error" showIcon message={error} style={{ marginBottom: 16 }} />}
+        {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16 }} />}
         <Form layout="vertical" onFinish={(values) => void onSubmit(values)} requiredMark={false}>
           <Form.Item
             name="email"
@@ -76,7 +76,7 @@ export default function Login() {
             <Divider plain style={{ fontSize: 12, color: '#999' }}>
               {t('login.orSso')}
             </Divider>
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space orientation="vertical" style={{ width: '100%' }}>
               {ssoProviders.map((provider) => (
                 <Button
                   key={provider.id}

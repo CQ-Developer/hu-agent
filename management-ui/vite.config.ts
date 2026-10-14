@@ -9,9 +9,11 @@ export default defineConfig({
     rollupOptions: {
       output: {
         // 管理台内网部署：把体积大的依赖单独分包，便于缓存
-        manualChunks: {
-          antd: ['antd', '@ant-design/icons'],
-          react: ['react', 'react-dom', 'react-router-dom'],
+        // 注意：vite 8（rolldown）只接受函数式 manualChunks
+        manualChunks(id: string) {
+          if (id.includes('node_modules/antd') || id.includes('node_modules/@ant-design')) return 'antd'
+          if (/node_modules\/(react|react-dom|react-router)/.test(id)) return 'react'
+          return undefined
         },
       },
     },

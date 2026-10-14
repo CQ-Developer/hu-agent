@@ -45,7 +45,7 @@ export default function Dashboard() {
   }, [])
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+    <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
       <Row gutter={16}>
         <Col span={6}>
           <Card>
@@ -71,7 +71,7 @@ export default function Dashboard() {
 
       <Card title={t('dashboard.title')}>
         {error ? (
-          <Alert type="error" showIcon message={t('dashboard.apiError')} description={error} />
+          <Alert type="error" showIcon title={t('dashboard.apiError')} description={error} />
         ) : (
           <Descriptions column={1} size="small">
             <Descriptions.Item label={t('dashboard.apiStatus')}>
@@ -86,7 +86,7 @@ export default function Dashboard() {
       </Card>
 
       <Card title={t('dashboard.quickLinks')}>
-        <Space direction="vertical">
+        <Space orientation="vertical">
           <Link to="/approvals">{t('menu.approvals')}</Link>
           {scope.adminTeams.length > 0 && <Link to="/skills">{t('menu.skills')}</Link>}
           {(scope.canManageOrg || scope.adminTeams.length > 0) && <Link to="/members">{t('menu.members')}</Link>}

@@ -60,7 +60,7 @@ export default function Profile() {
   }
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+    <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
       <Card title={t('profile.title')}>
         <Form layout="vertical" style={{ maxWidth: 420 }}>
           <Form.Item label={t('profile.displayName')}>
@@ -114,7 +114,7 @@ export default function Profile() {
           </Button>
         }
       >
-        {devices.error && <Alert type="error" showIcon message={devices.error} style={{ marginBottom: 12 }} />}
+        {devices.error && <Alert type="error" showIcon title={devices.error} style={{ marginBottom: 12 }} />}
         <Table<Device>
           size="small"
           rowKey="id"
@@ -155,8 +155,8 @@ export default function Profile() {
       </Card>
 
       <Card title={t('profile.identities')}>
-        <Alert type="info" showIcon message={t('profile.unlinkHint')} style={{ marginBottom: 12 }} />
-        {identities.error && <Alert type="error" showIcon message={identities.error} style={{ marginBottom: 12 }} />}
+        <Alert type="info" showIcon title={t('profile.unlinkHint')} style={{ marginBottom: 12 }} />
+        {identities.error && <Alert type="error" showIcon title={identities.error} style={{ marginBottom: 12 }} />}
         <Table<Identity>
           size="small"
           rowKey="id"

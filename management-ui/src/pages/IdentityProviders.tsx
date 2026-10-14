@@ -109,8 +109,8 @@ export default function IdentityProviders() {
         </Space>
       }
     >
-      <Alert type="info" showIcon message={t('identity.hint')} style={{ marginBottom: 12 }} />
-      {providers.error && <Alert type="error" showIcon message={providers.error} style={{ marginBottom: 12 }} />}
+      <Alert type="info" showIcon title={t('identity.hint')} style={{ marginBottom: 12 }} />
+      {providers.error && <Alert type="error" showIcon title={providers.error} style={{ marginBottom: 12 }} />}
       <Table<IdentityProvider>
         size="small"
         rowKey="id"

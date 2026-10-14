@@ -65,7 +65,7 @@ export default function Audit() {
         />
       </Space>
 
-      {audit.error && <Alert type="error" showIcon message={audit.error} style={{ marginBottom: 12 }} />}
+      {audit.error && <Alert type="error" showIcon title={audit.error} style={{ marginBottom: 12 }} />}
 
       <Table<AuditEntry>
         size="small"
