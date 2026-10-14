@@ -40,4 +40,5 @@
 
 ## 来源
 
-本准则改编自 [Contributor Covenant v2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/)。
+本准则改编自 [Contributor Covenant v2.1](https://www.contributor-covenant.org/version/2/1/code_of_conduct/)；
+以上中文为便于阅读的参考译本，如有歧义以英文原版为准。

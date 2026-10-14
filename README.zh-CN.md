@@ -44,8 +44,8 @@ cd app && npm ci && npm run dev                     # 客户端登录页服务�
 - [`docs/adr/`](docs/adr/)：关键决策记录（ADR）
 - [`docs/delivery/`](docs/delivery/)：部署、运维、监控、性能、签名、安全评审、发布说明
 - [`docs/validation.md`](docs/validation.md)：adopters 自验证清单（含验收确认表）
-- [`CONTRIBUTING.md`](CONTRIBUTING.md)：开发环境、命令、PR 流程
-- [`SECURITY.md`](SECURITY.md)：漏洞上报渠道与支持范围
+- [`CONTRIBUTING.zh-CN.md`](CONTRIBUTING.zh-CN.md)：开发环境、命令、PR 流程
+- [`SECURITY.zh-CN.md`](SECURITY.zh-CN.md)：漏洞上报渠道与支持范围
 - [`CHANGELOG.md`](CHANGELOG.md)：版本变更
 
 > 纪律：任何设计与决策变动，必须在同一次提交内同步更新 `docs/` 下的文档（见 `docs/plan.md` 附录 F）。
