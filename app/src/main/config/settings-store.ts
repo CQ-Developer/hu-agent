@@ -4,6 +4,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
 import type { ApiType, ModelSettings, ProviderConfig } from '../model/types'
+import { readRawConfig } from './preferences'
 
 export function defaultModelSettings(): ModelSettings {
   return {
@@ -59,8 +60,12 @@ export class SettingsStore {
   async save(settings: ModelSettings): Promise<void> {
     this.cache = settings
     await mkdir(dirname(this.file), { recursive: true })
+    // config.json 是共用文件（ui.locale、全局权限规则都在里面）：只覆盖自己拥有的键，
+    // 否则保存模型设置会把用户的其它设置一起抹掉（本会话实测发现的缺陷）。
+    const raw = await readRawConfig(this.file)
+    const merged = { ...raw, providers: settings.providers, defaults: settings.defaults }
     const temp = `${this.file}.tmp`
-    await writeFile(temp, JSON.stringify(settings, null, 2), 'utf8')
+    await writeFile(temp, `${JSON.stringify(merged, null, 2)}\n`, 'utf8')
     await rename(temp, this.file)
   }
 }
