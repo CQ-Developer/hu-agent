@@ -3,56 +3,56 @@
   hu-agent 应用图标源文件（Apache-2.0）
   主题：一只慵懒的猫趴在办公桌上（产品定位：本地办公助手）
 
-  重新生成各平台图标（需要 ImageMagick，Librsvg 渲染 SVG）：
+  配色纪律：**仅使用黑 / 白 / 灰三种颜色**（#000000 / #ffffff / #9a9a9a），不引入其它色相。
+
+  重新生成各平台图标（ImageMagick + Librsvg）：
     magick -background none -density 384 icon.svg -resize 1024x1024 icon.png
     magick icon.png -define icon:auto-resize=256,128,64,48,32,16 icon.ico
-  说明：小尺寸下只保留剪影级信息（圆角背景 / 桌面 / 猫耳与闭眼 / 尾巴），细节会自动糊化。
+  小尺寸下只保留剪影级信息：圆角黑底 / 白色猫身与耳朵 / 灰色桌面与条纹 / 闭眼。
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- 背景：圆角方形（品牌蓝） -->
-  <rect x="0" y="0" width="1024" height="1024" rx="208" fill="#1d4ed8"/>
-  <!-- 桌面高光与桌体 -->
-  <rect x="104" y="736" width="816" height="30" rx="15" fill="#93c5fd" opacity="0.6"/>
-  <rect x="150" y="766" width="724" height="118" rx="26" fill="#1e3a8a"/>
-  <!-- 尾巴：从身后扫过桌面并向上卷起（慵懒感） -->
-  <path d="M 690 748 C 838 748 892 686 878 616" stroke="#fbbf24" stroke-width="46"
+  <!-- 背景：圆角方形（黑） -->
+  <rect x="0" y="0" width="1024" height="1024" rx="208" fill="#000000"/>
+  <!-- 桌面（灰）：只用灰，靠黑底衬托出桌沿，不用透明度叠色（避免出现第四种灰） -->
+  <rect x="104" y="736" width="816" height="30" rx="15" fill="#9a9a9a"/>
+  <rect x="150" y="766" width="724" height="118" rx="26" fill="#9a9a9a"/>
+  <!-- 尾巴：白色，从身后扫过桌面并向上卷起 -->
+  <path d="M 690 748 C 838 748 892 686 878 616" stroke="#ffffff" stroke-width="46"
         stroke-linecap="round" fill="none"/>
-  <!-- 身体：趴卧的「猫面包」 -->
-  <ellipse cx="548" cy="686" rx="216" ry="96" fill="#fde68a"/>
-  <!-- 背部条纹 -->
-  <path d="M 466 616 q -28 34 0 62" stroke="#f59e0b" stroke-width="22" stroke-linecap="round" fill="none"/>
-  <path d="M 560 610 q -28 34 0 62" stroke="#f59e0b" stroke-width="22" stroke-linecap="round" fill="none"/>
-  <path d="M 654 616 q -28 34 0 62" stroke="#f59e0b" stroke-width="22" stroke-linecap="round" fill="none"/>
-  <!-- 头 -->
-  <circle cx="306" cy="668" r="108" fill="#fde68a"/>
-  <!-- 耳朵（外/内） -->
-  <path d="M 228 596 l 6 -92 l 82 44 z" fill="#fde68a"/>
-  <path d="M 356 552 l 78 -36 l 2 94 z" fill="#fde68a"/>
-  <path d="M 248 588 l 4 -64 l 56 30 z" fill="#fbbf24"/>
-  <path d="M 372 566 l 48 -22 l 2 62 z" fill="#fbbf24"/>
-  <!-- 闭眼（慵懒）+ 口鼻 -->
-  <path d="M 248 668 q 24 22 48 0" stroke="#78350f" stroke-width="15" stroke-linecap="round" fill="none"/>
-  <path d="M 330 668 q 24 22 48 0" stroke="#78350f" stroke-width="15" stroke-linecap="round" fill="none"/>
-  <path d="M 306 700 l -13 15 h 26 z" fill="#f59e0b"/>
-  <path d="M 306 715 q -24 24 -48 4" stroke="#78350f" stroke-width="11" stroke-linecap="round" fill="none"/>
-  <path d="M 306 715 q 24 24 48 4" stroke="#78350f" stroke-width="11" stroke-linecap="round" fill="none"/>
-  <!-- 胡须 -->
-  <path d="M 232 700 l -62 -12" stroke="#fef3c7" stroke-width="10" stroke-linecap="round" fill="none"/>
-  <path d="M 234 718 l -60 12" stroke="#fef3c7" stroke-width="10" stroke-linecap="round" fill="none"/>
-  <path d="M 380 700 l 62 -12" stroke="#fef3c7" stroke-width="10" stroke-linecap="round" fill="none"/>
-  <path d="M 378 718 l 60 12" stroke="#fef3c7" stroke-width="10" stroke-linecap="round" fill="none"/>
-  <!-- 前爪（搭在桌沿） -->
-  <ellipse cx="272" cy="750" rx="42" ry="24" fill="#fef3c7"/>
-  <ellipse cx="366" cy="750" rx="42" ry="24" fill="#fef3c7"/>
-  <!-- 桌面上的小物：键盘（提示「办公」场景） -->
-  <g opacity="0.95">
-    <rect x="560" y="742" width="250" height="20" rx="10" fill="#93c5fd"/>
-    <rect x="590" y="744" width="16" height="16" rx="4" fill="#1e3a8a"/>
-    <rect x="618" y="744" width="16" height="16" rx="4" fill="#1e3a8a"/>
-    <rect x="646" y="744" width="16" height="16" rx="4" fill="#1e3a8a"/>
-    <rect x="674" y="744" width="16" height="16" rx="4" fill="#1e3a8a"/>
-    <rect x="702" y="744" width="16" height="16" rx="4" fill="#1e3a8a"/>
-    <rect x="730" y="744" width="16" height="16" rx="4" fill="#1e3a8a"/>
-    <rect x="758" y="744" width="16" height="16" rx="4" fill="#1e3a8a"/>
-  </g>
+  <!-- 身体：趴卧的「猫面包」（白） -->
+  <ellipse cx="548" cy="686" rx="216" ry="96" fill="#ffffff"/>
+  <!-- 背部条纹（灰） -->
+  <path d="M 466 616 q -28 34 0 62" stroke="#9a9a9a" stroke-width="22" stroke-linecap="round" fill="none"/>
+  <path d="M 560 610 q -28 34 0 62" stroke="#9a9a9a" stroke-width="22" stroke-linecap="round" fill="none"/>
+  <path d="M 654 616 q -28 34 0 62" stroke="#9a9a9a" stroke-width="22" stroke-linecap="round" fill="none"/>
+  <!-- 头（白） -->
+  <circle cx="306" cy="668" r="108" fill="#ffffff"/>
+  <!-- 耳朵（外白 / 内灰） -->
+  <path d="M 228 596 l 6 -92 l 82 44 z" fill="#ffffff"/>
+  <path d="M 356 552 l 78 -36 l 2 94 z" fill="#ffffff"/>
+  <path d="M 248 588 l 4 -64 l 56 30 z" fill="#9a9a9a"/>
+  <path d="M 372 566 l 48 -22 l 2 62 z" fill="#9a9a9a"/>
+  <!-- 闭眼（灰）+ 口鼻（灰） -->
+  <path d="M 248 668 q 24 22 48 0" stroke="#9a9a9a" stroke-width="15" stroke-linecap="round" fill="none"/>
+  <path d="M 330 668 q 24 22 48 0" stroke="#9a9a9a" stroke-width="15" stroke-linecap="round" fill="none"/>
+  <path d="M 306 700 l -13 15 h 26 z" fill="#9a9a9a"/>
+  <path d="M 306 715 q -24 24 -48 4" stroke="#9a9a9a" stroke-width="11" stroke-linecap="round" fill="none"/>
+  <path d="M 306 715 q 24 24 48 4" stroke="#9a9a9a" stroke-width="11" stroke-linecap="round" fill="none"/>
+  <!-- 胡须（灰） -->
+  <path d="M 232 700 l -62 -12" stroke="#9a9a9a" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <path d="M 234 718 l -60 12" stroke="#9a9a9a" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <path d="M 380 700 l 62 -12" stroke="#9a9a9a" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <path d="M 378 718 l 60 12" stroke="#9a9a9a" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <!-- 前爪（白，靠灰色投影与桌面区分） -->
+  <ellipse cx="272" cy="750" rx="42" ry="24" fill="#ffffff"/>
+  <ellipse cx="366" cy="750" rx="42" ry="24" fill="#ffffff"/>
+  <!-- 桌面上的小物：键盘（灰底 + 黑键，提示「办公」场景） -->
+  <rect x="560" y="742" width="250" height="20" rx="10" fill="#9a9a9a"/>
+  <rect x="590" y="744" width="16" height="16" rx="4" fill="#000000"/>
+  <rect x="618" y="744" width="16" height="16" rx="4" fill="#000000"/>
+  <rect x="646" y="744" width="16" height="16" rx="4" fill="#000000"/>
+  <rect x="674" y="744" width="16" height="16" rx="4" fill="#000000"/>
+  <rect x="702" y="744" width="16" height="16" rx="4" fill="#000000"/>
+  <rect x="730" y="744" width="16" height="16" rx="4" fill="#000000"/>
+  <rect x="758" y="744" width="16" height="16" rx="4" fill="#000000"/>
 </svg>
