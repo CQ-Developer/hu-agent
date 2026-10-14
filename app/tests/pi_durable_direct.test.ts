@@ -58,7 +58,11 @@ describe('pi-durable 直接集成 spike', () => {
     faux.setResponses([fauxAssistantMessage([fauxText('收到')])])
 
     const storage = await openNodeSqliteStorage(file)
-    const harness = await Harness.open(storage, { models, registry: createRegistry() }, BACKGROUND_CONTEXT)
+    const harness = await Harness.open(
+      storage,
+      { models, registry: createRegistry() },
+      BACKGROUND_CONTEXT,
+    )
     const root = await harness.root(BACKGROUND_CONTEXT, {
       agent: { model: { provider: 'faux', modelId: MODEL } },
     })

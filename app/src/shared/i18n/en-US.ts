@@ -561,6 +561,8 @@ const enUS: Record<string, Message> = {
   '[telemetry] 队列超过上限，丢弃最旧 {dropped} 条记录（{name}）':
     '[telemetry] queue exceeded the cap; dropped the oldest {dropped} records ({name})',
   '[sync] 自动同步失败：': '[sync] automatic sync failed: ',
+  '会话服务未打开：请先调用 open()': 'Session service is not open: call open() first',
+  '会话不存在：{id}': 'Session not found: {id}',
   '[market] 激活上报失败：': '[market] activation report failed: ',
   '未配置模型：请在设置中填写 provider 的 baseUrl、模型与密钥': 'No model configured: set the provider baseUrl, model and API key in Settings',
   '未找到模型：{providerId}/{modelId}（请检查 models.json）': 'Model not found: {providerId}/{modelId} (check models.json)',
