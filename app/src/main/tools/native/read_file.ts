@@ -12,33 +12,16 @@
 
 import { readFile, stat } from 'node:fs/promises'
 
-import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Type } from 'typebox'
 
-import type { ToolCategory } from '../../permissions/types'
 import { resolveInWorkspace } from '../path-guard'
+import { ToolFailure, type NativeTool, type ToolFactoryOptions } from './tool'
 
-/** 产品层工具：pi 的 AgentTool + 权限策略需要的分类 */
-export type NativeTool = AgentTool & { category: ToolCategory }
-
-/** 工具失败（抛出即被 pi 记为工具错误结果；status 供审计/界面区分语义） */
-export class ToolFailure extends Error {
-  constructor(
-    message: string,
-    readonly status: 'error' | 'denied' | 'timeout' = 'error',
-  ) {
-    super(message)
-    this.name = 'ToolFailure'
-  }
-}
+export { ToolFailure, type NativeTool, type ToolFactoryOptions }
 
 const MAX_BYTES = 1024 * 1024
 const DEFAULT_LIMIT = 2000
 const MAX_LIMIT = 5000
-
-export interface ToolFactoryOptions {
-  workspaceRoot: string
-}
 
 export function createReadFileTool(options: ToolFactoryOptions): NativeTool {
   return {
