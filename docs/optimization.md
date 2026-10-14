@@ -60,7 +60,8 @@
 | 阶段 | 内容 | 依赖（精确 pin） | 出口标准 |
 | --- | --- | --- | --- |
 | **P0 合规基线** ✅ | 遥测审计、许可与依赖策略、ADR-0006、npm 可用性核对 | — | 已完成（`pi-evals` 404 已确认） |
-| **P1 引擎重构（pi 为核）** ✅ | **不做形状适配**：会话/消息/工具/模型全部改用 pi 原生（`Agent`+`pi-durable`+`AgentTool`+`pi-ai`），旧的 `LlmMessage`/事件联合/工具接口/会话存储/自研 provider/MCP 一律删除；我们的代码只保留企业侧能力（权限/审批/审计/用量/同步/市场/服务端）与 IPC 边界投影 | `pi-ai`、`pi-agent-core`、`pi-durable`+`chord`、`pi-mcp`、`pi-codemode`、`pi-telemetry`、`typebox`（精确 pin） | ① 定向测试全绿 ② 旧模块删除且 import 图干净 ③ e2e + 真实调用 ④ main 包体积复核（见 1.6） ⑤ `design.md` 按 pi 为核心改写——均已达成（R1–R6）；正式打包排除留 P6 |
+| **P1 引擎重构（pi 为核）** ✅ | **不做形状适配**：会话/消息/工具/模型全部改用 pi 原生（`Agent`+`pi-durable`+`AgentTool`+`pi-ai`），旧的 `LlmMessage`/事件联合/工具接口/会话存储/自研 provider/MCP 一律删除；我们的代码只保留企业侧能力（权限/审批/审计/用量/同步/市场/服务端）与 IPC 边界投影 | `pi-ai`、`pi-agent-core`、`pi-durable`+`chord`、`pi-mcp`、`pi-codemode`、`pi-telemetry`、`typebox`（精确 pin） | ① 定向测试全绿 ② 旧模块删除且 import 图干净 ③ e2e + 真实调用 ④ main 包体积复核 ⑤ `design.md` 按 pi 为核心改写——均已达成（R1–R6）；发行包排除与体积终审见 P6 |
+| **P6 打包与文档收尾** ✅ | 依赖瘦身（移除 `pi-coding-agent`/`pi-telemetry` 直依、renderer 依赖入 dev）+ electron-builder 排除（google/bedrock 链 + `.map`/`.d.ts`/源码目录）+ **主进程 ESM 化**（修复启动级缺陷）+ `NOTICE` + 构建产物冒烟入 CI | — | `app.asar` 105 MB → **16 MB**；`win-unpacked` 477 MB → **385 MB**；打包形态实测可启动；见 ADR-0007 |
 
 轨道 B（UI 令牌 + 动效）不依赖 P1–P5，可与引擎切换并行；轨道 C 已落地。
 
@@ -112,8 +113,7 @@ interface HistorySummarizer {
 > ④ IPC/index 切到会话服务（`sessions:*` → `DurableSessions`，实时事件由 `agent/durable_projection.ts` 投影）✅
 > ⑤ 旧会话路径已删除（`session/{store,items,types,stats}.ts`、`agent/{pi_loop,pi_events,pi_runner,events}.ts`）✅
 > 旧本地 JSONL 会话按计划**归档为只读**（导入脚本可后补）。
-> 后续：**R5/R6 均已完成**（见下表与 1.6 进度）。
-> 引擎侧仅剩 P6 的正式打包排除（`@aws-sdk/*`、`@google/genai` 等）；main 包体积已复核（见 1.6）。
+> 后续：**R5/R6/P6 均已完成**（见下表与 1.6 进度）；引擎轨道收尾，剩 v1.x 功能与交付清单。
 
 ### 1.6 修订后的重构步骤（pi 为核）
 
@@ -126,8 +126,15 @@ interface HistorySummarizer {
 > （plan/signing/ADR-0003）同步修正。命名：客户端代码文件已全部下划线（e913695）；
 > ADR 编号、docker/CI/脚本等**非代码文件名**沿用各自生态惯例，不再重命名。
 
-> **P1 包体积复核 ✅**：`npm run build` 通过；main 303 KB / preload 6.5 KB / renderer 1.2 MB
-> （依赖为 external，未计入 pi 包与传递 SDK）。正式打包排除（`@aws-sdk/*`、`@google/genai` 等）留 P6。
+> **P6 打包与文档收尾 ✅**：发行包瘦身 + 启动级缺陷修复。
+> ① 依赖瘦身：移除未被引用的 `pi-coding-agent`（31 MB）与 `pi-telemetry` 直依；`pi-mcp` 转显式；
+> renderer 依赖（react 等，构建时已打包）入 devDependencies。
+> ② electron-builder 排除：pi-ai 的 google/bedrock 可选 SDK 链（按 lockfile 依赖图精确算出的 48 个包）
+> 与 `*.map`/`*.d.ts`/源码目录；发行 `app.asar` 105 MB → **16 MB**、`win-unpacked` 477 MB → **385 MB**。
+> ③ **修复启动级缺陷**：主进程改产出 ESM（`out/main/index.mjs`）——pi 包是 ESM-only，CJS `require`
+> 直接 `ERR_PACKAGE_PATH_NOT_EXPORTED`（单测不加载构建产物，所以一直没暴露）；新增
+> `app/scripts/check_main_esm.mjs` 冒烟并接入 CI。④ 根目录 `NOTICE` 与许可清单建立。
+> 决策与排除清单见 `docs/adr/0007-esm-main-and-packaging.md`。
 
 > 命名约定（本轮新增）：新文件一律用**下划线**（`read_file.ts` / `pi_governance.ts`），与 Python 侧一致；
 > 客户端的 kebab-case 属遗留，随文件被改动时一并改名。约定已记入 `CONTRIBUTING.md`。

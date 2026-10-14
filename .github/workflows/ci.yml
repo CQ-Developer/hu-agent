@@ -42,6 +42,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+      - run: node scripts/check_main_esm.mjs
 
   # 依赖与静态扫描：生产依赖漏洞 + Python 源码静态扫描（发布前必须全绿，附录 E）
   security:

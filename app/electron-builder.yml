@@ -6,6 +6,53 @@ directories:
 files:
   - out/**
   - package.json
+  # P6 打包排除：pi-ai 依赖里带的可选 provider SDK（google / bedrock）与它们**独占**的传递依赖，
+  # 共约 30 MB 解包体积；我们只用 openai-completions / openai-responses / anthropic-messages 三种 api，
+  # pi-ai 的对应实现都是 lazy 加载（其他 provider 模块不会被 import）。
+  - '!node_modules/@google/**'
+  - '!node_modules/@aws-sdk/**'
+  - '!node_modules/@aws/**'
+  - '!node_modules/@protobufjs/**'
+  - '!node_modules/@smithy/credential-provider-imds/**'
+  - '!node_modules/@smithy/fetch-http-handler/**'
+  - '!node_modules/@smithy/signature-v4/**'
+  - '!node_modules/@types/node/**'
+  - '!node_modules/@types/retry/**'
+  - '!node_modules/base64-js/**'
+  - '!node_modules/bignumber.js/**'
+  - '!node_modules/bowser/**'
+  - '!node_modules/buffer-equal-constant-time/**'
+  - '!node_modules/data-uri-to-buffer/**'
+  - '!node_modules/ecdsa-sig-formatter/**'
+  - '!node_modules/extend/**'
+  - '!node_modules/fetch-blob/**'
+  - '!node_modules/formdata-polyfill/**'
+  - '!node_modules/gaxios/**'
+  - '!node_modules/gcp-metadata/**'
+  - '!node_modules/google-auth-library/**'
+  - '!node_modules/google-logging-utils/**'
+  - '!node_modules/https-proxy-agent/**' # pi-ai 自带嵌套副本，顶层这份只服务 google 链
+  - '!node_modules/json-bigint/**'
+  - '!node_modules/jwa/**'
+  - '!node_modules/jws/**'
+  - '!node_modules/long/**'
+  - '!node_modules/node-domexception/**'
+  - '!node_modules/node-fetch/**'
+  - '!node_modules/p-retry/**'
+  - '!node_modules/protobufjs/**'
+  - '!node_modules/safe-buffer/**'
+  - '!node_modules/undici-types/**'
+  - '!node_modules/web-streams-polyfill/**'
+  - '!node_modules/ws/**'
+  # 通用瘦身：源码映射与类型声明不参与运行时（Node 从不加载 .d.ts / .map）；
+  # openai 发布包内带原始 TS 源码（运行时走 dist，exports 指向那里），一并排除。
+  - '!node_modules/**/*.map'
+  - '!node_modules/**/*.d.ts'
+  - '!node_modules/**/*.d.mts'
+  - '!node_modules/**/*.d.cts'
+  - '!node_modules/openai/src/**'
+  - '!node_modules/@anthropic-ai/sdk/src/**'
+  - '!node_modules/@stablelib/**/*.ts'
 
 win:
   target:

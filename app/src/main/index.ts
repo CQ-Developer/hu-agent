@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { appendFile, mkdir } from 'node:fs/promises'
 
 import { BrowserWindow, Menu, app, shell } from 'electron'
@@ -42,7 +43,8 @@ function createWindow(): void {
     height: 860,
     show: false,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
+      // 主进程是 ESM（见 electron.vite.config.ts），没有 __dirname；用 import.meta.url 定位
+      preload: fileURLToPath(new URL('../preload/index.js', import.meta.url)),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -60,7 +62,7 @@ function createWindow(): void {
   if (process.env.ELECTRON_RENDERER_URL) {
     void window.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
-    void window.loadFile(join(__dirname, '../renderer/index.html'))
+    void window.loadFile(fileURLToPath(new URL('../renderer/index.html', import.meta.url)))
   }
 }
 

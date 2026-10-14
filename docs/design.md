@@ -357,6 +357,8 @@ flowchart TB
 - 渲染进程严格 CSP；Markdown 渲染统一走消毒器（禁止内联脚本/事件属性）；外链必须经用户确认后 `shell.openExternal`。
 - 不提供应用菜单栏（Electron 默认 File/Edit/View/... 菜单已移除，macOS 保留系统最小菜单），操作全部在应用界面内完成。
 - 所有文件、命令操作只发生在主进程，渲染进程永远拿不到绝对路径以外的能力（路径也必须经工作空间管理器解析）。
+- 主进程以 **ESM** 构建（`out/main/index.mjs`）：pi 组件是 ESM-only；preload 保持 CJS（沙箱 preload
+  不支持 ESM）。构建后由 `app/scripts/check_main_esm.mjs` 冒烟校验（CI 已接入）。见 ADR-0007。
 
 信息架构（阶段 3 调整，已完成；D16 强制登录）：
 

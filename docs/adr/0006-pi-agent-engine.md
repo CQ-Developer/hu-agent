@@ -218,14 +218,17 @@ R1 最后一批已按此落地：IPC/index 切到 `DurableSessions` + `createDur
 
 ## 后果与待办
 
-- **体积**：核心包解包约 10 MB（`pi-ai` 4.2 MB、`pi-durable` 3.2 MB、`chord` 1.5 MB…），另有 `pi-ai`
-  的传递依赖（`openai`、`@anthropic-ai/sdk`、`@google/genai`、`@aws-sdk/client-bedrock-runtime`）。
-  `pi-env` 18 MB（含 Rust daemon）只在 P5 且作为可选特性。需要在 P6 做打包排除与体积复核。
+- **体积（P6 已完成）**：核心包解包约 14 MB（`pi-ai` 5.9 MB、`pi-durable` 3.8 MB、`chord` 1.7 MB、
+  `pi-mcp` 0.6 MB…），运行时另需 `openai`（25 MB）与 `@anthropic-ai/sdk`（13 MB）。打包排除与体积
+  复核见 `docs/adr/0007-esm-main-and-packaging.md`：发行 `app.asar` 105 MB → **16 MB**、
+  `win-unpacked` 477 MB → **385 MB**（Electron 运行时占大头）。
+  `pi-env` 18 MB（含 Rust daemon）只在 P5 且作为可选特性。
 - **上游风险**：`pi-durable` 自述 Experimental（API 不通知地变更）。缓解：存储适配层薄化、版本精确 pin、
   迁移脚本 + 回滚开关；若上游破坏性变更影响生产，回落到 P3 之前的自研存储。
 - **迁移成本**：会话数据需从现有 items 迁到 durable entries（P3 提供一次性迁移脚本 + 双读校验）。
-- **`pi-coding-agent` 体积**：23 MB 解包，依赖里含 `pi-tui`/`mermaid`/`highlight.js` 等界面相关包。
-  缓解：只 import `ModelRegistry` 等具体模块，靠 Rollup tree-shaking 收窄；打包阶段用 electron-builder
-  的 files 排除未用包；P1 出口标准包含「main 包体积增量复核」，超出预期就切决策 8 的备选路径。
+- **`pi-coding-agent` 体积（已解决）**：已从 dependencies 移除（31 MB 解包，仅 `ModelRegistry` 曾为候选；
+  决策 8 最终采用薄适配）；`pi-tui` 等随之不再入包（`pi-codemode` 作为 `pi-durable` 的传递依赖保留）。
+- **模块格式**：pi 组件是 ESM-only，客户端主进程已改为 ESM 构建（preload 保持 CJS），并加构建产物
+  冒烟防回归；决策与排除清单见 `docs/adr/0007-esm-main-and-packaging.md`。
 - **文档同步**：`design.md` 客户端架构章节、`plan.md` 阶段条目在 **P1–P5 各阶段落地时与代码同提交**
-  改写（附录 F）；`docs/optimization.md` 记录计划与进度；新增 `NOTICE` 与第三方许可清单（P6）。
+  改写（附录 F）；`docs/optimization.md` 记录计划与进度；`NOTICE` 与第三方许可清单已建立（P6）。
