@@ -12,12 +12,11 @@ import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messag
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
 
+import { HISTORY_SUMMARY_SYSTEM } from '../agent/prompt'
 import type { HistorySummarizer, ModelResolver, ResolvedModel } from '../agent/pi-loop'
+import { t } from '../i18n'
 import { buildPiProviders, listProviders, readModelsFile } from './pi-config'
 import type { ApiType } from './types'
-
-/** 压缩用的系统提示：只输出摘要，不继续对话 */
-const SUMMARY_SYSTEM = '你是对话压缩器。把用户给出的对话记录压缩成要点摘要，保留事实、数字、路径与未完成事项。只输出摘要正文。'
 
 function apiFor(apiType: ApiType): unknown {
   switch (apiType) {
@@ -94,7 +93,7 @@ export function createPiRuntime(options: PiRuntimeOptions): PiRuntime {
       const available = models.getModels()
       const first = available[0] as { provider?: string; id?: string; contextWindow?: number } | undefined
       if (!first?.provider || !first.id) {
-        throw new Error('未配置模型：请在设置中填写 provider 的 baseUrl、模型与密钥')
+        throw new Error(t('未配置模型：请在设置中填写 provider 的 baseUrl、模型与密钥'))
       }
       return {
         providerId: first.provider,
@@ -108,7 +107,7 @@ export function createPiRuntime(options: PiRuntimeOptions): PiRuntime {
     const model = models.getModel(providerId, modelId) as
       | { id: string; contextWindow?: number }
       | undefined
-    if (!model) throw new Error(`未找到模型：${providerId}/${modelId}（请检查 models.json）`)
+    if (!model) throw new Error(t('未找到模型：{providerId}/{modelId}（请检查 models.json）', { providerId, modelId }))
     return {
       providerId,
       modelId: model.id,
@@ -125,7 +124,7 @@ export function createPiRuntime(options: PiRuntimeOptions): PiRuntime {
         resolved.model as never,
         {
           messages: [
-            { role: 'system', content: SUMMARY_SYSTEM, timestamp: Date.now() },
+            { role: 'system', content: HISTORY_SUMMARY_SYSTEM, timestamp: Date.now() },
             { role: 'user', content: history, timestamp: Date.now() },
           ],
         } as never,

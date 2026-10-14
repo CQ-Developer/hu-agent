@@ -589,6 +589,8 @@ const enUS: Record<string, Message> = {
     '[telemetry] queue exceeded the cap; dropped the oldest {dropped} records ({name})',
   '[sync] 自动同步失败：': '[sync] automatic sync failed: ',
   '[market] 激活上报失败：': '[market] activation report failed: ',
+  '未配置模型：请在设置中填写 provider 的 baseUrl、模型与密钥': 'No model configured: set the provider baseUrl, model and API key in Settings',
+  '未找到模型：{providerId}/{modelId}（请检查 models.json）': 'Model not found: {providerId}/{modelId} (check models.json)',
 }
 
 export default enUS
