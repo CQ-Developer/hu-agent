@@ -462,7 +462,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Patch Team */
+        patch: operations["patch_team_api_v1_teams__team_id__patch"];
         trace?: never;
     };
     "/api/v1/teams/{team_id}/members": {
@@ -1117,6 +1118,117 @@ export interface paths {
         patch: operations["update_provider_api_v1_admin_identity_providers__provider_id__patch"];
         trace?: never;
     };
+    "/api/v1/admin/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Audit */
+        get: operations["list_audit_api_v1_admin_audit_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Settings */
+        get: operations["list_settings_api_v1_admin_settings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Settings */
+        patch: operations["update_settings_api_v1_admin_settings_patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Prices */
+        get: operations["list_prices_api_v1_admin_prices_get"];
+        put?: never;
+        /** Upsert Price */
+        post: operations["upsert_price_api_v1_admin_prices_post"];
+        /** Delete Price */
+        delete: operations["delete_price_api_v1_admin_prices_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orgs/{org_id}:freeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Freeze Org
+         * @description 冻结组织：组织内资源变为只读（design 6.2.1）。系统管理员操作。
+         */
+        post: operations["freeze_org_api_v1_admin_orgs__org_id__freeze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orgs/{org_id}:unfreeze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unfreeze Org */
+        post: operations["unfreeze_org_api_v1_admin_orgs__org_id__unfreeze_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/orgs/{org_id}:dissolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dissolve Org
+         * @description 解散组织（design 6.10.5）：资源软删、团队归档；个人工作空间与快照不受影响（D12 个人所有）。
+         */
+        post: operations["dissolve_org_api_v1_admin_orgs__org_id__dissolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1248,6 +1360,37 @@ export interface components {
             createdAt: string;
             /** Decidedat */
             decidedAt: string | null;
+        };
+        /** AuditListOut */
+        AuditListOut: {
+            /** Items */
+            items: components["schemas"]["AuditOut"][];
+            /** Total */
+            total: number;
+        };
+        /** AuditOut */
+        AuditOut: {
+            /** Id */
+            id: number;
+            /** Orgid */
+            orgId: string | null;
+            /** Actorid */
+            actorId: string | null;
+            /** Action */
+            action: string;
+            /** Targettype */
+            targetType: string | null;
+            /** Targetid */
+            targetId: string | null;
+            /** Detail */
+            detail: {
+                [key: string]: unknown;
+            };
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
         };
         /** DecisionIn */
         DecisionIn: {
@@ -1473,6 +1616,22 @@ export interface components {
             /** Unread */
             unread: number;
         };
+        /** OrgAdminOut */
+        OrgAdminOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Slug */
+            slug: string;
+            /** Description */
+            description: string;
+            /** Status */
+            status: string;
+        };
         /** OrgApplyIn */
         OrgApplyIn: {
             /** Name */
@@ -1557,6 +1716,80 @@ export interface components {
         OrgTeamsOut: {
             /** Items */
             items: components["schemas"]["TeamBriefOut"][];
+        };
+        /** PriceIn */
+        PriceIn: {
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /**
+             * Currency
+             * @default USD
+             */
+            currency: string;
+            /**
+             * Inputprice
+             * @default 0
+             */
+            inputPrice: number;
+            /**
+             * Outputprice
+             * @default 0
+             */
+            outputPrice: number;
+            /**
+             * Cachereadprice
+             * @default 0
+             */
+            cacheReadPrice: number;
+            /**
+             * Cachewriteprice
+             * @default 0
+             */
+            cacheWritePrice: number;
+            /**
+             * Effectivefrom
+             * Format: date
+             */
+            effectiveFrom: string;
+        };
+        /**
+         * PriceOut
+         * @description 模型单价（每 1K token，USD/其它币种按 currency）。
+         */
+        PriceOut: {
+            /** Provider */
+            provider: string;
+            /** Model */
+            model: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Inputprice
+             * @description 输入单价 / 1K token
+             */
+            inputPrice: number;
+            /**
+             * Outputprice
+             * @description 输出单价 / 1K token
+             */
+            outputPrice: number;
+            /**
+             * Cachereadprice
+             * @description 缓存读单价 / 1K token
+             */
+            cacheReadPrice: number;
+            /**
+             * Cachewriteprice
+             * @description 缓存写单价 / 1K token
+             */
+            cacheWritePrice: number;
+            /**
+             * Effectivefrom
+             * Format: date
+             */
+            effectiveFrom: string;
         };
         /** ProfileOut */
         ProfileOut: {
@@ -1727,6 +1960,36 @@ export interface components {
         SchemaResponse: {
             /** Applied */
             applied: string[];
+        };
+        /** SettingOut */
+        SettingOut: {
+            /** Key */
+            key: string;
+            /** Value */
+            value: unknown;
+            /**
+             * Valuetype
+             * @enum {string}
+             */
+            valueType: "int" | "str";
+            /** Minvalue */
+            minValue?: number | null;
+            /** Default */
+            default?: unknown;
+            /** Updatedat */
+            updatedAt?: string | null;
+        };
+        /** SettingsOut */
+        SettingsOut: {
+            /** Items */
+            items: components["schemas"]["SettingOut"][];
+        };
+        /** SettingsPatchIn */
+        SettingsPatchIn: {
+            /** Values */
+            values: {
+                [key: string]: number | string;
+            };
         };
         /** SkillDetailOut */
         SkillDetailOut: {
@@ -2072,6 +2335,15 @@ export interface components {
             myRole: string | null;
             /** Membercount */
             memberCount: number;
+        };
+        /** TeamPatchIn */
+        TeamPatchIn: {
+            /** Name */
+            name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Status */
+            status?: ("active" | "archived") | null;
         };
         /** TokenOut */
         TokenOut: {
@@ -3241,6 +3513,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TeamOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_team_api_v1_teams__team_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TeamPatchIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -4718,6 +5025,291 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProviderOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_audit_api_v1_admin_audit_get: {
+        parameters: {
+            query?: {
+                /** @description 前缀匹配，如 auth. / admin. */
+                action?: string;
+                actor_id?: string | null;
+                org_id?: string | null;
+                target_type?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_settings_api_v1_admin_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+        };
+    };
+    update_settings_api_v1_admin_settings_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SettingsPatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_prices_api_v1_admin_prices_get: {
+        parameters: {
+            query?: {
+                provider?: string;
+                model?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_price_api_v1_admin_prices_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PriceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_price_api_v1_admin_prices_delete: {
+        parameters: {
+            query: {
+                provider: string;
+                model: string;
+                effective_from: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    freeze_org_api_v1_admin_orgs__org_id__freeze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgAdminOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unfreeze_org_api_v1_admin_orgs__org_id__unfreeze_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgAdminOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dissolve_org_api_v1_admin_orgs__org_id__dissolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrgAdminOut"];
                 };
             };
             /** @description Validation Error */

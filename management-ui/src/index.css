@@ -17,3 +17,13 @@ body {
   min-height: 100vh;
   background: #f0f2f5;
 }
+
+/* 原生日期输入（避免为 antd DatePicker 引入 dayjs 直接依赖） */
+.hg-date-input {
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  padding: 1px 8px;
+  height: 24px;
+  font-size: 13px;
+  background: #fff;
+}

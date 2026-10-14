@@ -3,12 +3,17 @@
  */
 
 import {
+  ApartmentOutlined,
   BellOutlined,
+  AuditOutlined,
+  BarChartOutlined,
+  BellOutlined as BellIcon,
   CheckSquareOutlined,
   DashboardOutlined,
   GlobalOutlined,
   LogoutOutlined,
   SafetyCertificateOutlined,
+  SettingOutlined,
   TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons'
@@ -41,6 +46,7 @@ export default function AdminLayout() {
     const entries = [
       { key: '/dashboard', icon: <DashboardOutlined />, label: t('menu.dashboard') },
       { key: '/approvals', icon: <CheckSquareOutlined />, label: t('menu.approvals') },
+      { key: '/stats', icon: <BarChartOutlined />, label: t('menu.stats') },
     ]
     if (scope.adminTeams.length > 0) {
       entries.push({ key: '/skills', icon: <SafetyCertificateOutlined />, label: t('menu.skills') })
@@ -48,8 +54,14 @@ export default function AdminLayout() {
     if (scope.canManageOrg || scope.adminTeams.length > 0) {
       entries.push({ key: '/members', icon: <TeamOutlined />, label: t('menu.members') })
     }
+    if (scope.canManageOrg || scope.isSystemAdmin) {
+      entries.push({ key: '/organizations', icon: <ApartmentOutlined />, label: t('menu.organizations') })
+    }
+    entries.push({ key: '/notifications', icon: <BellIcon />, label: t('menu.notifications') })
     if (scope.isSystemAdmin) {
       entries.push({ key: '/identity-providers', icon: <GlobalOutlined />, label: t('menu.identityProviders') })
+      entries.push({ key: '/audit', icon: <AuditOutlined />, label: t('menu.audit') })
+      entries.push({ key: '/settings', icon: <SettingOutlined />, label: t('menu.settings') })
     }
     return entries
   }, [t, scope.adminTeams.length, scope.canManageOrg, scope.isSystemAdmin])

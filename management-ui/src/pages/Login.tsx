@@ -1,11 +1,15 @@
 /** 登录页（design 7.2：公开页面）：同域部署，只需邮箱与密码。 */
 
-import { Alert, Button, Card, Form, Input, Segmented, Typography } from 'antd'
+import { Alert, Button, Card, Divider, Form, Input, Segmented, Space, Typography } from 'antd'
+import { GlobalOutlined } from '@ant-design/icons'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Navigate, useLocation } from 'react-router-dom'
 
+import { beginSsoLogin } from '../auth/sso'
+import { ssoApi } from '../api/endpoints'
 import { useSession } from '../auth/SessionProvider'
+import { useAsync } from '../lib/useAsync'
 import i18n from '../i18n'
 import { errorText } from '../lib/errorText'
 
@@ -20,6 +24,9 @@ export default function Login() {
   const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // 已启用的企业身份源（公开接口）
+  const providers = useAsync(() => ssoApi.providers(), [])
+  const ssoProviders = (providers.data?.providers ?? []).filter((item) => item.type !== 'local')
 
   if (status === 'ready') {
     const from = (location.state as { from?: string } | null)?.from ?? '/dashboard'
@@ -64,6 +71,25 @@ export default function Login() {
             {t('login.submit')}
           </Button>
         </Form>
+        {ssoProviders.length ? (
+          <>
+            <Divider plain style={{ fontSize: 12, color: '#999' }}>
+              {t('login.orSso')}
+            </Divider>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              {ssoProviders.map((provider) => (
+                <Button
+                  key={provider.id}
+                  block
+                  icon={<GlobalOutlined />}
+                  onClick={() => void beginSsoLogin(provider.id)}
+                >
+                  {t('login.ssoButton', { name: provider.name })}
+                </Button>
+              ))}
+            </Space>
+          </>
+        ) : null}
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center' }}>
           <Segmented
             size="small"

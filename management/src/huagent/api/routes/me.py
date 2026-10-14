@@ -435,7 +435,10 @@ async def delete_my_account(
     if password_hash and not verify_password(payload.password or "", str(password_hash)):
         raise AppError(ErrorCode.UNAUTHENTICATED, "密码不正确")
 
-    grace_days = get_settings().account_deletion_grace_days
+    # 与 worker 清理任务保持同一来源（system_settings 优先，环境变量为默认）
+    grace_days = await get_int_setting(
+        session, "account.deletion_grace_days", get_settings().account_deletion_grace_days
+    )
     updated = (await session.execute(REQUEST_DELETION, {"user_id": actor.user_id})).mappings().first()
     if updated is None:
         raise AppError(ErrorCode.NOT_FOUND, "账号不存在")

@@ -12,6 +12,7 @@ from huagent.api.errors import install_exception_handlers
 from huagent.api.middleware import MetricsMiddleware, TraceIdMiddleware
 from huagent.api.routes import (
     admin_identity,
+    admin_ops,
     approvals,
     auth,
     invitations,
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(stats.router, prefix="/api/v1")
     app.include_router(sso.router, prefix="/api/v1")
     app.include_router(admin_identity.router, prefix="/api/v1")
+    app.include_router(admin_ops.router, prefix="/api/v1")
 
     if settings.cors_origins:
         app.add_middleware(

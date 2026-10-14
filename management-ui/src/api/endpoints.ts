@@ -63,8 +63,20 @@ export const authApi = {
   refresh: (refreshToken: string) =>
     api.post<Schema['RefreshOut']>('/api/v1/auth/refresh', { refreshToken }, { auth: false }),
   // 服务端按 device_id / all_devices 注销会话（管理台固定用自己的 deviceId）
+  ssoExchange: (code: string, codeVerifier: string) => ssoApi.exchange(code, codeVerifier),
   logout: (allDevices = false) =>
     api.post<Record<string, unknown>>('/api/v1/auth/logout', { allDevices, deviceId: 'management-ui' }),
+}
+
+export const ssoApi = {
+  // 公开接口：返回 {providers:[...]}；type='local' 为本地账号/注册的占位项，不作为 SSO 按钮
+  providers: () =>
+    api.get<{ providers: { id: string; type: string; name: string; enabled: boolean }[] }>(
+      '/api/v1/auth/providers',
+      { auth: false },
+    ),
+  exchange: (code: string, codeVerifier: string) =>
+    api.post<Token>('/api/v1/auth/sso/exchange', { code, codeVerifier }, { auth: false }),
 }
 
 export const meApi = {
@@ -195,4 +207,95 @@ export const statsApi = {
 
 export const systemApi = {
   health: () => api.get<{ status: string; time: string }>('/api/v1/system/health', { auth: false }),
+}
+
+// ---------- 运维管理（系统管理员，design 7.2） ----------
+export interface AuditEntry {
+  id: number
+  orgId: string | null
+  actorId: string | null
+  action: string
+  targetType: string | null
+  targetId: string | null
+  detail: Record<string, unknown>
+  createdAt: string
+}
+
+export interface SettingItem {
+  key: string
+  value: number | string
+  valueType: 'int' | 'str'
+  minValue: number | null
+  default: number | string
+  updatedAt: string | null
+}
+
+export interface ModelPrice {
+  provider: string
+  model: string
+  currency: string
+  inputPrice: number
+  outputPrice: number
+  cacheReadPrice: number
+  cacheWritePrice: number
+  effectiveFrom: string
+}
+
+export const adminApi = {
+  audit: (params: {
+    action?: string
+    actorId?: string
+    orgId?: string
+    targetType?: string
+    dateFrom?: string
+    dateTo?: string
+    limit?: number
+    offset?: number
+  }) =>
+    api.get<{ items: AuditEntry[]; total: number }>('/api/v1/admin/audit', {
+      query: {
+        action: params.action,
+        actor_id: params.actorId,
+        org_id: params.orgId,
+        target_type: params.targetType,
+        date_from: params.dateFrom,
+        date_to: params.dateTo,
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+      },
+    }),
+  settings: () => api.get<{ items: SettingItem[] }>('/api/v1/admin/settings'),
+  updateSettings: (values: Record<string, number | string>) =>
+    api.patch<{ items: SettingItem[] }>('/api/v1/admin/settings', { values }),
+  prices: (params: { provider?: string; model?: string } = {}) =>
+    api.get<ModelPrice[]>('/api/v1/admin/prices', { query: { provider: params.provider, model: params.model } }),
+  upsertPrice: (payload: ModelPrice) => api.post<ModelPrice>('/api/v1/admin/prices', payload),
+  deletePrice: (provider: string, model: string, effectiveFrom: string) =>
+    api.del<{ deleted: number }>('/api/v1/admin/prices', {
+      query: { provider, model, effective_from: effectiveFrom },
+    }),
+  freezeOrg: (orgId: string) =>
+    api.post<{ id: string; status: string }>(`/api/v1/admin/orgs/${orgId}:freeze`),
+  unfreezeOrg: (orgId: string) =>
+    api.post<{ id: string; status: string }>(`/api/v1/admin/orgs/${orgId}:unfreeze`),
+  dissolveOrg: (orgId: string) =>
+    api.post<{ id: string; status: string }>(`/api/v1/admin/orgs/${orgId}:dissolve`),
+}
+
+// ---------- 组织/团队治理 ----------
+export const governanceApi = {
+  patchOrg: (orgId: string, payload: { name?: string; description?: string }) =>
+    api.patch<Org>(`/api/v1/orgs/${orgId}`, payload),
+  orgTeams: (orgId: string) => api.get<{ items: Team[]; total: number }>(`/api/v1/orgs/${orgId}/teams`),
+  patchTeam: (teamId: string, payload: { name?: string; description?: string; status?: 'active' | 'archived' }) =>
+    api.patch<Team>(`/api/v1/teams/${teamId}`, payload),
+  applyTeam: (orgId: string, name: string, description: string, reason: string) =>
+    api.post<{ approvalId: string; status: string }>('/api/v1/teams:apply', {
+      orgId,
+      name,
+      description,
+      reason,
+    }),
+  applyOrg: (name: string, slug: string, description: string, reason: string) =>
+    api.post<{ approvalId: string; status: string }>('/api/v1/orgs:apply', { name, slug, description, reason }),
 }

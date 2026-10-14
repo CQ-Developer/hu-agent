@@ -9,9 +9,15 @@ import RequireAuth, { NoPermission } from './auth/RequireAuth'
 import { SessionProvider, useSession } from './auth/SessionProvider'
 import AdminLayout from './layout/AdminLayout'
 import Approvals from './pages/Approvals'
+import Audit from './pages/Audit'
 import Dashboard from './pages/Dashboard'
 import IdentityProviders from './pages/IdentityProviders'
 import Login from './pages/Login'
+import Notifications from './pages/Notifications'
+import Organizations from './pages/Organizations'
+import Settings from './pages/Settings'
+import SsoCallback from './pages/SsoCallback'
+import Stats from './pages/Stats'
 import Members from './pages/Members'
 import NotFound from './pages/NotFound'
 import Profile from './pages/Profile'
@@ -27,6 +33,7 @@ function SkillsRoute() {
 
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
+  { path: '/sso/callback', element: <SsoCallback /> },
   {
     path: '/',
     element: (
@@ -38,6 +45,11 @@ const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard /> },
       { path: 'approvals', element: <Approvals /> },
+      { path: 'stats', element: <Stats /> },
+      { path: 'organizations', element: <Organizations /> },
+      { path: 'notifications', element: <Notifications /> },
+      { path: 'audit', element: <Audit /> },
+      { path: 'settings', element: <Settings /> },
       { path: 'skills', element: <SkillsRoute /> },
       { path: 'members', element: <Members /> },
       { path: 'identity-providers', element: <IdentityProviders /> },

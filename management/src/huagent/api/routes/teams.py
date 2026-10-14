@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -185,6 +185,72 @@ async def apply_team(
 async def my_teams(actor: ActorDep, session: SessionDep) -> list[TeamOut]:
     rows = (await session.execute(SELECT_MY_TEAMS, {"user_id": actor.user_id})).mappings().all()
     return [TeamOut(**dict(row)) for row in rows]
+
+
+class TeamPatchIn(ApiModel):
+    name: str | None = None
+    description: str | None = None
+    # 冻结/解冻（archived 即冻结，只读，design 6.2.1）
+    status: Literal["active", "archived"] | None = None
+
+
+UPDATE_TEAM = text(
+    """
+    UPDATE teams SET name = COALESCE(:name, name),
+                     description = COALESCE(:description, description),
+                     status = COALESCE(:status, status),
+                     updated_at = now()
+    WHERE id = :team_id
+    RETURNING id, org_id, name, description, status
+    """
+)
+
+
+@router.patch("/teams/{team_id}", response_model=TeamOut)
+async def patch_team(
+    team_id: UUID,
+    payload: TeamPatchIn,
+    actor: ActorDep,
+    request: Request,
+    session: SessionDep,
+) -> TeamOut:
+    access = await require_team_access(session, actor, team_id, admin=True)
+    if payload.status is not None:
+        # 冻结/解冻属于治理动作：需要组织管理员或系统管理员
+        await require_org_access(session, actor, access.org_id, admin=True)
+    if payload.name is not None and not payload.name.strip():
+        raise AppError(ErrorCode.VALIDATION_FAILED, "团队名称不能为空")
+    row = (
+        await session.execute(
+            UPDATE_TEAM,
+            {
+                "team_id": team_id,
+                "name": payload.name.strip() if payload.name else None,
+                "description": payload.description,
+                "status": payload.status,
+            },
+        )
+    ).mappings().one()
+    await record_audit(
+        session,
+        action="team.update" if payload.status is None else "team.status",
+        actor_id=actor.user_id,
+        actor_ip=client_ip(request),
+        org_id=access.org_id,
+        target_type="team",
+        target_id=str(team_id),
+        detail={"name": payload.name, "status": payload.status, "description": payload.description},
+    )
+    await session.commit()
+    member_count = int(
+        (
+            await session.execute(
+                text("SELECT count(*) FROM team_members WHERE team_id = :team_id AND status = 'active'"),
+                {"team_id": team_id},
+            )
+        ).scalar_one()
+    )
+    return TeamOut(**dict(row), my_role=access.team_role, member_count=member_count)
 
 
 @router.get("/teams/{team_id}", response_model=TeamOut)

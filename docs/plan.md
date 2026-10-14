@@ -463,7 +463,7 @@ Authorization: Bearer {{token}}
 
 **功能与体验**
 
-- [ ] 管理台可完成全部管理操作，不依赖 `.http` 脚本 —— ⏳ **阶段 A 已交付**（登录、审批、Skill 审核与上下架/停用/撤回/删除、成员与邀请、身份源管理、个人设置；design 7.1.2）；阶段 B（组织/团队 CRUD、统计图表与导出、通知中心、审计日志、系统设置）待做。证据：`management-ui/`（Playwright 实机走查：登录→审批通过→Skill 详情/发布→成员/邀请→身份源→语言切换，0 控制台错误）
+- [x] 管理台可完成全部管理操作 —— 阶段 A（登录、审批、Skill 审核与生命周期、成员与邀请、身份源、个人设置）与阶段 B（统计图表与 CSV 导出、组织与团队治理、通知中心、审计日志、系统设置与模型价格表、**管理台 SSO 登录**）均已交付；仍以脚本代办的仅剩「系统区用户管理」（见遗留清单）。证据：`management-ui/`（Playwright 实机走查：审批通过、Skill 发布报错提示、成员/邀请、身份源编辑、语言切换、统计/审计/设置/组织团队/通知页，以及真实 Keycloak SSO 登录全链路；0 控制台错误）；服务端新增 `/admin/{audit,settings,prices}`、组织治理与 `PATCH /teams/{id}`（`tests/integration/test_admin_ops.py` 5 项）
 - [x] 英文 i18n 无漏翻（D13），语言切换持久化 —— 客户端 496 键双语齐平、渲染层与主进程零漏翻（`app/tests/i18n.test.ts` 13 项强制检查）；偏好存 config.json `ui.locale`（默认跟随系统）并同步 `users.locale`；服务端站内通知按收件人语言渲染（`domain/messages.py`，19 项单测 + stage5 集成断言）；管理台现有页面已双语 + 顶部切换。证据：design 5.13.1；**5-09 新增页面须同步双语**
 - [x] 统计图表与 CSV 导出可用（含激活明细与服务端状态）—— 客户端「用量统计」Tab + CSV（证据：`docs/delivery/release-checklist.md`）
 - [x] 定时同步可用（D5），冲突处理路径完整 —— 档位/单飞/冲突暂停/失败重试（证据：6-04 单测与 `SYNC_E2E`）
