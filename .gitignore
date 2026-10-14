@@ -45,3 +45,7 @@ openapi/generated/
 docker/observability/prometheus/huagent_metrics_token
 docker/observability/prometheus/targets/huagent-api.yml
 docker/observability/alertmanager/alertmanager.yml
+
+# 本机模型/密钥配置（绝不入库；pi 的自定义 provider 配置在 ~/.pi/agent/models.json）
+.pi/
+models.json

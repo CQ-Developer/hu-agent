@@ -69,6 +69,16 @@
 `beforeToolCall` 阻断、三种 API 类型目录覆盖）；全量客户端测试 195 passed / 13 skipped；
 `npm audit --omit=dev` 0 漏洞。
 
+真实调用（P1 关键验证，`app/tests/integration/pi-real.test.ts`，门禁 `PI_E2E=1`）：经企业 OpenAI 兼容网关
+（自定义 provider，`openai-completions`，按请求注入密钥）跑通**流式文本**与**完整 Agent 回合**
+（真实模型 + 工具执行 + 用量回传）两条用例 ✓。踩坑记录（已写入测试注释，P1 实现必须遵守）：
+
+1. `createProvider({ models })` 里的模型必须是**完整 Model 对象**（含 `api`/`provider`/`baseUrl`），
+   否则报 `Unknown provider: undefined`；
+2. `auth` 的形状是 `{ apiKey: ApiKeyAuth }`，直接传 ApiKeyAuth 本体会报 `Provider is not configured`；
+3. 密钥按请求注入（`streamSimple(model, ctx, { apiKey })`），不注册进 pi 的凭证存储——与
+   「企业模式密钥在服务端 / 个人模式在 safeStorage」的设计一致。
+
 待办：把 provider 调用切到 pi（feature flag）、用量从 pi 事件取、模型目录接入客户端设置页。
 
 ## 2. 轨道 B：UI 体系（页面样式 + 交互动画）

@@ -70,6 +70,25 @@ cd ../management-ui && npm run api:gen                      # regenerate console
 - **Tests.** New behaviour comes with tests (unit or integration). Bug fixes start with a test that
   reproduces the issue.
 
+## Real-call verification (local only)
+
+Most tests run without network access. To verify the model layer against a real OpenAI-compatible
+endpoint (including the custom-provider path used by enterprise gateways), set:
+
+```bash
+export PI_E2E=1
+export PI_GATEWAY_BASE_URL=https://your-gateway.example.com/v1
+export PI_GATEWAY_API_KEY=...          # from your local secret store, never committed
+npx vitest run tests/integration/pi-real.test.ts
+```
+
+Rules for this suite:
+
+- **Never** commit endpoints, keys or account-specific model lists; they come from the environment only.
+- The suite is pinned to a single, inexpensive model (`deepseek-v4.1-flash`); do not add other models.
+- Keys live in the OS keychain / an untracked local config file. If a key ever lands in a commit,
+  rotate it first, then clean up the history.
+
 ## Pull request process
 
 1. Fork, then branch from `main` (`feat/…`, `fix/…`, `docs/…`).
