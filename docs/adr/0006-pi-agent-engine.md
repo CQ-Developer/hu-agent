@@ -188,6 +188,30 @@ artifact 与备份、用量落账与上报（数据源换成 pi 的 usage）、�
 **因此删除清单新增**：`session/{store,items,types}.ts` 与 `model/types.ts` 的会话形状部分（`LlmMessage` 等），
 以及原计划的 JSONL ↔ durable 双写与迁移脚本（改为一次性导入旧本地会话或归档为只读）。
 
+### R1 最后一批：影响面与逐处理器映射（实测清单，照此执行）
+
+`SessionStore` 的消费方只有：`ipc.ts`（8 个 `sessions:*` 处理器）、`pi_runner.ts`、旧 `pi_loop.ts`、
+`agent/events.ts`（仅类型）与 3 个测试；**同步/统计不依赖它**（`sync/scan.ts` 只把 `.hu/sessions` 当作排除路径）。
+
+| 现有处理器 | 改为 | 说明 |
+| --- | --- | --- |
+| `sessions:list` | `DurableSessions.list()`（视图索引） | 索引字段 id/title/createdAt/updatedAt/workspaceId → 映射到现有 `SessionSummaryView` |
+| `sessions:create` | `DurableSessions.create({ title, model })` | 模型取 `defaults.primary`；返回新建的摘要 |
+| `sessions:items` | `DurableSessions.view(id)` 的 `entries` → 消息/工具卡视图 | `kind: 'pi.user'｜'pi.system'｜…` + `model: [pi 消息]`；system 条目跳过（不渲染） |
+| `sessions:rename` | 写视图索引的 title | durable 不存标题：标题属索引（界面元数据），不是会话真相 |
+| `sessions:options` | `DurableSessions.agentConfig(id)` | 返回已解析的 model/thinkingLevel/instructions |
+| `sessions:set-options` | `DurableSessions.configure(id, …)` | `reasoningEffort` → `thinkingLevel` 映射 |
+| `sessions:stats` | `DurableSessions.usage()`（`pi.usage`） | 取代自算的 `computeSessionUsage`（数据更全：含 cache/reasoning/cost） |
+| `sessions:search` | 扫描 `entries` 文本 | 会话数量在小规模下可接受；必要时后补索引 |
+
+配合改动：`pi_runner.ts` 改接 `agent/durable_loop.ts`（`DurableSessions` 取代 `SessionStore`；
+会话 id 即 durable 会话 id）；`index.ts` 创建 `DurableSessions`（注入 pi_runtime 的 models 集合）并传给
+`createRunner`；旧本地 JSONL 会话先**归档为只读**（导入脚本可后补）。
+
+删除：`session/{store,items,types}.ts`、`agent/pi_loop.ts`（被 `durable_loop.ts` 取代）及
+`session_store/session_items/session_stats` 三个测试。
+
+
 ## 后果与待办
 
 - **体积**：核心包解包约 10 MB（`pi-ai` 4.2 MB、`pi-durable` 3.2 MB、`chord` 1.5 MB…），另有 `pi-ai`
