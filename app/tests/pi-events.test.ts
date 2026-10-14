@@ -130,6 +130,34 @@ describe('pi 事件映射', () => {
     })
   })
 
+  it('治理层拒绝的调用在映射后是 denied（pi 不为 block 的调用跑 afterToolCall，状态在这里补）', () => {
+    const denials = new Map<string, { status: 'denied' | 'timeout'; reason?: string }>([
+      ['c-denied', { status: 'denied', reason: '当前权限策略拒绝该操作' }],
+      ['c-timeout', { status: 'timeout', reason: '执行超时' }],
+    ])
+    const withDenials = { ...ctx, denials }
+
+    const denied = mapPiEvent(
+      piEvent('tool_execution_end', { toolCallId: 'c-denied', toolName: 'shell', isError: true, result: { content: [] } }),
+      withDenials,
+    )
+    expect(denied[0]).toMatchObject({ type: 'tool.result', result: { id: 'c-denied', status: 'denied' } })
+    expect((denied[0] as { result: { output: string } }).result.output).toBe('当前权限策略拒绝该操作')
+
+    const timeout = mapPiEvent(
+      piEvent('tool_execution_end', { toolCallId: 'c-timeout', toolName: 'shell', isError: true, result: { content: [] } }),
+      withDenials,
+    )
+    expect(timeout[0]).toMatchObject({ type: 'tool.result', result: { status: 'timeout' } })
+
+    // 未被拒绝的调用不受影响
+    const normal = mapPiEvent(
+      piEvent('tool_execution_end', { toolCallId: 'c-ok', toolName: 'read_file', isError: false, result: { content: [{ type: 'text', text: 'ok' }] } }),
+      withDenials,
+    )
+    expect(normal[0]).toMatchObject({ type: 'tool.result', result: { status: 'ok' } })
+  })
+
   it('契约完整性：每一类 pi 事件都有归属（映射或显式声明不映射）', () => {
     // 与 pi-agent-core 的 AgentEvent union 一一对应；上游加事件类型时这里会失败
     const allPiEventTypes: PiAgentEvent['type'][] = [

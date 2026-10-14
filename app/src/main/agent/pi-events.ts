@@ -20,6 +20,11 @@ export interface PiEventContext {
   turnId: string
   provider: string
   model: string
+  /**
+   * 被治理层拒绝/超时的调用。**pi 不会为被 block 的调用执行 `afterToolCall`**（实测），
+   * 因此拒绝状态在这里补：治理层（权限引擎/审批）是拒绝语义的唯一事实来源。
+   */
+  denials?: { get(toolCallId: string): { status: 'denied' | 'timeout'; reason?: string } | undefined }
 }
 
 /**
@@ -138,8 +143,21 @@ export function mapPiEvent(event: PiAgentEvent, ctx: PiEventContext): AgentEvent
         }),
       ]
 
-    case 'tool_execution_end':
-      return [base(ctx, { type: 'tool.result', result: mapToolResult(event) })]
+    case 'tool_execution_end': {
+      const payload = mapToolResult(event)
+      const denial = ctx.denials?.get(event.toolCallId)
+      if (!denial) return [base(ctx, { type: 'tool.result', result: payload })]
+      return [
+        base(ctx, {
+          type: 'tool.result',
+          result: {
+            ...payload,
+            status: denial.status,
+            output: payload.output.length > 0 ? payload.output : (denial.reason ?? ''),
+          },
+        }),
+      ]
+    }
 
     case 'agent_end':
     case 'turn_end':
