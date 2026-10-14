@@ -95,6 +95,12 @@ interface HistorySummarizer {
 改成能力接口后，网关与旧 provider 可在 d 批一次性删除，压缩改为调用 `HistorySummarizer`
 （由 pi 的一次非流式调用实现）。
 
+> **R1 前置验证（spike）✅**：`tests/pi_durable_spike.test.ts` 用 SQLite 存储 + faux provider 实测四件事——
+> ① 关掉存储再重开，会话仍在（单文件落盘）；② **`requestId` 跨重启幂等**（重开后再提交同一 id 得到同一
+> submission，不重复生成）——这正是同步/重试需要的保证；③ `harness.resume()` 可继续上次未完成的运行
+> 且不阻塞；④ `harness.submission(id)` 重开后可取回历史。据此认为 pi-durable 虽自标 Experimental，
+> 但其**存储与提交语义足以承载我们的会话**。
+
 ### 1.6 修订后的重构步骤（pi 为核）
 
 > **R3 进度**：运行器装配 ✅ · 模型设置来源桥 ✅ · **IPC/index 切换 ✅**

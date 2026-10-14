@@ -16,9 +16,11 @@
     "dist:mac": "electron-vite build && electron-builder --mac"
   },
   "dependencies": {
+    "@earendil-works/chord": "1.2.0",
     "@earendil-works/pi-agent-core": "1.2.0",
     "@earendil-works/pi-ai": "1.2.0",
     "@earendil-works/pi-coding-agent": "1.2.0",
+    "@earendil-works/pi-durable": "1.2.0",
     "@earendil-works/pi-telemetry": "1.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
