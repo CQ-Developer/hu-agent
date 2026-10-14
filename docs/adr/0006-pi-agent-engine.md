@@ -73,6 +73,48 @@ pi（源码 `C:\Users\chen\Dev\pi`，npm 版本 1.2.0，MIT）提供 11 个包�
 9. **企业模式不走本地文件存密钥**：`models.json` 里的 `apiKey` 仅用于个人模式与本机开发；企业部署下
    客户端不落密钥，由服务端持有并通过 `streamProxy` 供流（决策 4 的落地方式）。
 
+## 修订（2026-10-14，用户决策）：以 pi 为核，不做形状适配
+
+前一版把 pi 接成"我们的既有形状"（保留自研 `LlmMessage`/事件联合类型/工具接口/会话存储，
+用 `ModelResolver`/`HistorySummarizer`/事件映射把 pi 包起来）。这条路线会让旧抽象长期存活：
+每次 pi 升级都要维护一层翻译，产品侧永远享受不到 pi 的原生能力（会话持久化、任务图、
+异常恢复、工具声明与校验）。**用户明确要求改为以 pi 为核心重新设计，遗留代码彻底清理。**
+
+### 所有权划分（谁拥有什么）
+
+| 领域 | 归属 | 说明 |
+| --- | --- | --- |
+| 消息与会话状态 | **pi**（`pi-agent-core` 的 `AgentMessage`、`pi-durable` entries + storage） | 我们不再定义 `LlmMessage`/会话项结构；快照与同步读 pi 持久化层 |
+| 回合生命周期 | **pi**（`Agent.prompt()` / steering / follow-up / `finishTurn`） | 我们不再手写 8 项职责的循环；只在钩子与事件上挂产品逻辑 |
+| 工具 | **pi**（`AgentTool` + typebox 参数 + `execute`） | 我们不再维护 JSON Schema 工具接口与自研注册表；工具= pi 工具 |
+| 模型与 provider | **pi**（`pi-ai` + `models.json` 配置） | 企业模式走 `streamProxy`（服务端持密钥），不再自研 provider/SSE |
+| MCP / 代码模式 | **pi**（`pi-mcp` / `pi-codemode`） | 删自研 MCP 客户端 |
+| 权限 / 审批 / 审计 | **我们**（挂 `beforeToolCall`/`afterToolCall`） | 这是企业侧差异化能力，必须保留且不降级 |
+| 用量与成本 | pi 提供用量 → **我们**落账与上报 | 数据源是 pi 的 `usage`，不再自算 |
+| UI 事件（IPC） | **我们**，但定义为 **pi 事件在 IPC 边界的投影**（不是平行模型） | 渲染进程契约服务于界面；映射只发生在边界，主进程内部以 pi 类型为准 |
+| 同步 / 市场 / 云 / 服务端 | **我们**（不变） | 与引擎无关 |
+
+### 原则：反适配
+
+1. 需要"把 pi 的事件/消息/工具翻译成我们的形状"的代码，**只有在 IPC/UI 边界**才允许存在，
+   且必须是机械投影（字段改名、裁剪），不得引入第二套语义（例如我们自己定义 stopReason 枚举）。
+2. 任何"为了不动旧代码而写的适配层"一律删除，哪怕它已经写完并通过测试。
+3. 前几批产物中：`pi-runtime.ts`（`ModelResolver`/`HistorySummarizer` 接口）与 `pi-loop.ts`
+   （复刻旧循环 8 项职责）属于**过渡态**，将在本次重构中替换为 pi 原生用法并删除；
+   `pi-config.ts`（读 pi 的 `models.json`）与 `pi-governance.ts`（治理钩子）是 pi 原生用法，保留；
+   `pi-events.ts` 收敛为"边界投影"。
+
+### 删除清单（本次重构目标）
+
+- `src/main/model/providers/*`（openai / openai-responses / anthropic / sse / json-args / types）
+- `src/main/model/gateway.ts`、`src/main/model/types.ts`（`LlmMessage`/`StreamEvent`/`ApiType`…）
+- `src/main/agent/loop.ts`（旧循环）、`src/main/agent/compaction.ts`（改用 pi-durable 的能力）
+- `src/main/session/{store,items,types}.ts`（改用 pi-durable 的 entries + storage；快照/同步改读它）
+- `src/main/tools/types.ts` 的 JSON Schema 工具接口与 `registry.ts`（改用 `AgentTool` + typebox）
+- `src/main/mcp/*`（改用 `pi-mcp`）
+- 对应测试：`tests/{openai,openai-responses,anthropic}-provider.test.ts` 等
+- `src/main/model/pi-runtime.ts`、`src/main/agent/pi-loop.ts`（本 ADR 修订后的产物被替换）
+
 ## 后果与待办
 
 - **体积**：核心包解包约 10 MB（`pi-ai` 4.2 MB、`pi-durable` 3.2 MB、`chord` 1.5 MB…），另有 `pi-ai`

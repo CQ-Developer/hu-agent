@@ -60,11 +60,7 @@
 | 阶段 | 内容 | 依赖（精确 pin） | 出口标准 |
 | --- | --- | --- | --- |
 | **P0 合规基线** ✅ | 遥测审计、许可与依赖策略、ADR-0006、npm 可用性核对 | — | 已完成（`pi-evals` 404 已确认） |
-| **P1 引擎切换**（模型层 + 循环层合并）🚧 | ① **P1.1 配置层 ✅**：`pi-config.ts` 读 pi 的 `models.json`（薄适配，不用 `ModelRegistry`；见 ADR 决策 8 的实测理由）② **P1.2**：用 `pi-agent-core` 的 `Agent` 替换 `agent/loop.ts` + 自研 provider/SSE，权限/审批/审计挂 `beforeToolCall`/`afterToolCall`，`transformContext` 接压缩，事件映射 + 契约测试 | `pi-ai@1.2.0`、`pi-agent-core@1.2.0`、`pi-telemetry@1.2.0`、`typebox@1.3.27` | ① 已完成：6 条配置层测试 + typecheck 全绿 ② 待完成：faux 契约测试（文本/工具/用量/阻断）+ 4 个 e2e 门禁 + 真实调用（`pi-real`）+ **自研 provider/SSE/循环代码删除** + main 包体积增量复核 |
-| **P3 会话持久化** | `pi-durable` + `chord` 接管会话/任务（`openNodeSqliteStorage`，写先于展示 = 崩溃恢复）；旧 items 迁移脚本 + 双读校验 | `pi-durable@1.2.0`、`chord@1.2.0` | 杀进程后重开续跑；迁移双读校验；快照/同步/审计语义不回退 |
-| **P4 MCP 与 Code Mode** | `pi-mcp` 替自研 MCP；`pi-codemode` 可选（WASM 沙箱 + 审批，默认关） | `pi-mcp@1.2.0`、`pi-codemode@1.2.0` | MCP e2e 全绿；越权用例被审批/沙箱拦下 |
-| **P5 远程执行** | `pi-env`（SSH daemon）作为企业可选能力：主机指纹校验 + 密钥管理 | `pi-env@1.2.0`（18 MB，含 Rust daemon） | 远端工作区跑通一个工具回合 + 审计就位 |
-| **P6 打包收尾** | 排除未用 SDK（`@aws-sdk/*`、`@google/genai`）、`NOTICE`、体积复核、删自研代码 | — | 安装包体积可接受；安全扫描 0 漏洞 |
+| **P1 引擎重构（pi 为核）** 🚧 | **不做形状适配**：会话/消息/工具/模型全部改用 pi 原生（`Agent`+`pi-durable`+`AgentTool`+`pi-ai`），旧的 `LlmMessage`/事件联合/工具接口/会话存储/自研 provider/MCP 一律删除；我们的代码只保留企业侧能力（权限/审批/审计/用量/同步/市场/服务端）与 IPC 边界投影 | `pi-ai`、`pi-agent-core`、`pi-durable`+`chord`、`pi-mcp`、`pi-codemode`、`pi-telemetry`、`typebox`（精确 pin） | ① 定向测试全绿 ② 旧模块删除且 import 图干净（无残留引用） ③ 4 个 e2e + 真实调用 ④ main 包体积复核 ⑤ `design.md` 客户端架构章节按 pi 为核心改写 |
 
 轨道 B（UI 令牌 + 动效）不依赖 P1–P5，可与引擎切换并行；轨道 C 已落地。
 
@@ -98,6 +94,17 @@ interface HistorySummarizer {
 理由：`compaction.ts` 现在是照 `ModelGateway.chat()` 写的；若新循环继续用它，P1.2-d 就删不掉网关。
 改成能力接口后，网关与旧 provider 可在 d 批一次性删除，压缩改为调用 `HistorySummarizer`
 （由 pi 的一次非流式调用实现）。
+
+### 1.6 修订后的重构步骤（pi 为核）
+
+| 步 | 内容 | 出口标准 |
+| --- | --- | --- |
+| R1 | 会话与消息换 `pi-durable`（storage 选 SQLite；旧 items 一次性迁移脚本） | 崩溃恢复演练：杀进程后重开续跑；迁移双读校验 |
+| R2 | 工具换 `AgentTool`（typebox 参数），删除 JSON Schema 工具接口与自研注册表 | 6 个内置工具等价行为 + 治理钩子测试 |
+| R3 | 用 `Agent.prompt()` 原生生命周期替换 `pi-loop.ts`（删除复刻的 8 项职责代码） | e2e 与真实调用通过时无行为回退 |
+| R4 | MCP 换 `pi-mcp`；`pi-codemode` 作为可选能力 | MCP e2e 通过；越权用例被审批拦下 |
+| R5 | 删除遗留：`model/providers/*`、`gateway.ts`、`model/types.ts`、`agent/loop.ts`、`agent/compaction.ts`、`session/*`、`tools/{types,registry}.ts`、`mcp/*`、`pi-runtime.ts`、`pi-loop.ts` 及对应测试 | `rg` 无残留 import；全量守卫绿 |
+| R6 | IPC 事件收敛为「pi 事件的机械投影」+ `design.md` 改写 | 渲染层契约无第二套语义 |
 
 ### 1.4 P1 进度
 
