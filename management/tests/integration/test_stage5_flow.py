@@ -395,11 +395,28 @@ async def test_skill_marketplace_lifecycle(client: AsyncClient) -> None:
     assert item["reason"] == "存在安全问题"
 
     notifications = await client.get("/api/v1/me/notifications", headers=member)
-    assert any(note["type"] == "skill.disabled" for note in notifications.json()["items"])
+    disabled_note = next(note for note in notifications.json()["items"] if note["type"] == "skill.disabled")
+    # 通知按收件人 users.locale 渲染（design 5.13）：member 此时为中文
+    assert disabled_note["title"] == "Skill「pdf-report」已被停用"
+    assert disabled_note["body"] == "存在安全问题"
+
     mark = await client.patch("/api/v1/me/notifications", json={"all": True}, headers=member)
     assert mark.json()["updated"] >= 1
 
     # 重新启用 → 新版本审批 → 撤回新版本（返回替代版本）
+    assert (await client.post(f"/api/v1/skills/{skill_id}:enable", headers=owner)).status_code == 200
+
+    # 切到 en-US 后再停用一次：同一 kind 的通知应为英文（design 5.13）
+    assert (await client.patch("/api/v1/me", json={"locale": "en-US"}, headers=member)).status_code == 200
+    assert (
+        await client.post(
+            f"/api/v1/skills/{skill_id}:disable", params={"reason": "security issue"}, headers=owner
+        )
+    ).status_code == 200
+    english_notes = await client.get("/api/v1/me/notifications", headers=member)
+    english_note = next(note for note in english_notes.json()["items"] if note["type"] == "skill.disabled")
+    assert english_note["title"] == "Skill “pdf-report” was disabled"
+    assert english_note["body"] == "security issue"
     assert (await client.post(f"/api/v1/skills/{skill_id}:enable", headers=owner)).status_code == 200
     v2 = await client.post(
         f"/api/v1/skills/{skill_id}/versions",

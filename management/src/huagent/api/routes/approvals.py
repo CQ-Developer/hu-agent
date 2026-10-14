@@ -153,9 +153,8 @@ async def approve(
     await notify(
         session,
         [row["requester_id"]],
-        type="approval.approved",
-        title="审批已通过",
-        body=payload.comment or "你的申请已通过。",
+        kind="approval.approved",
+        params={"comment": payload.comment},
         payload={"approvalId": str(approval_id), "type": row["type"]},
     )
     await record_audit(
@@ -194,9 +193,8 @@ async def reject(
     await notify(
         session,
         [row["requester_id"]],
-        type="approval.rejected",
-        title="审批被驳回",
-        body=comment,
+        kind="approval.rejected",
+        params={"comment": comment},
         payload={"approvalId": str(approval_id), "type": row["type"]},
     )
     await record_audit(

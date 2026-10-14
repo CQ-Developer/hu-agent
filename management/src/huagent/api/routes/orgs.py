@@ -236,9 +236,8 @@ async def apply_org(payload: OrgApplyIn, actor: ActorDep, request: Request, sess
     await notify(
         session,
         admins,
-        type="approval.org_create",
-        title="新的组织创建申请",
-        body=f"{actor.display_name} 申请创建组织「{name}」",
+        kind="approval.org_create",
+        params={"actor": actor.display_name, "name": name},
         payload={"approvalId": str(row["id"])},
     )
     await record_audit(
@@ -362,9 +361,7 @@ async def remove_org_member(
     await notify(
         session,
         [user_id],
-        type="org.member.removed",
-        title="你已被移出组织",
-        body="如有疑问请联系组织管理员。",
+        kind="org.member.removed",
         payload={"orgId": str(org_id)},
     )
     await record_audit(
@@ -445,9 +442,7 @@ async def _create_org_invitation(
     await notify(
         session,
         await _user_ids_by_email(session, email),
-        type="org.invitation",
-        title="组织邀请",
-        body="你被邀请加入组织，请在客户端「组织」页输入邀请码完成加入。",
+        kind="org.invitation",
         payload={"orgId": str(org_id), "token": token},
     )
     await record_audit(

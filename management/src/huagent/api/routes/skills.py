@@ -354,9 +354,8 @@ async def disable_skill(
         session,
         resource_type="skill",
         ref_id=skill_id,
-        type="skill.disabled",
-        title=f"Skill「{skill['name']}」已被停用",
-        body=reason,
+        kind="skill.disabled",
+        params={"name": skill["name"], "reason": reason},
         payload={"skillId": str(skill_id), "reason": reason},
     )
     await session.commit()
@@ -383,9 +382,8 @@ async def delete_skill(skill_id: UUID, actor: ActorDep, request: Request, sessio
         session,
         resource_type="skill",
         ref_id=skill_id,
-        type="skill.deleted",
-        title=f"Skill「{skill['name']}」已被删除",
-        body="该资源已从市场删除，客户端将停止使用。",
+        kind="skill.deleted",
+        params={"name": skill["name"]},
         payload={"skillId": str(skill_id)},
     )
     await record_audit(
@@ -456,9 +454,8 @@ async def revoke_version(
         session,
         resource_type="skill",
         ref_id=skill_id,
-        type="skill.version_revoked",
-        title=f"Skill「{skill['name']}」的版本 {version} 已被撤回",
-        body=reason + (f"；请升级到 {replacement}" if replacement else ""),
+        kind="skill.version_revoked",
+        params={"name": skill["name"], "version": version, "reason": reason, "replacement": replacement},
         payload={"skillId": str(skill_id), "version": version, "replacementVersion": replacement, "reason": reason},
     )
     await record_audit(
@@ -603,9 +600,8 @@ async def _submit_version(
     await notify_team_admins(
         session,
         team_id,
-        type="approval.skill_version_publish",
-        title=f"待审批：{front.name} {version}",
-        body=f"{actor.display_name} 提交了新版本，请审核后发布。",
+        kind="approval.skill_version_publish",
+        params={"name": front.name, "version": version, "actor": actor.display_name},
         payload={"approvalId": str(approval), "skillId": str(skill_id), "version": version},
     )
     await record_audit(

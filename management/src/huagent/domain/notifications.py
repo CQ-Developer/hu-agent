@@ -1,4 +1,8 @@
-"""站内通知（design 6.3.1 / 6.4.5）。"""
+"""站内通知（design 6.3.1 / 6.4.5 / 5.13）。
+
+通知按收件人 `users.locale` 在写入时渲染（见 `domain/messages.py`）；
+调用方只提供 `kind` 与参数，不再拼中文文案。
+"""
 
 from __future__ import annotations
 
@@ -10,6 +14,8 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from huagent.domain.messages import render_notification
+
 INSERT_NOTIFICATION = text(
     """
     INSERT INTO notifications (user_id, type, title, body, payload)
@@ -17,27 +23,36 @@ INSERT_NOTIFICATION = text(
     """
 )
 
+SELECT_LOCALES = text("SELECT id, locale FROM users WHERE id = ANY(CAST(:ids AS uuid[]))")
+
 
 async def notify(
     session: AsyncSession,
     user_ids: Iterable[UUID],
     *,
-    type: str,
-    title: str,
-    body: str = "",
+    kind: str,
+    params: dict[str, Any] | None = None,
     payload: dict[str, Any] | None = None,
 ) -> int:
-    """批量写入站内通知；返回写入条数。调用方负责事务提交。"""
+    """按收件人语言渲染并批量写入站内通知；返回写入条数。调用方负责事务提交。"""
     unique = {user_id for user_id in user_ids}
+    if not unique:
+        return 0
+    locales = {
+        row["id"]: row["locale"]
+        for row in (await session.execute(SELECT_LOCALES, {"ids": list(unique)})).mappings().all()
+    }
+    merged_payload = {**(payload or {}), "kind": kind}
     for user_id in unique:
+        title, body = render_notification(kind, locales.get(user_id), params or {})
         await session.execute(
             INSERT_NOTIFICATION,
             {
                 "user_id": user_id,
-                "type": type,
+                "type": kind,
                 "title": title,
                 "body": body,
-                "payload": json.dumps(payload or {}, ensure_ascii=False),
+                "payload": json.dumps(merged_payload, ensure_ascii=False),
             },
         )
     return len(unique)
@@ -47,9 +62,8 @@ async def notify_team_admins(
     session: AsyncSession,
     team_id: UUID,
     *,
-    type: str,
-    title: str,
-    body: str = "",
+    kind: str,
+    params: dict[str, Any] | None = None,
     payload: dict[str, Any] | None = None,
 ) -> int:
     rows = (
@@ -60,16 +74,15 @@ async def notify_team_admins(
             {"team_id": team_id},
         )
     ).scalars().all()
-    return await notify(session, rows, type=type, title=title, body=body, payload=payload)
+    return await notify(session, rows, kind=kind, params=params, payload=payload)
 
 
 async def notify_org_admins(
     session: AsyncSession,
     org_id: UUID,
     *,
-    type: str,
-    title: str,
-    body: str = "",
+    kind: str,
+    params: dict[str, Any] | None = None,
     payload: dict[str, Any] | None = None,
 ) -> int:
     rows = (
@@ -80,7 +93,7 @@ async def notify_org_admins(
             {"org_id": org_id},
         )
     ).scalars().all()
-    return await notify(session, rows, type=type, title=title, body=body, payload=payload)
+    return await notify(session, rows, kind=kind, params=params, payload=payload)
 
 
 async def notify_activation_users(
@@ -88,9 +101,8 @@ async def notify_activation_users(
     *,
     resource_type: str,
     ref_id: UUID,
-    type: str,
-    title: str,
-    body: str,
+    kind: str,
+    params: dict[str, Any] | None = None,
     payload: dict[str, Any] | None = None,
 ) -> int:
     """向曾启用该资源的用户发定向通知（design 6.4.5）。"""
@@ -105,4 +117,4 @@ async def notify_activation_users(
             {"resource_type": resource_type, "ref_id": ref_id},
         )
     ).scalars().all()
-    return await notify(session, rows, type=type, title=title, body=body, payload=payload)
+    return await notify(session, rows, kind=kind, params=params, payload=payload)

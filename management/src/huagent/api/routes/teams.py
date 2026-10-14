@@ -164,9 +164,8 @@ async def apply_team(
     await notify_org_admins(
         session,
         payload.org_id,
-        type="approval.team_create",
-        title="新的团队创建申请",
-        body=f"{actor.display_name} 申请创建团队「{name}」",
+        kind="approval.team_create",
+        params={"actor": actor.display_name, "name": name},
         payload={"approvalId": str(row["id"])},
     )
     await record_audit(
@@ -291,9 +290,7 @@ async def invite_to_team(
         await notify(
             session,
             [user_row[0]],
-            type="team.invitation",
-            title="团队邀请",
-            body="你被邀请加入团队，请在客户端「组织」页输入邀请码完成加入。",
+            kind="team.invitation",
             payload={"teamId": str(team_id), "token": token},
         )
     await record_audit(
@@ -348,9 +345,7 @@ async def remove_member(
     await notify(
         session,
         [user_id],
-        type="team.member.removed",
-        title="你已被移出团队",
-        body="已安装的市场资源需团队管理员重新授权后才能继续更新。",
+        kind="team.member.removed",
         payload={"teamId": str(team_id)},
     )
     await _audit_override(session, actor, access, request, "team.member.remove", str(user_id), {})

@@ -333,22 +333,24 @@ async def remind_and_expire_approvals(session: AsyncSession) -> int:
     reminded = 0
     for row in (await session.execute(_SELECT_APPROVALS_48H)).mappings().all():
         payload = {"approvalId": str(row["id"]), "type": row["type"]}
-        title = "有待审批事项超过 48 小时"
-        body = f"{row['display_name']} 的申请（{row['type']}）仍在等待处理。"
+        params = {
+            "actor": row["display_name"],
+            "approval_type": row["type"],
+        }
         if row["type"] == "org_create":
             admins = (
                 await session.execute(text("SELECT id FROM users WHERE is_system_admin AND status = 'active'"))
             ).scalars().all()
             from huagent.domain.notifications import notify
 
-            await notify(session, admins, type="approval.reminder", title=title, body=body, payload=payload)
+            await notify(session, admins, kind="approval.reminder", params=params, payload=payload)
         elif row["org_id"] is not None:
             await notify_org_admins(
-                session, row["org_id"], type="approval.reminder", title=title, body=body, payload=payload
+                session, row["org_id"], kind="approval.reminder", params=params, payload=payload
             )
         elif row["team_id"] is not None:
             await notify_team_admins(
-                session, row["team_id"], type="approval.reminder", title=title, body=body, payload=payload
+                session, row["team_id"], kind="approval.reminder", params=params, payload=payload
             )
         reminded += 1
     result = await session.execute(_MARK_STALE)
