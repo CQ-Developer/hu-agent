@@ -17,6 +17,10 @@ void i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 })
 
-i18n.on('languageChanged', (language) => localStorage.setItem('huagent.locale', language))
+i18n.on('languageChanged', (language) => {
+  localStorage.setItem('huagent.locale', language)
+  document.documentElement.lang = language
+})
+document.documentElement.lang = initial
 
 export default i18n

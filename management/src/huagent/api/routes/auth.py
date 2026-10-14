@@ -43,7 +43,8 @@ GuardDep = Annotated[LoginGuard, Depends(get_login_guard)]
 
 class DeviceIn(ApiModel):
     device_id: str
-    platform: Literal["win32", "darwin", "linux"]
+    # web = 管理台（浏览器）；桌面客户端用 win32/darwin/linux
+    platform: Literal["win32", "darwin", "linux", "web"]
     app_version: str
     name: str | None = None
 

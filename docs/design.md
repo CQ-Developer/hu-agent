@@ -1880,6 +1880,33 @@ sequenceDiagram
 - 国际化：react-i18next 管理 zh-CN / en-US 文案；日期、数字、时区统一格式化；语言偏好存入用户设置。
 - 列表页统一模式：筛选器 + 表格 + 分页 + 批量操作 + 导出；审批类页面统一"抽屉详情 + 通过/驳回"。
 
+#### 7.1.1 v1.0 实现说明
+
+- **类型来源**：`openapi-typescript` 生成 `src/api/schema.d.ts`（`npm run api:gen`，经 npx 临时运行，不写入依赖）；
+  `npm run check` 校验 `schema.d.ts` 与 `openapi/openapi.json` 同源（`src/api/schema.hash`），避免接口变更后忘记重生成。
+- **v1 不引入 TanStack Query**：改为自建 `useAsync`（加载态/错误/竞态保护/reload）。理由：页面数量有限、
+  查询依赖简单，避免为 CRUD 场景新增运行时依赖；后续如出现复杂缓存需求再评估引入。
+- **AntD 静态方法不可用**：antd v5 的 `message`/`notification`/`Modal.confirm` 静态调用在 React 19 下不渲染
+  （实测：操作成功但无任何反馈）。统一改用 antd `<App>` 提供的上下文 API（`App.useApp()`），不使用静态调用。
+- **令牌存放**：access token 仅内存；refresh token 存 `sessionStorage`（关闭标签页即失效，降低 XSS 影响面）；
+  401 自动刷新一次，失败即回登录页。
+- **错误文案**：服务端返回业务码，管理台按码本地化（`src/lib/errorText.ts`），未知码回退服务端原文并附 traceId 前缀。
+- **语言**：顶部切换即写入 `users.locale`（PATCH /me），启动时按用户偏好设置界面语言；
+  `node scripts/i18n-check.mjs` 在 `npm run check` 中强制（缺键或中英键不一致即失败）。
+- **设备标识**：登录时以 `platform=web`、`deviceId=management-ui` 登记，便于在"设备与安全"中区分浏览器会话
+  （服务端 `DeviceIn.platform` 枚举已含 `web`）。
+
+#### 7.1.2 v1.0 交付范围（5-09 阶段 A）
+
+已交付：登录（本地账号）、审批（列表/筛选/抽屉详情/通过/驳回/撤销自己的申请）、
+Skill 管理与审核（列表/详情/SKILL.md 预览/版本列表/上架/下架/停用/启用/撤回版本/删除）、
+成员与邀请（组织与团队两个维度、角色变更、移除、一次性邀请码）、身份源（SSO）管理（增删改查、启停、只写密钥）、
+个人设置（昵称、语言、设备与安全、SSO 绑定、通知）。
+
+阶段 B（后续）：组织/团队 CRUD 与冻结、统计图表与导出、通知中心、审计日志、系统设置（配额/保留/价格表/最低客户端版本）、
+管理台自身 SSO 登录入口。
+
+
 ### 7.2 页面清单
 
 | 区域 | 页面 | 可见角色 | 关键内容 |

@@ -9,7 +9,8 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "check": "npm run typecheck && vite build"
+    "check": "npm run typecheck && node scripts/i18n-check.mjs && node scripts/api-check.mjs && vite build",
+    "api:gen": "npx --yes openapi-typescript@7 ../openapi/openapi.json -o src/api/schema.d.ts"
   },
   "dependencies": {
     "@ant-design/icons": "^5.5.0",

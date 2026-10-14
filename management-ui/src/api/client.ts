@@ -1,40 +1,129 @@
 /**
- * API 客户端占位：阶段 0 直接请求 /api/v1/system/health。
- * 阶段 4/5 接入由 openapi/openapi.json 生成的类型化客户端（design 6.9）。
+ * HTTP 客户端（design 6.9 / 7.1）：统一错误体、Bearer 注入、401 自动刷新一次。
+ *
+ * - access token 仅存内存；refresh token 存 sessionStorage（关闭标签页即失效）
+ * - 401 时调用注册好的刷新函数重试一次，仍失败则触发登出回调
+ * - 错误统一抛 ApiError（含业务码与 traceId，便于对齐服务端日志）
  */
 
-export interface ErrorPayload {
-  code: string
-  message: string
-  details?: Record<string, unknown>
+import type { components } from './schema'
+
+export type ApiErrorBody = {
+  code?: string
+  message?: string
   traceId?: string
+  details?: Record<string, unknown>
 }
 
-export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
-    ...init,
-    headers: { Accept: 'application/json', ...init?.headers },
-  })
+export class ApiError extends Error {
+  readonly code: string
+  readonly status: number
+  readonly traceId: string | null
 
-  if (!response.ok) {
-    let payload: ErrorPayload | null = null
-    try {
-      payload = (await response.json()) as ErrorPayload
-    } catch {
-      // 非 JSON 错误体，保持 null
+  constructor(status: number, code: string, message: string, traceId: string | null) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.code = code
+    this.traceId = traceId
+  }
+}
+
+export type QueryValue = string | number | boolean | undefined | null
+
+export interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  body?: unknown
+  query?: Record<string, QueryValue>
+  /** 是否带 Authorization（登录/刷新等接口为 false） */
+  auth?: boolean
+}
+
+type TokenHandler = () => void
+
+let accessToken: string | null = null
+let refreshHandler: (() => Promise<string | null>) | null = null
+let unauthorizedHandler: TokenHandler | null = null
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token
+}
+
+export function getAccessToken(): string | null {
+  return accessToken
+}
+
+/** 由会话层注册：返回新的 access token，失败返回 null */
+export function setRefreshHandler(handler: () => Promise<string | null>): void {
+  refreshHandler = handler
+}
+
+/** 由会话层注册：刷新失败时清空会话并回到登录页 */
+export function setUnauthorizedHandler(handler: TokenHandler): void {
+  unauthorizedHandler = handler
+}
+
+function buildUrl(path: string, query?: Record<string, QueryValue>): string {
+  if (!query) return path
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') continue
+    params.set(key, String(value))
+  }
+  const suffix = params.toString()
+  return suffix ? `${path}?${suffix}` : path
+}
+
+async function send(path: string, options: RequestOptions): Promise<Response> {
+  const response = await fetch(buildUrl(path, options.query), {
+    method: options.method ?? 'GET',
+    headers: {
+      Accept: 'application/json',
+      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(options.auth === false || !accessToken ? {} : { Authorization: `Bearer ${accessToken}` }),
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  })
+  return response
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  let response = await send(path, options)
+
+  if (response.status === 401 && options.auth !== false && refreshHandler) {
+    const renewed = await refreshHandler()
+    if (renewed) {
+      response = await send(path, options)
+    } else {
+      unauthorizedHandler?.()
     }
-    const suffix = payload?.code ? `（${payload.code} / ${payload.traceId ?? '-'}）` : ''
-    throw new Error(`${response.status} ${response.statusText}${suffix}`)
+  } else if (response.status === 401 && options.auth !== false) {
+    unauthorizedHandler?.()
   }
 
-  return (await response.json()) as T
+  const text = await response.text()
+  const payload = text ? (JSON.parse(text) as unknown) : {}
+
+  if (!response.ok) {
+    const error = payload as ApiErrorBody
+    throw new ApiError(
+      response.status,
+      error.code ?? 'INTERNAL',
+      error.message ?? `${response.status} ${response.statusText}`,
+      error.traceId ?? null,
+    )
+  }
+  return payload as T
 }
 
-export interface HealthResponse {
-  status: string
-  time: string
+export const api = {
+  get: <T>(path: string, options?: Omit<RequestOptions, 'method'>) => apiRequest<T>(path, options),
+  post: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
+    apiRequest<T>(path, { ...options, method: 'POST', body }),
+  patch: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, 'method' | 'body'>) =>
+    apiRequest<T>(path, { ...options, method: 'PATCH', body }),
+  del: <T>(path: string, options?: Omit<RequestOptions, 'method'>) =>
+    apiRequest<T>(path, { ...options, method: 'DELETE' }),
 }
 
-export function getHealth(): Promise<HealthResponse> {
-  return apiFetch<HealthResponse>('/api/v1/system/health')
-}
+export type Schema = components['schemas']

@@ -1,14 +1,101 @@
-import { GlobalOutlined } from '@ant-design/icons'
-import { Layout, Menu, Segmented, Typography } from 'antd'
+/**
+ * 管理台布局（design 7.1）：左侧按角色动态菜单 + 顶部组织/团队切换、待办审批、账号菜单。
+ */
+
+import {
+  BellOutlined,
+  CheckSquareOutlined,
+  DashboardOutlined,
+  GlobalOutlined,
+  LogoutOutlined,
+  SafetyCertificateOutlined,
+  TeamOutlined,
+  UserOutlined,
+} from '@ant-design/icons'
+import { Avatar, Badge, Button, Dropdown, Empty, Layout, Menu, Popover, Segmented, Select, Space, Tag, Typography } from 'antd'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+
+import { meApi } from '../api/endpoints'
+import { useScope } from '../app/ScopeProvider'
+import { useSession } from '../auth/SessionProvider'
+import i18n from '../i18n'
+import { useAsync } from '../lib/useAsync'
+import { formatDateTime } from '../lib/format'
 
 const { Header, Sider, Content } = Layout
 
 export default function AdminLayout() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
+  const { profile, logout, patchProfile } = useSession()
+  const scope = useScope()
+  const [bellOpen, setBellOpen] = useState(false)
+
+  const notifications = useAsync(() => meApi.notifications(), [bellOpen])
+  const unread = notifications.data?.unread ?? 0
+
+  const items = useMemo(() => {
+    const entries = [
+      { key: '/dashboard', icon: <DashboardOutlined />, label: t('menu.dashboard') },
+      { key: '/approvals', icon: <CheckSquareOutlined />, label: t('menu.approvals') },
+    ]
+    if (scope.adminTeams.length > 0) {
+      entries.push({ key: '/skills', icon: <SafetyCertificateOutlined />, label: t('menu.skills') })
+    }
+    if (scope.canManageOrg || scope.adminTeams.length > 0) {
+      entries.push({ key: '/members', icon: <TeamOutlined />, label: t('menu.members') })
+    }
+    if (scope.isSystemAdmin) {
+      entries.push({ key: '/identity-providers', icon: <GlobalOutlined />, label: t('menu.identityProviders') })
+    }
+    return entries
+  }, [t, scope.adminTeams.length, scope.canManageOrg, scope.isSystemAdmin])
+
+  const bellContent = (
+    <div style={{ width: 360, maxHeight: 420, overflow: 'auto' }}>
+      {notifications.data?.items.length ? (
+        <>
+          <div style={{ textAlign: 'right', marginBottom: 8 }}>
+            <Button
+              size="small"
+              type="link"
+              onClick={() => {
+                void meApi.markNotifications(true).then(() => notifications.reload())
+              }}
+            >
+              {t('notifications.markAllRead')}
+            </Button>
+          </div>
+          {notifications.data.items.map((note) => (
+            <div key={note.id} style={{ padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+              <Space size={6}>
+                {!note.readAt && <Badge status="processing" />}
+                <Typography.Text strong>{note.title}</Typography.Text>
+              </Space>
+              <div style={{ color: '#666', fontSize: 12 }}>{note.body}</div>
+              <div style={{ color: '#999', fontSize: 12 }}>{formatDateTime(note.createdAt, i18n.language)}</div>
+            </div>
+          ))}
+        </>
+      ) : (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('notifications.empty')} />
+      )}
+    </div>
+  )
+
+  const accountMenu = {
+    items: [
+      { key: 'profile', icon: <UserOutlined />, label: t('menu.profile') },
+      { key: 'logout', icon: <LogoutOutlined />, label: t('menu.logout') },
+    ],
+    onClick: ({ key }: { key: string }) => {
+      if (key === 'logout') void logout()
+      else navigate('/profile')
+    },
+  }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -19,7 +106,7 @@ export default function AdminLayout() {
           mode="inline"
           selectedKeys={[location.pathname]}
           onClick={({ key }) => void navigate(key)}
-          items={[{ key: '/dashboard', label: t('menu.dashboard') }]}
+          items={items}
         />
       </Sider>
       <Layout>
@@ -29,24 +116,60 @@ export default function AdminLayout() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            paddingInline: 24,
+            paddingInline: 16,
+            gap: 12,
           }}
         >
-          <Typography.Text strong>{t('app.name')}</Typography.Text>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <GlobalOutlined />
+          <Space size={8}>
+            <Typography.Text strong>{t('app.name')}</Typography.Text>
+            {scope.isSystemAdmin && <Tag color="gold">{t('common.systemAdmin')}</Tag>}
+          </Space>
+          <Space size={12}>
+            <Select
+              size="small"
+              style={{ minWidth: 180 }}
+              value={scope.team?.id ?? undefined}
+              placeholder={t('common.selectTeam')}
+              onChange={(value: string) => scope.setTeamId(value)}
+              options={scope.teams.map((team) => ({
+                value: team.id,
+                label: `${team.name}${team.myRole === 'admin' ? ` (${t('common.admin')})` : ''}`,
+              }))}
+            />
+            <Popover
+              content={bellContent}
+              title={t('notifications.title')}
+              trigger="click"
+              open={bellOpen}
+              onOpenChange={setBellOpen}
+            >
+              <Badge count={unread} size="small">
+                <Button type="text" icon={<BellOutlined />} />
+              </Badge>
+            </Popover>
             <Segmented
               size="small"
               value={i18n.language}
-              onChange={(value) => void i18n.changeLanguage(String(value))}
+              onChange={(value) => {
+                const next = String(value) as 'zh-CN' | 'en-US'
+                void i18n.changeLanguage(next)
+                // 语言偏好写入用户设置（design 7.1）
+                void patchProfile({ locale: next }).catch(() => undefined)
+              }}
               options={[
                 { label: '中文', value: 'zh-CN' },
                 { label: 'EN', value: 'en-US' },
               ]}
             />
-          </div>
+            <Dropdown menu={accountMenu} placement="bottomRight">
+              <Space style={{ cursor: 'pointer' }}>
+                <Avatar size="small" icon={<UserOutlined />} />
+                <span>{profile?.displayName || profile?.email}</span>
+              </Space>
+            </Dropdown>
+          </Space>
         </Header>
-        <Content style={{ padding: 24 }}>
+        <Content style={{ padding: 16 }}>
           <Outlet />
         </Content>
       </Layout>

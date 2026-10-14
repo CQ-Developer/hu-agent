@@ -33,3 +33,6 @@ openapi/generated/
 
 # 客户端本地运行时目录（若在仓库内测试工作空间）
 .hu/
+
+# Playwright CLI 走查产物
+.playwright-cli/

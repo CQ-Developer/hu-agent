@@ -4133,7 +4133,8 @@
             "enum": [
               "win32",
               "darwin",
-              "linux"
+              "linux",
+              "web"
             ],
             "title": "Platform"
           },

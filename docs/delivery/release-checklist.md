@@ -7,7 +7,7 @@
 
 | 项 | 状态 | 证据 / 说明 |
 | --- | --- | --- |
-| 管理台可完成全部管理操作 | ❌ | 5-09 延后；当前用 `scripts/stage5-admin.http`、`scripts/sso-live-check.py` 代办。**需需求方确认是否可延后到 v1.x**，否则需实现管理台 |
+| 管理台可完成全部管理操作 | ⏳ | **阶段 A 已交付**（`management-ui/`：登录、审批、Skill 审核与生命周期、成员与邀请、身份源管理、个人设置），已用 Playwright 实机走查（含 AntD/React 19 静态方法缺陷修复、业务码本地化、i18n 一致性检查进 CI）；**阶段 B 待做**：组织/团队 CRUD、统计图表与导出、通知中心、审计日志、系统设置，以及管理台自身 SSO 登录 |
 | 英文 i18n（D13） | ✅ | 客户端：496 键中英齐平、渲染层与主进程零漏翻（`i18n.test.ts` 13 项 + AST 扫描工具）、语言切换即时生效并同步 `users.locale`；**服务端站内通知按收件人 `users.locale` 渲染**（`domain/messages.py` + 19 项单测 + 集成断言「中文用户中文、英文用户英文」）；管理台现有页面双语 + 顶部切换。**约束：5-09 新增页面必须同步双语** |
 | 统计图表与 CSV 导出 | ✅ | 客户端「用量统计」Tab（按日柱状图、维度明细、激活明细、CSV UTF-8 BOM）；`app/tests/stats-csv.test.ts`、`STATS_E2E` 实测 |
 | 定时同步 + 冲突处理 | ✅ | 档位 关闭/15m/30m/1h/6h/24h；单飞/冲突暂停/失败重试；`app/tests/sync-scheduler.test.ts`、`tests/market-status.test.ts` |
