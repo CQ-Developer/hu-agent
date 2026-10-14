@@ -19,7 +19,7 @@
 | --- | --- | --- |
 | 安全用例全结（路径逃逸/zip/越权/令牌重放） | ✅（有小结，扫描待补） | `docs/delivery/security-review.md` 第 1-5 节逐条列证据（单测 + 集成 + 真实联调） |
 | 依赖与静态扫描无高危未处理 | ✅ | `scripts/security-scan.sh` + CI `security` 作业（pip-audit / bandit medium+ / npm audit --omit=dev 全绿）；开发依赖豁免与后续动作见 `security-review.md` 第 6 节 |
-| 审计/保留/删除策略按 6.10.5 自检 | ⏳ | 审计与保留已实现（worker 分区保留、快照保留、审计落库）；**用户数据删除（GDPR 类）未实现**，需确认范围 |
+| 审计/保留/删除策略按 6.10.5 自检 | ✅ | 导出（`GET /me/export`）、注销（`POST /me:delete`：立即停用+撤销会话）、宽限期后 PII 清理（worker `user.purge`，用量改挂匿名占位保证统计连续）、日聚合保留 730 天（`usage.daily.prune`）、客户端「数据与隐私」入口；证据：`management/tests/integration/test_lifecycle.py` 2 项集成测试 + design 6.10.5 实现说明 + `operations.md` 4.1 |
 | 保护文件、权限矩阵与产品说明一致 | ✅ | `app/src/main/permissions/*` + `tests/permissions-*`；design 5.5 与「权限与审计」Tab 展示一致 |
 
 ## 交付物
@@ -35,8 +35,8 @@
 
 | 项 | 状态 | 说明 |
 | --- | --- | --- |
-| 需求方验收演示 | ❌ | 待安排；可复用 `scripts/stage5-demo.ps1`（17 步）、`MARKET_E2E`/`SYNC_E2E`、`scripts/sso-live-check.py` 作为演示脚本 |
-| 遗留问题清单经需求方确认 | ❌ | 待整理：管理台（5-09）、英文 i18n、MCP 市场（5-08）、MCP HTTP/SSE（3-05）、定时同步已提前完成、用户数据删除范围 |
+| 需求方验收演示 | ⏳ | 材料就绪：`docs/delivery/acceptance.md`（前置环境 + 4 组场景 + 自动回归 + 验收确认表，含「演示前须已知事项」避免误解）；**待需求方确认时间与参会人** |
+| 遗留问题清单经需求方确认 | ⏳ | 清单已整理并体现在 `docs/delivery/release-notes.md` 第 5 节（管理台阶段 B、签名证书、监控接入、staging 性能、邮件通道、MCP http/sse 与市场、macOS 实机验证）；**待需求方确认接受或调整优先级** |
 
 ## 本次（阶段 7）新增产物
 

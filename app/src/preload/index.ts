@@ -91,6 +91,8 @@ const api: HuAgentApi = {
     providers: (serverUrl: string) => ipcRenderer.invoke('cloud:providers', serverUrl),
     ssoLogin: (serverUrl: string, providerId: string) => ipcRenderer.invoke('cloud:sso-login', serverUrl, providerId),
     updateLocale: (locale) => ipcRenderer.invoke('cloud:update-locale', locale),
+    exportData: () => ipcRenderer.invoke('cloud:export-data'),
+    deleteAccount: (confirmEmail, password) => ipcRenderer.invoke('cloud:delete-account', confirmEmail, password),
     login: (serverUrl, email, password) => ipcRenderer.invoke('cloud:login', serverUrl, email, password),
     register: (serverUrl, email, displayName, password) =>
       ipcRenderer.invoke('cloud:register', serverUrl, email, displayName, password),

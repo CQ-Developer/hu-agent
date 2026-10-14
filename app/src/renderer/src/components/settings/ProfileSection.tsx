@@ -11,6 +11,127 @@ import type {
 import { applyResolved, t } from '../../i18n'
 
 /** 语言设置（design 5.13 / D13）：默认跟随系统，切换后立即生效并同步到服务端（通知/邮件用）。 */
+/** 数据与隐私（design 6.10.5）：导出本人数据、申请注销账号。 */
+function DataAndPrivacy() {
+  const [message, setMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [confirmEmail, setConfirmEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [purgeInfo, setPurgeInfo] = useState<string | null>(null)
+
+  const exportData = async (): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await window.huAgent.cloud.exportData()
+      if (!result.canceled) setMessage(t('已导出到 {0}', { 0: result.path ?? '' }))
+    } catch (cause) {
+      setError(String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const requestDeletion = async (): Promise<void> => {
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await window.huAgent.cloud.deleteAccount(confirmEmail.trim(), password || undefined)
+      setPurgeInfo(result.purgeAfter.slice(0, 10))
+      setDeleteOpen(false)
+    } catch (cause) {
+      setError(String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section>
+      <h3 className="mb-2 text-xs font-semibold text-neutral-500">{t('数据与隐私')}</h3>
+      <div className="space-y-2 rounded-lg border border-neutral-200 p-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void exportData()}
+            className="rounded-md border border-neutral-300 bg-white px-2.5 py-1 hover:bg-neutral-100 disabled:opacity-50"
+          >
+            {t('导出我的数据（JSON）')}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setDeleteOpen(true)
+              setConfirmEmail('')
+              setPassword('')
+            }}
+            className="rounded-md border border-rose-300 bg-white px-2.5 py-1 text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+          >
+            {t('注销账号')}
+          </button>
+          <span className="text-neutral-400">{t('导出包含资料、设备、通知、激活与用量日聚合；不含他人数据')}</span>
+        </div>
+        {message && <div className="text-emerald-600">{message}</div>}
+        {purgeInfo && (
+          <div className="text-rose-600">
+            {t('注销申请已提交：账号已停用，数据将于 {0} 后清理；本地工作空间文件需自行删除', { 0: purgeInfo })}
+          </div>
+        )}
+        {error && <div className="text-rose-600">{error}</div>}
+      </div>
+
+      {deleteOpen && (
+        <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40">
+          <div className="w-[420px] rounded-xl bg-white p-4 text-xs shadow-2xl">
+            <div className="mb-2 text-sm font-semibold">{t('注销账号')}</div>
+            <p className="mb-3 text-neutral-600">
+              {t('注销后立即无法登录，全部设备会话被撤销；{0} 天后清理账号信息（邮箱、昵称、身份绑定、设备与通知），用量统计改为匿名保留。此操作不可自助撤销。', {
+                0: 30,
+              })}
+            </p>
+            <label className="mb-1 block text-neutral-500">{t('输入账号邮箱以确认')}</label>
+            <input
+              className="mb-2 w-full rounded border border-neutral-300 px-2 py-1"
+              value={confirmEmail}
+              onChange={(event) => setConfirmEmail(event.target.value)}
+              placeholder="you@example.com"
+            />
+            <label className="mb-1 block text-neutral-500">{t('密码（SSO 账号可留空）')}</label>
+            <input
+              type="password"
+              className="mb-3 w-full rounded border border-neutral-300 px-2 py-1"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            {error && <div className="mb-2 text-rose-600">{error}</div>}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteOpen(false)}
+                className="rounded-md border border-neutral-300 px-2.5 py-1 hover:bg-neutral-100"
+              >
+                {t('取消')}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void requestDeletion()}
+                className="rounded-md bg-rose-600 px-2.5 py-1 text-white hover:bg-rose-500 disabled:opacity-50"
+              >
+                {t('确认注销')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function LocaleSetting() {
   const [locale, setLocale] = useState<LocaleView | null>(null)
 
@@ -355,6 +476,9 @@ export default function ProfileSection({ usage, workspaces, activeWorkspace, onC
       </section>
 
       <LocaleSetting />
+
+      <DataAndPrivacy />
+
     </div>
   )
 }

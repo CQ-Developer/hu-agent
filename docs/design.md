@@ -1787,6 +1787,26 @@ db/
 - 用量原始事件：90 天；`usage_daily`：24 个月；两者可配。
 - 日志中禁止出现：token、密码、密钥、提示词/回复内容、文件路径（错误堆栈注意刷洗）。
 
+**实现说明（v1.0）**
+
+- **数据导出**：`GET /api/v1/me/export` 返回本人资料、成员关系、设备、身份绑定、通知、激活明细、
+  用量日聚合、本人审计与保留策略说明（JSON，camelCase，便于人读）；导出动作写审计 `account.export`。
+- **账号注销**：`POST /api/v1/me:delete`（需 `confirmEmail`，本地账号还需密码）→ 立即 `status='disabled'`、
+  撤销该用户全部 refresh token、写审计 `account.delete_requested`；宽限期取
+  `system_settings.account.deletion_grace_days`（默认 30 天）。
+- **宽限期后清理**：worker 任务 `user.purge`（每日 04:00）对到点账号硬删 PII——
+  邮箱改为 `deleted-<id>@deleted.invalid`、昵称固定为「已注销用户」、清空头像与密码哈希；
+  删除设备、refresh token、身份绑定、通知、激活上报与个人工作空间（含对象存储快照对象）；
+  `usage_events` 与 `usage_daily` 的 `user_id` 改挂匿名占位 `00000000-...-0000`，**历史统计不中断**。
+  审计日志保留（行内已无 PII）。任务幂等，以 `users.purged_at` 标记避免重复处理。
+- **保留策略**：`usage.retention_days`（原始事件 90 天，分区滚动删除）、
+  `usage.daily_retention_days`（日聚合 730 天，worker `usage.daily.prune` 每日清理）、
+  `snapshot.retention`（快照版本数）。三者在 `system_settings` 中可调。
+- **宽限期内恢复**：不提供自助撤销（界面明确提示不可自助恢复）；运维可按 `operations.md`
+  的 SQL 把账号置回 `active` 并清空 `deletion_requested_at`。阶段 B 的用户管理页面将提供该操作入口。
+- **客户端入口**：个人中心 →「数据与隐私」提供导出（保存 JSON）与注销（二次确认）；
+  注销成功后本地会话立即失效并回到登录门禁；**本地工作空间文件不随账号删除，界面提示用户自行清理**。
+
 ### 6.11 后台任务（worker）
 
 | 任务 | 频率 | 幂等性设计 |

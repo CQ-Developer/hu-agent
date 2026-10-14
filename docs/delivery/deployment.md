@@ -26,7 +26,7 @@
 | `PUBLIC_BASE_URL` | ✅（SSO） | 服务对外地址，用于拼接 IdP 回调 `…/api/v1/auth/sso/callback` |
 | `S3_ENDPOINT/ACCESS_KEY/SECRET_KEY/BUCKET_SKILLS/BUCKET_SNAPSHOTS` | ✅ | MinIO/S3；首次写入自动建桶 |
 | `AUTH_REGISTRATION_ENABLED` | — | `false` 关闭自助注册（企业只走 SSO/邀请） |
-| `SCHEMA_EXPECTED_VERSION` | ✅ | 期望的 DDL 版本（当前 `V0004`）；不匹配会拒绝启动 |
+| `SCHEMA_EXPECTED_VERSION` | ✅ | 期望的 DDL 版本（当前 `V0005`）；不匹配会拒绝启动 |
 | `WEAK_PASSWORD_FILE` | 建议 | 挂载 top-10k 弱口令名单文件路径 |
 | `METRICS_ENABLED` | — | 默认 `true`；置 `false` 关闭 `/api/v1/system/metrics` |
 | `METRICS_TOKEN` | 建议 | 非空时指标端点要求 `Authorization: Bearer <token>`（生产必须设置） |

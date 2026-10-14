@@ -530,6 +530,72 @@
         }
       }
     },
+    "/api/v1/me/export": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Export My Data",
+        "description": "导出本人数据（design 6.10.5）：资料、成员关系、设备、身份、通知、激活、用量日聚合、本人审计。",
+        "operationId": "export_my_data_api_v1_me_export_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Export My Data Api V1 Me Export Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me:delete": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Delete My Account",
+        "description": "申请注销：立即停用并撤销全部会话；宽限期后由 worker 硬删 PII（design 6.10.5）。",
+        "operationId": "delete_my_account_api_v1_me_delete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteAccountOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/usage:batch": {
       "post": {
         "tags": [
@@ -4121,6 +4187,65 @@
         },
         "type": "object",
         "title": "DecisionIn"
+      },
+      "DeleteAccountIn": {
+        "properties": {
+          "confirmEmail": {
+            "type": "string",
+            "title": "Confirmemail"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "confirmEmail"
+        ],
+        "title": "DeleteAccountIn"
+      },
+      "DeleteAccountOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "purgeAfter": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Purgeafter"
+          },
+          "graceDays": {
+            "type": "integer",
+            "title": "Gracedays"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "purgeAfter",
+          "graceDays"
+        ],
+        "title": "DeleteAccountOut"
       },
       "DeviceIn": {
         "properties": {

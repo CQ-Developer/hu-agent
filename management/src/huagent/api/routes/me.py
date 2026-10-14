@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Annotated, Literal
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -12,9 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from huagent.api.deps import Actor, client_ip, get_actor
 from huagent.api.schemas import ApiModel
+from huagent.common.config import get_settings
 from huagent.common.errors import AppError, ErrorCode
+from huagent.common.security import verify_password
 from huagent.domain.audit import record_audit
 from huagent.domain.db import get_session
+from huagent.domain.settings import get_int_setting
 
 router = APIRouter(prefix="/me", tags=["me"])
 
@@ -68,6 +71,19 @@ class NotificationsOut(ApiModel):
 class NotificationPatch(ApiModel):
     ids: list[UUID] | None = None
     all: bool = False
+
+
+class DeleteAccountIn(ApiModel):
+    # 二次确认：输入自己的邮箱；本地账号还需提供密码（SSO 账号无密码）
+    confirm_email: str
+    password: str | None = None
+    reason: str | None = None
+
+
+class DeleteAccountOut(ApiModel):
+    status: str
+    purge_after: datetime
+    grace_days: int
 
 
 SELECT_PROFILE = text(
@@ -300,3 +316,145 @@ async def unlink_identity(
     )
     await session.commit()
     return {"id": str(identity_id), "unlinked": True}
+
+
+# ---------- 数据生命周期（design 6.10.5）----------
+
+REVOKE_ALL_TOKENS = text(
+    "UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = :user_id AND revoked_at IS NULL"
+)
+REQUEST_DELETION = text(
+    """
+    UPDATE users SET status = 'disabled', deletion_requested_at = now(), updated_at = now()
+    WHERE id = :user_id
+    RETURNING id, deletion_requested_at
+    """
+)
+SELECT_MEMBERSHIPS = text(
+    """
+    SELECT 'org' AS kind, o.id, o.name, m.role, m.status, m.joined_at
+    FROM org_members m JOIN orgs o ON o.id = m.org_id
+    WHERE m.user_id = :user_id
+    UNION ALL
+    SELECT 'team' AS kind, t.id, t.name, m.role, m.status, m.joined_at
+    FROM team_members m JOIN teams t ON t.id = m.team_id
+    WHERE m.user_id = :user_id
+    ORDER BY kind, name
+    """
+)
+SELECT_MY_ACTIVATIONS = text(
+    """
+    SELECT resource_type, ref_id, name, version, enabled, device_id, reported_at
+    FROM activation_reports WHERE user_id = :user_id ORDER BY reported_at DESC LIMIT 1000
+    """
+)
+SELECT_MY_USAGE_DAILY = text(
+    """
+    SELECT day, provider, model, input_tokens, output_tokens, requests, errors
+    FROM usage_daily WHERE user_id = :user_id ORDER BY day DESC LIMIT 730
+    """
+)
+SELECT_MY_AUDIT = text(
+    """
+    SELECT action, target_type, target_id, detail, created_at
+    FROM audit_logs WHERE actor_id = :user_id ORDER BY id DESC LIMIT 1000
+    """
+)
+
+
+def _to_camel(value: object) -> object:
+    """导出文档统一 camelCase（与 API 其余部分一致，便于人读）。"""
+    if isinstance(value, dict):
+        return {_camel_key(str(key)): _to_camel(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_to_camel(item) for item in value]
+    return value
+
+
+def _camel_key(key: str) -> str:
+    head, *rest = key.split("_")
+    return head + "".join(part.capitalize() for part in rest)
+
+
+@router.get("/export")
+async def export_my_data(actor: ActorDep, request: Request, session: SessionDep) -> dict[str, object]:
+    """导出本人数据（design 6.10.5）：资料、成员关系、设备、身份、通知、激活、用量日聚合、本人审计。"""
+    profile = (await session.execute(SELECT_PROFILE, {"user_id": actor.user_id})).mappings().first()
+    if profile is None:
+        raise AppError(ErrorCode.NOT_FOUND, "账号不存在")
+
+    async def rows(statement: Any, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        result = await session.execute(statement, params or {"user_id": actor.user_id})
+        return [dict(row) for row in result.mappings().all()]
+
+    payload: dict[str, object] = {
+        "generatedAt": datetime.now(UTC).isoformat(),
+        "profile": dict(profile),
+        "memberships": await rows(SELECT_MEMBERSHIPS),
+        "devices": await rows(SELECT_DEVICES),
+        "identities": await rows(SELECT_IDENTITIES),
+        "notifications": await rows(
+            SELECT_NOTIFICATIONS, {"user_id": actor.user_id, "unread_only": False, "limit": 1000}
+        ),
+        "activations": await rows(SELECT_MY_ACTIVATIONS),
+        "usageDaily": await rows(SELECT_MY_USAGE_DAILY),
+        "audit": await rows(SELECT_MY_AUDIT),
+        "retention": {
+            "usageEventsDays": await get_int_setting(session, "usage.retention_days", 90),
+            "usageDailyDays": await get_int_setting(session, "usage.daily_retention_days", 730),
+        },
+    }
+    await record_audit(
+        session,
+        action="account.export",
+        actor_id=actor.user_id,
+        actor_ip=client_ip(request),
+        detail={"sections": sorted(payload.keys())},
+    )
+    await session.commit()
+    return _to_camel(payload)  # type: ignore[return-value]
+
+
+@router.post(":delete")
+async def delete_my_account(
+    payload: DeleteAccountIn,
+    actor: ActorDep,
+    request: Request,
+    session: SessionDep,
+) -> DeleteAccountOut:
+    """申请注销：立即停用并撤销全部会话；宽限期后由 worker 硬删 PII（design 6.10.5）。"""
+    if payload.confirm_email.strip().lower() != actor.email.lower():
+        raise AppError(ErrorCode.VALIDATION_FAILED, "确认邮箱与当前账号不一致")
+
+    credentials = (
+        await session.execute(
+            text("SELECT password_hash FROM users WHERE id = :user_id"), {"user_id": actor.user_id}
+        )
+    ).mappings().first()
+    password_hash = credentials["password_hash"] if credentials else None
+    if password_hash and not verify_password(payload.password or "", str(password_hash)):
+        raise AppError(ErrorCode.UNAUTHENTICATED, "密码不正确")
+
+    grace_days = get_settings().account_deletion_grace_days
+    updated = (await session.execute(REQUEST_DELETION, {"user_id": actor.user_id})).mappings().first()
+    if updated is None:
+        raise AppError(ErrorCode.NOT_FOUND, "账号不存在")
+    revoked = await session.execute(REVOKE_ALL_TOKENS, {"user_id": actor.user_id})
+
+    await record_audit(
+        session,
+        action="account.delete_requested",
+        actor_id=actor.user_id,
+        actor_ip=client_ip(request),
+        detail={
+            "graceDays": grace_days,
+            "reason": payload.reason,
+            "revokedTokens": int(getattr(revoked, "rowcount", 0) or 0),
+        },
+    )
+    await session.commit()
+    return DeleteAccountOut(
+        status="disabled",
+        purge_after=updated["deletion_requested_at"] + timedelta(days=grace_days),
+        grace_days=grace_days,
+    )

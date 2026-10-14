@@ -230,6 +230,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export My Data
+         * @description 导出本人数据（design 6.10.5）：资料、成员关系、设备、身份、通知、激活、用量日聚合、本人审计。
+         */
+        get: operations["export_my_data_api_v1_me_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me:delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete My Account
+         * @description 申请注销：立即停用并撤销全部会话；宽限期后由 worker 硬删 PII（design 6.10.5）。
+         */
+        post: operations["delete_my_account_api_v1_me_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage:batch": {
         parameters: {
             query?: never;
@@ -1216,6 +1256,27 @@ export interface components {
              * @default
              */
             comment: string;
+        };
+        /** DeleteAccountIn */
+        DeleteAccountIn: {
+            /** Confirmemail */
+            confirmEmail: string;
+            /** Password */
+            password?: string | null;
+            /** Reason */
+            reason?: string | null;
+        };
+        /** DeleteAccountOut */
+        DeleteAccountOut: {
+            /** Status */
+            status: string;
+            /**
+             * Purgeafter
+             * Format: date-time
+             */
+            purgeAfter: string;
+            /** Gracedays */
+            graceDays: number;
         };
         /** DeviceIn */
         DeviceIn: {
@@ -2718,6 +2779,61 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_my_data_api_v1_me_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    delete_my_account_api_v1_me_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteAccountIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteAccountOut"];
                 };
             };
             /** @description Validation Error */

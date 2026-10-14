@@ -1,6 +1,7 @@
 /** 主进程 IPC 注册（design 5.1/5.5/5.6）。 */
 
 import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { ModelGateway } from './model/gateway'
@@ -585,6 +586,23 @@ export function registerIpc(context: AppContext): void {
     if (target.canceled || !target.filePath) return { canceled: true }
     const report = await exportDiagnostics(target.filePath, app.getVersion())
     return { canceled: false, ...report }
+  })
+  ipcMain.handle('cloud:export-data', async () => {
+    const document_ = await context.cloud.exportAccountData()
+    const target = await dialog.showSaveDialog({
+      title: t('导出我的数据'),
+      defaultPath: join(app.getPath('downloads'), `hu-agent-data-${Date.now()}.json`),
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (target.canceled || !target.filePath) return { canceled: true }
+    await writeFile(target.filePath, JSON.stringify(document_, null, 2), 'utf8')
+    return { canceled: false, path: target.filePath }
+  })
+  ipcMain.handle('cloud:delete-account', async (_event, confirmEmail: string, password?: string) => {
+    const result = await context.cloud.deleteAccount(confirmEmail, password)
+    // 会话已被服务端撤销：通知界面回到登录门禁（ADR 0004）
+    broadcastSessionLost(t('账号已注销，本地会话已失效'))
+    return result
   })
   ipcMain.handle('cloud:sso-login', async (_event, serverUrl: string, providerId: string) => {
     // 系统浏览器 + 回环回调（design 6.12.3）

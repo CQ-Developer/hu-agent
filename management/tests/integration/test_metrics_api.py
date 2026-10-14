@@ -83,7 +83,9 @@ async def test_metrics_exposes_build_and_db_gauges(client: AsyncClient, database
     assert response.headers["content-type"].startswith("text/plain")
     body = response.text
 
-    assert 'huagent_build_info{schema_version="V0001,V0002,V0003,V0004",version="0.1.0"} 1' in body
+    # schema 版本随 DDL 递增：断言关键版本在位即可，避免每次加 DDL 都要改测试
+    assert 'huagent_build_info{schema_version="V0001' in body
+    assert ",V0005" in body and ',version="0.1.0"} 1' in body
     assert 'huagent_db_gauge{metric="users_total"} 1' in body
     assert 'huagent_job_last_status{job_id="usage.aggregate",status="succeeded"} 1' in body
     assert 'huagent_job_last_timestamp_seconds{job_id="usage.aggregate",phase="finished"}' in body

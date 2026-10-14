@@ -529,6 +529,10 @@ export interface HuAgentApi {
     revokeDevice(deviceId: string): Promise<CloudDeviceView[]>
     flush(): Promise<CloudFlushResultView>
     clearQueue(): Promise<CloudStatusView>
+    /** 导出本人数据到 JSON 文件（design 6.10.5） */
+    exportData(): Promise<{ canceled: boolean; path?: string }>
+    /** 申请注销账号：服务端立即停用并撤销会话，宽限期后清理 PII */
+    deleteAccount(confirmEmail: string, password?: string): Promise<{ graceDays: number; purgeAfter: string }>
     /** 同步语言到 users.locale（通知/邮件用；未登录或离线时静默失败） */
     updateLocale(locale: 'zh-CN' | 'en-US'): Promise<void>
     /** 会话被服务端撤销时触发（如设备被吊销/账号被禁用） */

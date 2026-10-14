@@ -48,6 +48,32 @@ worker 任务：`job_runs` 表记录**每个任务最近一次**执行（`job_id
 | 审计日志 | 不自动删除（按企业保留策略手工归档） | 见 design 6.10.5 |
 | 客户端本地日志 | 10MB × 5 | 客户端内部常量 |
 | 站内通知 | 不自动删除 | 按收件人语言在**写入时**渲染（改语言不影响历史通知） |
+| 日聚合用量 | 730 天（`usage.daily_retention_days`） | worker `usage.daily.prune` 每日 04:30 |
+| 注销账号 PII | 宽限期 30 天后清理（`account.deletion_grace_days`） | worker `user.purge` 每日 04:00 |
+
+### 4.1 数据主体请求（导出 / 注销）
+
+- **用户自助**：客户端「个人中心 → 数据与隐私」可导出本人数据（JSON）与申请注销。
+- **注销流程**：申请后账号立即停用、全部会话撤销（用户无法再登录）；宽限期后 worker 自动清理：
+  邮箱/昵称/头像/密码、设备、身份绑定、通知、激活上报、个人工作空间与快照对象一律删除；
+  `usage_events`/`usage_daily` 的 `user_id` 改挂匿名占位，**历史统计不断**；审计保留。
+- **宽限期内恢复**（运维手工，需审批留痕）：
+
+  ```sql
+  -- 恢复被误注销的账号（仅宽限期内有效）
+  UPDATE users SET status = 'active', deletion_requested_at = NULL, updated_at = now()
+  WHERE email = '<user@example.com>' AND purged_at IS NULL;
+  ```
+
+  已 `purged_at` 的账号不可恢复（PII 已删除且不可逆）。
+- **手动触发一次清理**（排查用）：
+
+  ```bash
+  uv run python -c "import asyncio; from huagent.common.runtime import new_event_loop;     from huagent.worker.jobs import run_job, purge_deleted_users;     print(asyncio.run(run_job('user.purge', purge_deleted_users), loop_factory=new_event_loop))"
+  ```
+
+- **日志卫生**（design 6.10.5）：服务端不接收提示词/回复/文件路径；令牌只存哈希；
+  审计记录使用 id 而非明文；客户端日志与诊断包已脱敏（见第 2 节）。
 
 ## 5. 升级流程
 

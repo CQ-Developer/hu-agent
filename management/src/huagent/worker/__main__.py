@@ -14,6 +14,8 @@ from huagent.worker.jobs import (
     job_cleanup_snapshots,
     job_expire_invitations,
     job_maintain_partitions,
+    job_prune_usage_daily,
+    job_purge_deleted_users,
     job_remind_approvals,
 )
 
@@ -33,6 +35,9 @@ async def run() -> None:
     scheduler.add_job(job_cleanup_snapshots, "cron", hour=3, minute=0, id="snapshot.cleanup", max_instances=1)
     scheduler.add_job(job_expire_invitations, "interval", minutes=60, id="invitation.expire", max_instances=1)
     scheduler.add_job(job_remind_approvals, "interval", minutes=60, id="approval.remind", max_instances=1)
+    # design 6.10.5：注销宽限期到点后清理 PII；日聚合按保留策略清理
+    scheduler.add_job(job_purge_deleted_users, "cron", hour=4, minute=0, id="user.purge", max_instances=1)
+    scheduler.add_job(job_prune_usage_daily, "cron", hour=4, minute=30, id="usage.daily.prune", max_instances=1)
     scheduler.start()
     logger.info("worker started")
     try:

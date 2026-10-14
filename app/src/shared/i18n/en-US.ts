@@ -118,6 +118,23 @@ const enUS: Record<string, Message> = {
   '服务端 v': 'Server v',
   '本地用量': 'Local usage',
 
+  // ---- 数据与隐私（design 6.10.5）----
+  '数据与隐私': 'Data & privacy',
+  '导出我的数据': 'Export my data',
+  '导出我的数据（JSON）': 'Export my data (JSON)',
+  '导出包含资料、设备、通知、激活与用量日聚合；不含他人数据':
+    'Includes your profile, devices, notifications, activations and daily usage totals; never other users’ data',
+  '已导出到 {0}': 'Exported to {0}',
+  '注销账号': 'Delete account',
+  '确认注销': 'Confirm deletion',
+  '输入账号邮箱以确认': 'Type your email to confirm',
+  '密码（SSO 账号可留空）': 'Password (leave empty for SSO-only accounts)',
+  '注销后立即无法登录，全部设备会话被撤销；{0} 天后清理账号信息（邮箱、昵称、身份绑定、设备与通知），用量统计改为匿名保留。此操作不可自助撤销。':
+    'After deletion you cannot sign in and all device sessions are revoked. {0} days later your account data (email, display name, identity bindings, devices and notifications) is removed; usage statistics are kept anonymously. This cannot be undone by yourself.',
+  '注销申请已提交：账号已停用，数据将于 {0} 后清理；本地工作空间文件需自行删除':
+    'Deletion requested: the account is disabled and its data will be removed after {0}. Local workspace files must be deleted by yourself.',
+  '账号已注销，本地会话已失效': 'The account was deleted; your local session is no longer valid',
+
   // ---- 登录门禁（ADR 0004）----
   '登录': 'Sign in',
   '注册': 'Sign up',

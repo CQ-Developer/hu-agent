@@ -41,9 +41,12 @@ class Settings(BaseSettings):
     metrics_enabled: bool = True
     metrics_token: str = ""  # noqa: S105 —— 默认空表示不校验；生产建议设置并由采集器携带
 
-    # 启动时校验数据库 schema 版本（design 6.8.3）；阶段 7 期望 V0004
+    # 启动时校验数据库 schema 版本（design 6.8.3）；当前期望 V0005（用户数据生命周期）
     schema_check_enabled: bool = True
-    schema_expected_version: str = "V0004"
+    schema_expected_version: str = "V0005"
+
+    # 数据生命周期（design 6.10.5）：注销宽限期，超出后 worker 硬删 PII
+    account_deletion_grace_days: int = 30
 
     # 对象存储（阶段 5/6 使用）
     s3_endpoint: str = "http://localhost:9000"

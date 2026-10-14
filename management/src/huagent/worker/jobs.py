@@ -359,6 +359,96 @@ async def remind_and_expire_approvals(session: AsyncSession) -> int:
     return reminded + stale
 
 
+
+# ---------------------------------------------------------------------------
+# 数据生命周期（design 6.10.5）
+# ---------------------------------------------------------------------------
+
+#: 注销后用量归属的匿名占位（保证历史统计不断，且不再关联到个人）
+ANONYMOUS_USER_ID = "00000000-0000-0000-0000-000000000000"
+
+_SELECT_PURGEABLE = text(
+    """
+    SELECT id, email FROM users
+    WHERE status = 'disabled' AND deletion_requested_at IS NOT NULL AND purged_at IS NULL
+      AND deletion_requested_at <= now() - make_interval(days => :grace_days)
+    ORDER BY deletion_requested_at
+    LIMIT 200
+    """
+)
+_ANONYMIZE_USAGE_EVENTS = text("UPDATE usage_events SET user_id = :anon WHERE user_id = :user_id")
+_ANONYMIZE_USAGE_DAILY = text("UPDATE usage_daily SET user_id = :anon WHERE user_id = :user_id")
+_DELETE_USER_DEVICES = text("DELETE FROM devices WHERE user_id = :user_id")
+_DELETE_USER_TOKENS = text("DELETE FROM refresh_tokens WHERE user_id = :user_id")
+_DELETE_USER_IDENTITIES = text("DELETE FROM user_identities WHERE user_id = :user_id")
+_DELETE_USER_NOTIFICATIONS = text("DELETE FROM notifications WHERE user_id = :user_id")
+_DELETE_USER_ACTIVATIONS = text("DELETE FROM activation_reports WHERE user_id = :user_id")
+_DELETE_USER_INVITATIONS = text("DELETE FROM invitations WHERE lower(email) = lower(:email)")
+_SELECT_USER_SNAPSHOTS = text(
+    """
+    SELECT s.id, s.object_key FROM workspace_snapshots s
+    JOIN workspaces w ON w.id = s.workspace_id
+    WHERE w.user_id = :user_id AND s.object_key IS NOT NULL
+    """
+)
+_DELETE_USER_WORKSPACES = text("DELETE FROM workspaces WHERE user_id = :user_id")
+_PURGE_USER_PII = text(
+    """
+    UPDATE users
+    SET email = 'deleted-' || id::text || '@deleted.invalid',
+        display_name = '已注销用户',
+        avatar_url = NULL,
+        password_hash = NULL,
+        purged_at = now(),
+        updated_at = now()
+    WHERE id = :user_id
+    """
+)
+
+
+async def purge_deleted_users(session: AsyncSession) -> int:
+    """注销宽限期已过的账号：硬删 PII 与个人数据，用量聚合改挂匿名占位（幂等）。"""
+    grace_days = await get_int_setting(
+        session, "account.deletion_grace_days", get_settings().account_deletion_grace_days
+    )
+    rows = (await session.execute(_SELECT_PURGEABLE, {"grace_days": grace_days})).mappings().all()
+    store = get_object_store("snapshots")
+    purged = 0
+    for row in rows:
+        user_id = row["id"]
+        # 对象存储先删（失败则本轮跳过该用户，避免留下孤儿对象）
+        for snapshot in (await session.execute(_SELECT_USER_SNAPSHOTS, {"user_id": user_id})).mappings().all():
+            if snapshot["object_key"]:
+                store.delete(str(snapshot["object_key"]))
+
+        for statement in (
+            _ANONYMIZE_USAGE_EVENTS,
+            _ANONYMIZE_USAGE_DAILY,
+            _DELETE_USER_DEVICES,
+            _DELETE_USER_TOKENS,
+            _DELETE_USER_IDENTITIES,
+            _DELETE_USER_NOTIFICATIONS,
+            _DELETE_USER_ACTIVATIONS,
+            _DELETE_USER_WORKSPACES,
+        ):
+            await session.execute(statement, {"user_id": user_id, "anon": ANONYMOUS_USER_ID})
+        await session.execute(_DELETE_USER_INVITATIONS, {"email": row["email"]})
+        await session.execute(_PURGE_USER_PII, {"user_id": user_id})
+        purged += 1
+    await session.commit()
+    return purged
+
+
+async def prune_usage_daily(session: AsyncSession) -> int:
+    """按保留策略清理日聚合（design 6.10.5：默认 24 个月）。"""
+    days = await get_int_setting(session, "usage.daily_retention_days", 730)
+    result = await session.execute(
+        text("DELETE FROM usage_daily WHERE day < current_date - make_interval(days => :days)"),
+        {"days": days},
+    )
+    await session.commit()
+    return int(getattr(result, "rowcount", 0) or 0)
+
 # ---------------------------------------------------------------------------
 # 调度入口
 # ---------------------------------------------------------------------------
@@ -387,3 +477,11 @@ async def job_expire_invitations() -> None:
 
 async def job_remind_approvals() -> None:
     await run_job("approval.remind", remind_and_expire_approvals)
+
+
+async def job_purge_deleted_users() -> None:
+    await run_job("user.purge", purge_deleted_users)
+
+
+async def job_prune_usage_daily() -> None:
+    await run_job("usage.daily.prune", prune_usage_daily)

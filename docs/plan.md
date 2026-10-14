@@ -473,7 +473,7 @@ Authorization: Bearer {{token}}
 
 - [x] 安全用例全结（路径逃逸/zip/越权/令牌重放）并留有报告 —— 证据：`docs/delivery/security-review.md`（第 1-5 节逐条对应单测/集成/真实联调）
 - [x] 依赖扫描与静态扫描无高危未处理项 —— `scripts/security-scan.sh` 与 CI `security` 作业（pip-audit / bandit medium+ / npm audit --omit=dev 全绿；证据：`docs/delivery/security-review.md` 第 6 节）
-- [ ] 审计/保留/删除策略按 design.md 6.10.5 自检通过 —— ⏳ 审计与保留已实现；用户数据删除接口未实现
+- [x] 审计/保留/删除策略按 design.md 6.10.5 自检通过 —— 实现：`GET /me/export`（本人数据导出，含审计 `account.export`）、`POST /me:delete`（立即停用 + 撤销全部会话 + 审计 `account.delete_requested`）、worker `user.purge`（30 天宽限期后硬删 PII，`usage_events`/`usage_daily` 改挂匿名占位，审计保留）、worker `usage.daily.prune`（日聚合 730 天）；客户端「数据与隐私」提供导出与注销入口。证据：`management/tests/integration/test_lifecycle.py`（导出字段、注销后登录被拒、宽限期内不清理、宽限期后 PII 与个人数据清除、用量匿名化、任务幂等）；design 6.10.5 实现说明与 operations.md 4.1
 - [x] 保护文件、权限决策矩阵与产品说明一致 —— 证据：`tests/permissions-*` + design 5.5
 
 **交付物**
@@ -485,7 +485,7 @@ Authorization: Bearer {{token}}
 
 **用户与需求方**
 
-- [ ] 需求方验收演示完成（附录 B 模板）—— ❌ 待安排（可复用 `stage5-demo.ps1`、`MARKET_E2E`/`SYNC_E2E`、`sso-live-check.py`）
+- [ ] 需求方验收演示完成（附录 B 模板）—— ⏳ 演示材料就绪（`docs/delivery/acceptance.md`：环境准备 + 4 组场景 + 自动回归 + 确认表）；待需求方排期
 - [ ] 遗留问题清单经需求方确认并记录到 v1.x 计划 —— ❌ 待整理（管理台、i18n、MCP 市场、MCP HTTP/SSE、用户数据删除范围）
 
 ### F. 设计与文档变更纪律（硬性要求）

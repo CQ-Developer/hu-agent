@@ -243,6 +243,21 @@ export class CloudClient {
     if (deviceId === config.deviceId) await this.clearSession()
   }
 
+  /** 导出本人数据（design 6.10.5）：返回 JSON 文档，由调用方决定落盘位置。 */
+  async exportAccountData(): Promise<Record<string, unknown>> {
+    return (await this.request('/api/v1/me/export')) as Record<string, unknown>
+  }
+
+  /** 申请注销账号（design 6.10.5）：服务端立即停用并撤销会话，宽限期后清理 PII。 */
+  async deleteAccount(confirmEmail: string, password?: string): Promise<{ graceDays: number; purgeAfter: string }> {
+    const result = (await this.request('/api/v1/me:delete', {
+      method: 'POST',
+      body: { confirmEmail, password },
+    })) as { graceDays: number; purgeAfter: string }
+    await this.clearSession()
+    return result
+  }
+
   /** 同步语言偏好到 users.locale（通知/邮件按该值渲染，design 5.13）。 */
   async updateLocale(locale: 'zh-CN' | 'en-US'): Promise<void> {
     await this.request('/api/v1/me', { method: 'PATCH', body: { locale } })
