@@ -15,7 +15,7 @@ import { createModels } from '@earendil-works/pi-ai/models'
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from '@earendil-works/pi-ai/providers/faux'
 import { describe, expect, it } from 'vitest'
 
-import { ToolFailure, createReadFileTool } from '../src/main/tools/native/read-file'
+import { ToolFailure, createReadFileTool } from '../src/main/tools/native/read_file'
 
 async function workspace(): Promise<string> {
   return mkdtemp(join(tmpdir(), 'huagent-native-tool-'))

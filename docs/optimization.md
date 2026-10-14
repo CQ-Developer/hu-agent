@@ -97,10 +97,14 @@ interface HistorySummarizer {
 
 ### 1.6 修订后的重构步骤（pi 为核）
 
+> 命名约定（本轮新增）：新文件一律用**下划线**（`read_file.ts` / `pi_governance.ts`），与 Python 侧一致；
+> 客户端的 kebab-case 属遗留，随文件被改动时一并改名。约定已记入 `CONTRIBUTING.md`。
+
+
 | 步 | 内容 | 出口标准 |
 | --- | --- | --- |
 | R1 | 会话与消息换 `pi-durable`（storage 选 SQLite；旧 items 一次性迁移脚本） | 崩溃恢复演练：杀进程后重开续跑；迁移双读校验 |
-| R2 🚧 进行中 | 工具换 `AgentTool`（typebox 参数），删除 JSON Schema 工具接口与自研注册表。已落地 `tools/native/read-file.ts`（4 条测试，含经真实 Agent 直调、无适配层），`NativeTool = AgentTool & { category }` 为产品层字段 | 6 个内置工具等价行为 + 治理钩子测试 |
+| R2 🚧 进行中 | 工具换 `AgentTool`（typebox 参数），删除 JSON Schema 工具接口与自研注册表。已落地 `tools/native/read_file.ts`（下划线命名）（4 条测试，含经真实 Agent 直调、无适配层），`NativeTool = AgentTool & { category }` 为产品层字段 | 6 个内置工具等价行为 + 治理钩子测试 |
 | R3 | 用 `Agent.prompt()` 原生生命周期替换 `pi-loop.ts`（删除复刻的 8 项职责代码） | e2e 与真实调用通过时无行为回退 |
 | R4 | MCP 换 `pi-mcp`；`pi-codemode` 作为可选能力 | MCP e2e 通过；越权用例被审批拦下 |
 | R5 | 删除遗留：`model/providers/*`、`gateway.ts`、`model/types.ts`、`agent/loop.ts`、`agent/compaction.ts`、`session/*`、`tools/{types,registry}.ts`、`mcp/*`、`pi-runtime.ts`、`pi-loop.ts` 及对应测试 | `rg` 无残留 import；全量守卫绿 |

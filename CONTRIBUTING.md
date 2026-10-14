@@ -56,6 +56,12 @@ cd management && uv run python scripts/export_openapi.py    # regenerate openapi
 cd ../management-ui && npm run api:gen                      # regenerate console types (npm run check verifies)
 ```
 
+## File naming
+
+Use **underscores** in file names (`read_file.ts`, `pi_governance.ts`, `run_turn.py`), matching the
+Python side of the monorepo. Kebab-case names are legacy in the client and are being renamed as the
+files they live in get touched; do not add new kebab-case files.
+
 ## Coding guidelines (summary)
 
 - **No unnecessary dependencies.** Prefer the standard library and what is already vendored; a new
