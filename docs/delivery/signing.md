@@ -102,3 +102,36 @@ macOS：hu-agent-0.1.0.dmg  sha256=<...>
 冒烟 E2E：CI e2e 作业通过（链接）
 已知问题：<...>
 ```
+
+## 5. 常见问题：Windows 上打包报 “Cannot create symbolic link”
+
+现象（`electron-builder --win` 输出）：
+
+```
+downloading  url=https://github.com/electron-userland/electron-builder-binaries/releases/download/winCodeSign-2.6.0/winCodeSign-2.6.0.7z
+ERROR: Cannot create symbolic link : 客户端没有所需的特权 : ...\Cache\winCodeSign\<id>\darwin.12\lib\libcrypto.dylib
+Above command failed, retrying 3 more times
+```
+
+原因：`winCodeSign`（electron-builder 用于**编辑 exe 图标/版本信息与签名**的辅助包）内含有 macOS 专用**符号链接**；
+Windows 默认不允许普通用户创建符号链接，7-Zip 解压因此失败。与签名证书无关，纯属本地权限问题。
+
+处理方式（任选其一，推荐第 1 种）：
+
+1. **启用开发者模式**：设置 → 系统 → 开发者选项 → 开发者模式 = 开（需要管理员确认一次）。之后 `npm run dist` 正常。
+2. **用管理员终端执行**打包命令（管理员可创建符号链接）；或用 `gsudo`/计划任务以管理员身份运行。
+3. **临时跳过 exe 元数据编辑**（无需改系统设置，但 exe 不嵌入自定义图标与版本信息，仅安装器带图标）：
+
+   ```powershell
+   npx electron-builder --win --config.win.signAndEditExecutable=false
+   ```
+
+   仅建议用于本地干跑；正式发布请在开发者模式/管理员下构建，或在 CI 的 Windows runner 上构建
+   （GitHub 托管的 Windows runner 无此限制，`.github/workflows/release.yml` 即走该路径）。
+
+国内网络可同时设置镜像加速下载（不影响上述权限问题）：
+
+```bash
+export ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/"
+export ELECTRON_BUILDER_BINARIES_MIRROR="https://npmmirror.com/mirrors/electron-builder-binaries/"
+```
