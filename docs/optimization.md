@@ -121,6 +121,11 @@ interface HistorySummarizer {
 > MCP 换 `@earendil-works/pi-mcp`（`mcp/manager.ts`，过渡桥 `tools/mcp_bridge.ts` 已删）。
 > 旧 `ModelGateway` / `ToolRegistry` / `SettingsStore` 已随 R5 删除；回合生命周期最终由 pi-durable 承担（R1）。
 
+> **R6 完成 ✅**：IPC 事件收敛为 pi 事件的机械投影（去掉不再产生的 `max_steps` 与
+> `session.compacted`）；`design.md` 的 5.1/5.2/5.4/5.8/5.9 按实际实现重写；旧实现引用
+> （plan/signing/ADR-0003）同步修正。命名：客户端代码文件已全部下划线（e913695）；
+> ADR 编号、docker/CI/脚本等**非代码文件名**沿用各自生态惯例，不再重命名。
+
 > 命名约定（本轮新增）：新文件一律用**下划线**（`read_file.ts` / `pi_governance.ts`），与 Python 侧一致；
 > 客户端的 kebab-case 属遗留，随文件被改动时一并改名。约定已记入 `CONTRIBUTING.md`。
 
@@ -132,7 +137,7 @@ interface HistorySummarizer {
 | R3 ✅ | 回合生命周期交给 pi-durable harness（`agent/durable_loop.ts` + `agent/durable_runner.ts`）；旧 `pi_loop.ts`/`pi_runner.ts` 与复刻的 8 项职责代码已删（R1 最后一批） | e2e 与真实调用通过时无行为回退 |
 | R4 ✅ | MCP 换 `pi-mcp`（stdio；`mcp/manager.ts`）；`pi-codemode` 未接入，留 v1.x 可选 | MCP e2e 通过；越权用例被审批拦下 |
 | R5 ✅ | 删除遗留：旧 provider/gateway/loop/compaction/会话存储早已删（`0d6c394` + R1）；本批清掉死类型（`LlmMessage`/`ToolCall`/`TokenUsage` 等 9 个）与旧 `SettingsStore` 及其测试。artifacts 决策：保留我们的 `session/artifacts.ts`，不并入 pi-durable（它没有大文本/blob 存储） | `rg` 无残留 import；全量守卫绿 |
-| R6 | IPC 事件收敛为「pi 事件的机械投影」+ `design.md` 改写 + **全仓库文件名统一为下划线**（客户端 kebab-case 遗留一次性清理，单独提交并附改动清单） | 渲染层契约无第二套语义 + 无 kebab-case 文件 |
+| R6 ✅ | IPC 事件收敛为「pi 事件的机械投影」（删除不再产生的 `max_steps` 与 `session.compacted`）；`design.md` 旧章节（5.1/5.2/5.4/5.8/5.9）按 pi 为核重写；客户端代码文件名已统一为下划线（`e913695`，48 个文件）。命名决定：非代码文件名沿用各自生态惯例（ADR 编号、docker 配置、CI/脚本、electron-builder 配置），不再重命名 | 渲染层契约无第二套语义 + 客户端无 kebab-case 代码文件 |
 
 ### 1.4 P1 进度
 

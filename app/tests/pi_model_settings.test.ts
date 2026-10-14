@@ -12,7 +12,7 @@ import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { loadModelSettings, saveModelSettings } from '../src/main/config/pi_model_settings'
+import { loadModelSettings, migrateModelSecretRefs, saveModelSettings } from '../src/main/config/pi_model_settings'
 import type { ModelSettings } from '../src/main/model/types'
 
 async function tempConfig(): Promise<{ dir: string; configPath: string }> {
@@ -93,5 +93,37 @@ describe('模型设置来源桥', () => {
     const loaded = await loadModelSettings({ configPath, agentDir: dir })
     expect(loaded.providers).toEqual([])
     expect(loaded.defaults.primary).toBe('')
+  })
+})
+
+describe('模型密钥引用名迁移（provider.<id> → model:<id>）', () => {
+  function fakeSecrets(initial: Record<string, string>) {
+    const values = new Map(Object.entries(initial))
+    return {
+      values,
+      keys: () => [...values.keys()],
+      get: (key: string) => values.get(key) ?? null,
+      has: (key: string) => values.has(key),
+      set: async (key: string, value: string) => void values.set(key, value),
+      delete: async (key: string) => void values.delete(key),
+    }
+  }
+
+  it('迁移旧引用；已存在的新引用不覆盖；非模型引用不动；幂等', async () => {
+    const secrets = fakeSecrets({
+      'provider.acme': 'sk-old',
+      'provider.other': 'sk-legacy',
+      'cloud.refreshToken': 'refresh',
+    })
+    await secrets.set('model:other', 'sk-new')
+
+    expect(await migrateModelSecretRefs(secrets)).toBe(2)
+    expect(secrets.get('model:acme')).toBe('sk-old')
+    expect(secrets.get('model:other')).toBe('sk-new') // 不覆盖已有新引用
+    expect(secrets.has('provider.acme')).toBe(false)
+    expect(secrets.has('provider.other')).toBe(false)
+    expect(secrets.get('cloud.refreshToken')).toBe('refresh')
+
+    expect(await migrateModelSecretRefs(secrets)).toBe(0) // 幂等
   })
 })

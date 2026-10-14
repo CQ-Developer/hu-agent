@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import {
   countAssistantEntries,
   fromSessionOptions,
+  lastContextTokensOf,
   toSessionItems,
   toSessionMeta,
   toSessionOptions,
@@ -130,7 +131,7 @@ describe('durable → 视图映射', () => {
         'faux/faux-1': { input: 20, output: 8, cacheRead: 4, cacheWrite: 0 },
       },
     }
-    const view = toSessionUsage(usage, { calls: 2, contextWindow: 100_000, lastInputTokens: 25_000 })
+    const view = toSessionUsage(usage, { calls: 2, contextWindow: 100_000, lastContextTokens: 25_000 })
     expect(view.calls).toBe(2)
     expect(view.inputTokens).toBe(500)
     expect(view.outputTokens).toBe(110)
@@ -138,5 +139,24 @@ describe('durable → 视图映射', () => {
     expect(view.cacheHitRate).toBeCloseTo(260 / 760, 5)
     expect(view.contextWindow).toBe(100_000)
     expect(view.contextRemainingPercent).toBeCloseTo(75, 5)
+  })
+
+  it('上下文余量取最近一次调用的上下文用量（pi 口径：input+output+cacheRead+cacheWrite）', () => {
+    const withUsage: EntryLike[] = [
+      ...entries.slice(0, 4),
+      {
+        id: 15,
+        kind: 'pi.assistant',
+        model: [
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: '完成' }],
+            usage: { input: 100, output: 20, cacheRead: 800, cacheWrite: 0 },
+          },
+        ],
+      },
+    ]
+    expect(lastContextTokensOf(withUsage)).toBe(920)
+    expect(lastContextTokensOf(entries)).toBeUndefined()
   })
 })

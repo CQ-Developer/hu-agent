@@ -72,6 +72,32 @@ export async function inspectModelConfig(options: ModelSettingsBridgeOptions): P
   return { providers, modelsFile: modelsPath(options), hasModelsFile: providers > 0 }
 }
 
+/**
+ * 迁移旧的模型密钥引用名（`provider.<id>` → `model:<id>`），幂等。
+ *
+ * 历史：早期设置页把模型密钥存在 `provider.<id>` 下，而 pi 运行时按 `model:<providerId>` 读取
+ * （ADR-0006 决策 8），导致 UI 保存的密钥对运行时不可见。启动时一次性迁移。
+ */
+export async function migrateModelSecretRefs(secrets: {
+  keys(): string[]
+  get(key: string): string | null
+  has(key: string): boolean
+  set(key: string, value: string): Promise<void>
+  delete(key: string): Promise<void>
+}): Promise<number> {
+  let migrated = 0
+  for (const key of secrets.keys()) {
+    if (!key.startsWith('provider.')) continue
+    const value = secrets.get(key)
+    if (value === null) continue
+    const target = `model:${key.slice('provider.'.length)}`
+    if (!secrets.has(target)) await secrets.set(target, value)
+    await secrets.delete(key)
+    migrated += 1
+  }
+  return migrated
+}
+
 /** 与旧 `SettingsStore` 同形的接口（`load/get/save`），便于 IPC 调用点零改动地切换来源 */
 export interface ModelSettingsStore {
   load(): Promise<ModelSettings>

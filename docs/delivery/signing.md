@@ -86,7 +86,7 @@ xcrun stapler validate "app/dist/hu-agent.dmg"    # 期望 The validate action w
 | --- | --- |
 | Windows 覆盖安装 | NSIS 默认保留用户数据（`~/.hu-agent` 与工作空间无关）；安装目录可自定义 |
 | 会话/工作空间数据 | 全部在用户目录与工作空间内，升级不迁移；`db/ddl` 只升不降（服务端） |
-| 回滚客户端 | 卸载当前版本后安装旧版本安装包；若新版本已写入 `session_options`/`sync state` 等新字段，旧版本会忽略未知字段（JSONL 只追加） |
+| 回滚客户端 | 卸载当前版本后安装旧版本安装包。R1 后会话存于 `~/.hu-agent/sessions/*.sqlite`，旧版本不读该目录（新建会话在旧版本不可见，但数据不损坏）；`sync state` 等新字段旧版本忽略未知键 |
 | 回滚服务端 | 使用 `db/rollback/R*.sql` **仅在测试环境**；生产回滚走数据库快照恢复（DDL 不做向下迁移） |
 
 ## 4. 发布记录模板（建议附在交付文档）

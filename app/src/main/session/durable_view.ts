@@ -33,6 +33,7 @@ interface MessageLike {
   isError?: boolean
   toolName?: string
   toolCallId?: string
+  usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }
 }
 
 export interface EntryLike {
@@ -169,6 +170,20 @@ export function countAssistantEntries(entries: EntryLike[]): number {
   return entries.filter((entry) => entry.model?.[0]?.role === 'assistant').length
 }
 
+/**
+ * 最近一次模型调用的上下文用量（与 pi 的 `calculateContextTokens` 同口径：
+ * input + output + cacheRead + cacheWrite）。找不到带用量的助手条目时返回 undefined。
+ */
+export function lastContextTokensOf(entries: EntryLike[]): number | undefined {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const usage = entries[index]?.model?.[0]?.usage
+    if (!usage) continue
+    const total = (usage.input ?? 0) + (usage.output ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0)
+    if (total > 0) return total
+  }
+  return undefined
+}
+
 const THINKING_TO_EFFORT: Record<string, ReasoningEffortView> = {
   off: 'off',
   minimal: 'off',
@@ -204,11 +219,12 @@ export function fromSessionOptions(options: SessionOptionsView): {
 
 /**
  * pi.usage + 上下文窗口 → 会话用量视图。
- * `calls` 由调用方给出（pi 的用量文档不记调用次数；用助手消息条目数最贴近）。
+ * `calls` 由调用方给出（pi 的用量文档不记调用次数；用助手消息条目数最贴近）；
+ * `lastContextTokens` 缺省时退回累计输入值。
  */
 export function toSessionUsage(
   usage: PiUsageLike,
-  options: { calls: number; contextWindow: number; lastInputTokens?: number },
+  options: { calls: number; contextWindow: number; lastContextTokens?: number },
 ): SessionUsageView {
   const models = Object.values(usage.models ?? {})
   const inputTokens = models.reduce((sum, entry) => sum + (entry.input ?? 0), 0)
@@ -216,7 +232,7 @@ export function toSessionUsage(
   const cacheReadTokens = models.reduce((sum, entry) => sum + (entry.cacheRead ?? 0), 0)
   const billed = inputTokens + cacheReadTokens
   const contextWindow = options.contextWindow > 0 ? options.contextWindow : 0
-  const used = options.lastInputTokens ?? inputTokens
+  const used = options.lastContextTokens ?? inputTokens
   const remaining = contextWindow > 0 ? Math.max(0, Math.min(100, (1 - used / contextWindow) * 100)) : 0
 
   return {

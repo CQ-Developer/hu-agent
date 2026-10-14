@@ -44,7 +44,7 @@ export interface GuideRequestView {
   allowFreeText: boolean
 }
 
-export type TurnStopReason = 'done' | 'cancelled' | 'max_steps' | 'error'
+export type TurnStopReason = 'done' | 'cancelled' | 'error'
 
 export interface ToolResultView {
   id: string
@@ -69,6 +69,5 @@ export type AgentEvent =
   | (Base & { type: 'tool.result'; result: ToolResultView })
   | (Base & { type: 'tool.approval_required'; request: ApprovalRequestView })
   | (Base & { type: 'ask_guide'; request: GuideRequestView })
-  | (Base & { type: 'session.compacted' })
   | (Base & { type: 'usage.update'; usage: UsageInfo; provider: string; model: string })
   | (Base & { type: 'turn.end'; stopReason: TurnStopReason; error?: string })

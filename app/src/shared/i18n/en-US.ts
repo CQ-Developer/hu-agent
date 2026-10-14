@@ -289,6 +289,7 @@ const enUS: Record<string, Message> = {
   '建议升级到 v': 'Upgrade to v',
   '状态检查': 'Check state',
   '刷新状态': 'Refresh state',
+  '已迁移 {count} 个模型密钥引用': 'Migrated {count} model secret reference(s)',
   '已检查 {checked} 个资源': 'Checked {checked} resources',
   '状态检查失败：{error}': 'State check failed: {error}',
   '本地缓存较新，已跳过（15 分钟内）': 'Local cache is newer — skipped (within 15 minutes)',

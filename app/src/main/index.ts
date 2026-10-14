@@ -5,7 +5,7 @@ import { BrowserWindow, Menu, app, shell } from 'electron'
 
 import { broadcastInteraction, broadcastSessionLost, broadcastSyncEvent, registerIpc, type AppContext } from './ipc'
 import { SecretStore } from './config/secrets'
-import { createModelSettingsStore } from './config/pi_model_settings'
+import { createModelSettingsStore, migrateModelSecretRefs } from './config/pi_model_settings'
 import { configFilePath, cloudConfigFile, globalDir, secretsFilePath, usageLedgerPath, workspacesIndexFile } from './config/paths'
 import { CloudStore } from './cloud/store'
 import { CloudClient } from './cloud/client'
@@ -77,6 +77,9 @@ async function bootstrap(): Promise<void> {
 
   const secrets = new SecretStore(secretsFilePath())
   await secrets.load()
+  // 旧版本模型密钥存在 provider.<id> 下，统一迁移到 model:<providerId>（运行时读取的引用名）
+  const migratedSecrets = await migrateModelSecretRefs(secrets)
+  if (migratedSecrets > 0) console.log(t('已迁移 {count} 个模型密钥引用', { count: migratedSecrets }))
 
   // 模型设置来源（R3 切换）：providers 存 pi 的 models.json，defaults 存 config.json；
   // 接口与旧 SettingsStore 同形，因此 IPC 层的调用点无需改动。

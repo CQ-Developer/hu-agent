@@ -40,6 +40,11 @@ export class SecretStore {
     return this.values.has(key)
   }
 
+  /** 已有密钥的引用名（迁移/诊断用，不返回值） */
+  keys(): string[] {
+    return [...this.values.keys()]
+  }
+
   async set(key: string, value: string): Promise<void> {
     await this.load()
     this.values.set(key, value)

@@ -27,7 +27,7 @@
 | 缓存 token | `prompt_tokens_details.cached_tokens` / `prompt_cache_hit_tokens` | `input_tokens_details.cached_tokens` | `cache_read_input_tokens` / `cache_creation_input_tokens` |
 | 思考签名 | 无 | 无（不回传 reasoning 条目） | 有，工具续轮必须回传 thinking 块 |
 
-Anthropic 的 thinking 签名随会话 JSONL 的 `reasoning` 部分持久化；Responses API 的历史 reasoning 条目不回传（服务端仍保留上下文），避免因缺少加密字段导致 400。
+Anthropic 的 thinking 签名随会话持久化（R1 后由 pi-durable 的条目保存；此前为会话 JSONL 的 `reasoning` 部分）；Responses API 的历史 reasoning 条目不回传（服务端仍保留上下文），避免因缺少加密字段导致 400。
 
 ## 后果
 

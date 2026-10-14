@@ -45,11 +45,11 @@
 
 | 需求 | 章节 |
 | --- | --- |
-| Core Agent Loop | 5.2 |
+| 回合循环（pi-durable） | 5.2 |
 | 默认工具（read/edit/write/bash/powershell/ask_guide） | 5.4 |
 | Skill 市场（浏览/下载/更新/启停） | 5.7、6.4 |
 | MCP 市场（浏览/启停） | 5.8、6.5 |
-| Workspace（沙箱、会话 JSONL、上传、越界授权、云同步） | 5.5、5.6、5.11、6.6 |
+| Workspace（沙箱、会话与 artifact、上传、越界授权、云同步） | 5.5、5.6、5.11、6.6 |
 | 本地 Skill / MCP 配置（Global + Workspace） | 5.7、5.8 |
 | 本地大模型配置（Global） | 5.9 |
 | 用量上报（模型名 + token 明细） | 5.10、6.7 |
@@ -68,8 +68,8 @@
 flowchart TB
   subgraph Client["hu-agent-app（Windows / macOS）"]
     UI["聊天界面 / 设置 / 市场页<br/>React Renderer"]
-    Core["Agent Core<br/>会话循环 · 上下文 · 工具执行"]
-    Local["本地存储<br/>工作空间 .hu 目录 · 会话 JSONL · 配置"]
+    Core["pi-durable Harness<br/>回合循环 · 上下文 · 工具执行"]
+    Local["本地存储<br/>工作空间 .hu · durable SQLite · 配置"]
     Sync["同步引擎"]
     Report["用量上报器"]
   end
@@ -239,7 +239,7 @@ sequenceDiagram
     T-->>C: 结果（截断 + 落盘全文）
     C->>M: 追加 tool_result，继续循环
   end
-  C->>C: 追加 JSONL、记账 token
+  C->>C: 提交 durable、记账 token
   C-->>UI: 本轮结束
 ```
 
@@ -312,9 +312,8 @@ flowchart TB
   subgraph Main["主进程（Node.js / TypeScript）"]
     IPC["IPC 层（类型化通道）"]
     Session["会话服务<br/>DurableSessions"]
-    Loop["Agent Loop"]
-    Ctx["上下文构建器"]
-    Gateway["模型网关<br/>Provider 适配"]
+    Loop["回合回环<br/>durable_loop · durable_runner"]
+    Runtime["pi 运行时<br/>models 注册"]
     Tools["工具注册表与执行器"]
     Perm["权限引擎"]
     WS["工作空间管理器"]
@@ -337,19 +336,18 @@ flowchart TB
   FsUI <--> IPC
   IPC --> Loop
   Loop --> Session
-  Loop --> Ctx
-  Loop --> Gateway
+  Loop --> Runtime
   Loop --> Tools
   Loop --> Perm
-  Ctx --> SkillMgr
+  Loop --> SkillMgr
   Tools --> WS
   Tools --> Shell
   McpMgr --> MCPSrv
   Tools --> McpMgr
   SyncEng --> WS
-  Reporter --> Gateway
+  Reporter --> KV
   SkillMgr --> WS
-  Gateway --> KV
+  Runtime --> KV
   McpMgr --> KV
 ```
 
@@ -367,115 +365,88 @@ flowchart TB
 - 左下角仅保留「个人中心」入口（账号/登入状态、本地用量、工作空间摘要）；
 - 启动门禁：未登录（或服务端拒绝会话）时渲染全屏登录/注册页，不渲染主界面；令牌被服务端撤销/账号被禁用时，主进程广播 `cloud:session-lost`，界面立即退回门禁。
 
-### 5.2 Core Agent Loop
+### 5.2 回合循环（pi-durable）
 
-> ⚠️ 本节描述重构前的自研循环，已被 `pi-durable` 的回合回环取代：实现见 `agent/durable_loop.ts`
-> 与 `agent/durable_runner.ts`，归属与不变式见 5.0 与 `docs/adr/0006-pi-agent-engine.md`。
+> 本节描述**实际实现**：回合由 `pi-durable` 的 harness 执行，我们只提供工具、治理钩子、事件投影与用量落账。
+> 归属与决策见 5.0 与 `docs/adr/0006-pi-agent-engine.md`。
 
-#### 5.2.1 消息与事件模型
+#### 5.2.1 事件模型（IPC 边界的机械投影）
 
-```ts
-// 模型上下文中的消息
-type Role = 'system' | 'user' | 'assistant' | 'tool'
-type Part =
-  | { type: 'text'; text: string }
-  | { type: 'reasoning'; text: string; signature?: string }    // 思考内容：仅存档展示，不回传模型（Anthropic 工具续轮除外）
-  | { type: 'image'; mimeType: string; dataRef: string }   // 本地文件引用，不内联进 JSONL
-  | { type: 'tool_use'; id: string; name: string; input: unknown }
-  | { type: 'tool_result'; toolUseId: string; status: 'ok' | 'error' | 'denied' | 'timeout'; output: string }
-type Message = { id: string; role: Role; parts: Part[]; createdAt: string }
+主进程 → UI 的事件定义在 `src/shared/events.ts`，是 pi-durable 运行期状态（`docs['pi.live']`）与提交结果的
+**机械投影**（`agent/durable_projection.ts`），不引入第二套语义：
 
-// 主进程 -> UI 的事件（IPC 单向流）
-type AgentEvent =
-  | { type: 'turn.start'; turnId: string }
-  | { type: 'assistant.delta'; turnId: string; text: string }
-  | { type: 'reasoning.delta'; turnId: string; text: string }
-  | { type: 'tool.call'; turnId: string; call: { id: string; name: string; input: unknown } }
-  | { type: 'tool.approval_required'; turnId: string; request: ApprovalRequest }
-  | { type: 'tool.result'; turnId: string; result: Part & { type: 'tool_result' } }
-  | { type: 'ask_guide'; turnId: string; question: GuideQuestion }
-  | { type: 'usage.update'; turnId: string; usage: TokenUsage }
-  | { type: 'turn.end'; turnId: string; stopReason: 'done' | 'cancelled' | 'max_steps' | 'error' }
-  | { type: 'session.compacted'; summaryLine: number }
-```
+| 事件 | 数据来源 |
+| --- | --- |
+| `turn.start` / `turn.end` | 回环（`runDurableTurn`）在提交前后发出；`stopReason`（`done` / `cancelled` / `error`）依据 abort 与 submission 的 settle 状态判定 |
+| `assistant.delta` / `reasoning.delta` | `pi.live.generation.message.content[]` 的追加式块相对上次快照的**后缀** |
+| `tool.call` | `pi.live.tools[]` 首次出现（参数取自 generation 的 `toolCall` 块，按 callId 对齐） |
+| `tool.result` | `tools[].status === 'done'` 后按 `entry` 从 `entries` 读结果；被治理拒绝的调用补 `denied` 状态 |
+| `usage.update` | `pi.live.generation.message.usage` 的最新累计值 |
+| `tool.approval_required` / `ask_guide` | 权限引擎与 `ask_guide` 工具经 `InteractionBroker` 请求用户交互（产品能力，非 pi 事件） |
 
-#### 5.2.2 循环流程
+回合的模型消息、工具调用与结果都落在 pi-durable 的 entries；界面历史由 `sessions:items` 从 entries
+投影（`session/durable_view.ts`），**不经过事件流回放**。事件流只服务运行中的实时展示。
+
+#### 5.2.2 回合流程
 
 ```mermaid
 flowchart TB
-  A["接收用户输入"] --> B["追加消息到会话 JSONL"]
-  B --> C["构建上下文<br/>系统提示 + Skill 元数据 + 历史 + 工具定义"]
-  C --> D["调用模型（流式）"]
-  D --> E{"输出包含 tool_use?"}
-  E -- 否 --> F["追加 assistant 消息"]
-  F --> G["记账 token、检查压缩阈值"]
-  G --> H["turn.end"]
-  E -- 是 --> I["逐个工具：权限判定"]
-  I --> J{"是否放行?"}
-  J -- 拒绝 --> K["生成 denied 的 tool_result"]
-  J -- 允许 --> L["执行工具<br/>超时 / 取消 / 输出截断"]
-  L --> M["追加 tool_result"]
-  K --> M
-  M --> N{"达到 max_steps?"}
-  N -- 否 --> C
-  N -- 是 --> H
+  A["agent:send（IPC）"] --> B["按工作空间取 DurableSessions + 权限引擎 + 工具集"]
+  B --> C["runDurableTurn：conversation.configure（扩展/工具/cwd）"]
+  C --> D["订阅 viewState → 投影事件流"]
+  D --> E["conversation.submit({ input, requestId: turnId })"]
+  E --> F["harness 跑回合：模型流式 + 工具执行"]
+  F --> G["beforeTool：权限判定（拒绝 → block，工具体不执行）"]
+  G --> H["afterTool：超长输出落 artifact 并中段截断"]
+  H --> I["submission.wait() → settle"]
+  I --> J["用量差量落 ledger/telemetry；回写索引消息数"]
+  J --> K["turn.end"]
 ```
 
-关键参数（可在设置中调整，企业策略可覆盖）：
+关键行为：
 
-| 参数 | 默认值 | 说明 |
-| --- | --- | --- |
-| `max_steps` | 50 | 单轮最多工具调用轮次，防止死循环 |
-| `tool_timeout` | 120s | 单工具超时；bash 可在调用参数内指定上限 600s |
-| `tool_output_limit` | 30,000 字符 | 超出则头尾截断，全文落盘为 artifact |
-| `compact_threshold` | 上下文窗口 70% | 触发历史压缩 |
-| `keep_recent_messages` | 8 | 压缩时保留最近 8 条消息原文（其余生成摘要） |
-| `retry` | 模型请求 3 次指数退避 | 仅对网络/限流错误；工具调用不自动重试写操作 |
+| 项 | 实现 |
+| --- | --- |
+| 提交与幂等 | `requestId = turnId`（ULID）：同一回合重发返回同一 submission，不重复生成 |
+| 取消 | `AbortController` → `conversation.abort()`（撤回排队输入并中止本轮），`turn.end` 记为 `cancelled` |
+| 崩溃恢复 | 打开存储时 `harness.resume()` 继续未完成运行；会话与回合状态在 SQLite |
+| 轮次/步数上限 | 由 pi-durable 管理，我们不再维护 `max_steps` |
+| 上下文压缩 | 归 pi-durable（会话内自动压缩）；我们不再自建摘要链与 `session.compacted` 事件 |
+| 工具输出截断 | `afterTool` 钩子：超过 32,000 字符落 artifact（`session/artifacts.ts`）并中段截断 |
 
-#### 5.2.3 上下文构建与压缩
+#### 5.2.3 上下文与系统提示
 
-上下文顺序（从高到低优先级）：
-
-1. 系统提示：角色、行为约束、工具使用规范、工作空间信息、权限策略摘要。
-2. Skill 目录：每个已启用 Skill 的 `name / description / when_to_use / 路径`（**渐进披露**：只注入元数据，模型需要时自行 `read_file` 读取 `SKILL.md` 全文）。
-3. 历史压缩摘要（若有）+ 最近 8 条消息原文。
-4. 当前用户消息。
-
-压缩策略：
-
-- 触发时（估算 token 超过上下文窗口 70%），用"快速模型"对较早消息生成结构化摘要（目标 ≤ 800 token），摘要写入 JSONL 的 `summary` 行（含 `fromLine/toLine` 行号区间）。
-- 保留：系统提示、Skill 元数据、最近 8 条消息原文、所有未完成的 `tool_use / tool_result` 对；摘要以 system 消息注入上下文（`loadContextMessages`）。
-- 摘要链：多次压缩产生多条 `summary` 行，构建上下文时只应用最新一条（其引用终点之后的消息仍以原文保留）。
-- 压缩前先确保会话已落盘；压缩失败降级为截断最早消息，不阻塞会话。
-- 工具结果全文 artifact 不进入上下文，模型可按 artifact 路径重读。
+- 系统提示由 Guard 扩展的 section 提供（`agent/prompt.ts`：角色、回复语言、工作空间根、行为准则），
+  以 `tag: false` 注入，保持提示文本形态稳定、利于 prompt cache；
+- Skill 元数据（`skillSection`）附在系统提示末尾（渐进披露：模型需要时自行 `read_file` 读 `SKILL.md`）；
+- 历史消息、工具声明与压缩全部由 pi-durable 按会话维护；我们只读 entries 做界面投影，不组装模型上下文。
 
 #### 5.2.4 错误处理与中断
 
 | 场景 | 行为 |
 | --- | --- |
-| 模型网络错误 | 指数退避重试 3 次；仍失败则 `turn.end(error)`，用户可重试 |
-| 限流 429 | 读取 `Retry-After`，UI 显示倒计时 |
-| 上下文超长 | 先压缩；仍超长则报错并提示切换更大窗口模型 |
-| 工具超时 | 终止子进程，返回 `timeout` 结果，由模型决定重试或换方案 |
-| 用户取消 | 中断模型流与全部子进程；未完成的 `tool_use` 标记 `interrupted` |
-| 应用崩溃 | 重启后扫描会话尾部，孤立 `tool_use` 标记 `interrupted`，用户可"继续" |
-| 工具输出非法编码 | 强制 UTF-8 解码，非法字节替换并标记 `encoding_lossy: true` |
+| 模型网络错误 | 重试由 pi-ai/pi-durable 处理；settle 为 failed 时 `turn.end(error)`，用户可重试 |
+| 上下文超长 | 由 pi-durable 的压缩处理 |
+| 工具超时/取消 | 工具与子进程由 pi 的工具执行器终止（子进程按进程组终止：Windows `taskkill /T`、macOS 进程组信号） |
+| 用户取消 | `conversation.abort()`；`turn.end` 的 `stopReason = cancelled` |
+| 应用崩溃 | 重启后 `resume()` 续跑未完成运行 |
+| 工具输出非法编码 | 由各原生工具保证 UTF-8（`read_file` 拒绝二进制并提示） |
 
 #### 5.2.5 并发与取消
 
-- 同一会话同一时刻只允许一个活跃 turn；运行中收到新消息则排队，UI 提供"打断并发送"。
-- 同一 turn 内：只读工具（`read_file`）可并行（≤ 4）；写工具（`write_file / edit_file / bash / powershell`）串行；MCP 工具默认串行（外部不确定性高）。
-- 取消信号通过 `AbortController` 传播；子进程按进程组终止（Windows 用 `taskkill /T`，macOS 用进程组信号）。
+- 同一会话同一时刻只允许一个活跃 turn：`ipc.ts` 的 `activeTurns` 挡住重复发送（提示"该会话已有运行中的任务"）；
+- 取消信号通过 `AbortController` 传播到 `conversation.abort()`；
+- 同一 turn 内的工具并行/串行策略由 pi-durable 的工具执行器决定；MCP 工具按其 client 的并发约束执行。
 
 #### 5.2.6 输入框交互与用量指示
 
-- 输入框上方提供两个**会话级**选择，持久化在会话 JSONL 的 `session_options` 行（见 5.3.2）：
-  - **模型**：跨供应商的 `provider/model` 列表，默认取 `defaults.primary`；
-  - **思考强度**：关闭 / 低 / 中 / 高；仅当模型声明 `capabilities.reasoningEffort` 时可选，否则置灰并强制关闭。
-- 同一位置实时显示本会话累计：**输入 tokens、输出 tokens、缓存命中率、上下文剩余百分比**。
-- **思考内容展示**：`reasoning.delta` 渲染为可折叠的"思考过程"块（流式时默认展开，历史消息默认折叠）；思考内容随消息落盘（`parts[].type = 'reasoning'`），但构建模型上下文时仅取 text 部分，不回传模型。
-- 缓存命中率 = `cacheRead / input`（input 含缓存部分）；
-- 上下文剩余 = 1 −（最近一次调用的输入 + 输出）/ 模型 `contextWindow`，下限 0；turn 结束后由主进程重新统计校准，避免流式事件误差累积。
+- 会话级选择（模型/思考强度）写 pi 的会话配置：`sessions:set-options` → `configure()`；
+  界面值由 `agentConfig()` 投影（思考强度收敛为界面三档 off/low/medium/high）；
+- 实时显示本会话累计：输入 tokens、输出 tokens、缓存命中率、上下文剩余百分比；
+- 用量来源：`docs['pi.usage']`（`sessions:stats` 按会话分账；ledger 只记每回合差量）；
+- **思考内容展示**：`reasoning.delta` 渲染为可折叠块；思考内容随条目落 durable，构建模型上下文时是否回传由 pi 决定（Anthropic 签名保留在条目中）；
+- 缓存命中率 = `cacheRead / (input + cacheRead)`（pi 的 `input` 不含缓存部分）；
+- 上下文剩余 = 1 − 最近一次调用的上下文量（`input+output+cacheRead+cacheWrite`，与 pi 的 `calculateContextTokens` 同口径）/ 模型 `contextWindow`，下限 0；无历史调用时退回累计输入值。
 
 ### 5.3 会话持久化（pi-durable）
 
@@ -526,55 +497,62 @@ flowchart TB
 
 ### 5.4 工具系统
 
-> ⚠️ 工具已改为 pi 原生 `AgentTool`（typebox 参数、失败抛错、`workspaceRoot` 工厂闭包），
+> 工具即 pi 原生 `AgentTool`（typebox 参数、失败抛错、`workspaceRoot` 工厂闭包），
 > 实现在 `tools/native/*`；旧 JSON Schema 工具接口与注册表已删除。归属见 5.0。
 
-#### 5.4.1 工具接口
+#### 5.4.1 工具形态与装配
 
 ```ts
-interface ToolDef<I> {
+/** 产品层字段：权限策略要区分 read/write/exec/interact/mcp，不是对 pi 形状的翻译 */
+type NativeTool = AgentTool & { category: ToolCategory }
+
+// pi 的 AgentTool（节选）
+interface AgentTool<TParameters extends TSchema> {
   name: string
+  label: string
   description: string
-  inputSchema: JsonSchema                      // 直接作为模型 function/tool 定义
-  category: 'read' | 'write' | 'exec' | 'interact' | 'mcp'
-  run(input: I, ctx: ToolContext): Promise<ToolResult>
+  parameters: TParameters                    // typebox schema：直接作为模型工具定义与校验
+  execute(
+    toolCallId: string,
+    params: Static<TParameters>,
+    signal?: AbortSignal,
+    onUpdate?: (partial: AgentToolResult) => void,
+  ): Promise<AgentToolResult>                // 失败抛错（pi 记为工具错误），或 isError: true
 }
 
-interface ToolContext {
-  workspace: Workspace           // 已解析的工作空间根目录
-  sessionId: string
-  turnId: string
-  signal: AbortSignal            // 取消传播
-  approve(req: ApprovalRequest): Promise<ApprovalDecision>
-  artifacts: ArtifactStore       // 超长输出落盘
-  logger: Logger
-}
-
-type ToolResult = {
-  status: 'ok' | 'error' | 'denied' | 'timeout'
-  output: string                 // 已截断、已做二进制/编码处理的文本
-  metadata?: { exitCode?: number; durationMs?: number; truncated?: boolean; artifactPath?: string; bytes?: number }
+interface AgentToolResult<T> {
+  content: (TextContent | ImageContent)[]    // 模型可见内容
+  details: T                                 // 界面/日志用的结构化细节
 }
 ```
 
-工具注册表启动时装配：内置工具 + 已启用 Skill 提供的说明（Skill 不新增工具，只提供提示词与脚本）+ 已连接 MCP Server 的工具（命名空间 `mcp__<server>__<tool>`）。工具名冲突时：内置 > MCP，MCP 之间按 server 名排序取第一个并告警。
+装配（每回合在 `agent/durable_runner.ts`）：
+
+- `createDefaultTools({ workspaceRoot, interactions, sessionId, turnId })` 产出 6 个内置工具；
+- 运行时工具（MCP，命名空间 `mcp__<server>__<tool>`）由 `context.mcp.tools(ws)` 提供，与内置工具合并
+  （`extraTools`）后交给回环；名字冲突时内置工具优先（合并顺序保证）；
+- Skill **不新增工具**，只提供系统提示段（`skillSection`）。
+
+治理不在工具内：权限判定、审批、审计与超长输出截断由 `agent/durable_loop.ts` 的 Guard 扩展钩子承担
+（见 5.2、5.5）。
 
 #### 5.4.2 内置工具详设
 
 | 工具 | 参数 | 行为要点 | 分类 |
 | --- | --- | --- | --- |
-| `read_file` | `path, offset?, limit?` | UTF-8 优先；二进制文件返回类型提示而不返回内容；输出带行号；单次最大 1 MB | read |
-| `write_file` | `path, content, overwrite?` | 自动创建父目录；目标已存在时必须 `overwrite=true` 且触发写审批；写入采用临时文件 + 重命名，避免半成品 | write |
-| `edit_file` | `path, old_text, new_text, replace_all?` | 精确匹配且必须唯一，否则报错并列出每处行号；保留原文件换行风格（CRLF/LF）；修改前备份到 `.hu/backups/` | write |
-| `bash` | `command, cwd?, timeout_ms?, description?` | macOS 用登录 shell；Windows 需检测 Git Bash / WSL，缺失时报明确错误并建议 `powershell`；`cwd` 默认工作空间根 | exec |
+| `read_file` | `path, offset?, limit?` | UTF-8 优先；二进制文件拒绝；输出带行号；单次最多 1 MB / 2000 行 | read |
+| `write_file` | `path, content, overwrite?` | 自动创建父目录；目标已存在时必须 `overwrite=true`；临时文件 + 重命名 | write |
+| `edit_file` | `path, old_text, new_text, replace_all?` | 精确匹配且必须唯一，否则报错并列出每处行号；保留 CRLF/LF；修改前备份到 `.hu/backups/` | write |
+| `bash` | `command, cwd?, timeout_ms?, description?` | macOS 用登录 shell；Windows 需检测 Git Bash / WSL，缺失时报明确错误并建议 `powershell`；超时默认 120s、上限 600s | exec |
 | `powershell` | `command, cwd?, timeout_ms?, description?` | `powershell.exe -NoProfile -NonInteractive`；macOS 上若安装了 `pwsh` 也可用 | exec |
 | `ask_guide` | `question, options[{label,value,description?}], recommended?, allow_free_text?` | 阻塞等待用户选择；UI 渲染为引导卡片并高亮推荐项；用户取消返回 `denied` | interact |
 
-所有工具遵守统一约束：
+统一约束（由工具实现与 `afterTool` 钩子共同保证）：
 
-- 输出截断：超 `tool_output_limit` 时保留头部 60% + 尾部 40%，中间标记 `[...已截断 N 字符，全文: artifactPath]`。
-- 超时与取消：子进程按进程组终止；文件操作在下一个 IO 边界检查 `signal.aborted`。
-- 幂等性：读工具可安全重试；写/执行工具不自动重试。
+- 输出截断：超过 32,000 字符时中段截断并落 artifact（`session/artifacts.ts`），返回文本带
+  `[...已截断，全文: path]` 标记；
+- 超时与取消：`AbortSignal` 传入 `execute`，子进程按进程组终止（Windows `taskkill /T`、macOS 进程组信号）；
+- 失败语义：抛 `ToolFailure`（pi 记为工具错误结果）；`denied` / `timeout` 由治理层补状态，界面据此区分。
 
 #### 5.4.3 ask_guide 交互约定
 
@@ -716,7 +694,7 @@ flowchart TB
 - 用户拖拽/选择文件到会话或文件面板，即完成两步：
   1. 拷贝到 `<workspace>/uploads/<YYYY-MM-DD>/<安全化文件名>`（重名追加 `-1`、`-2`）；
   2. 向当前会话追加一条用户消息（附相对路径列表）。
-- 图片可直接内联给具有视觉能力的模型（以工作空间内文件引用发送，不写入 JSONL 正文）。
+- 图片可直接内联给具有视觉能力的模型（以工作空间内文件引用发送，不写入会话条目）。
 - 从工作空间外部直接引用（不拷贝）：仅允许用户手动选择，并在会话中记录授权来源。
 
 ---
@@ -821,8 +799,8 @@ min_app_version: 0.5.0
 
 ### 5.8 MCP 集成
 
-> ⚠️ MCP 客户端已换成 `pi-mcp`（`mcp/manager.ts`），支持 stdio 与 streamable HTTP；
-> 自研客户端与过渡桥已删除。归属见 5.0。
+> MCP 客户端使用 pi 的原生实现 `@earendil-works/pi-mcp`（`mcp/manager.ts`），支持 stdio 与
+> streamable HTTP；自研客户端与过渡桥已删除。归属见 5.0。
 
 #### 5.8.1 配置格式
 
@@ -835,7 +813,7 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
       "transport": "stdio",
       "command": "npx",
       "args": ["-y", "@modelcontextprotocol/server-github"],
-      "env": { "GITHUB_TOKEN": "secret://keychain/hu-agent/github-token" },
+      "env": { "GITHUB_TOKEN": "secret://keychain/hu-agent/mcp/github/GITHUB_TOKEN" },
       "enabled": { "global": true, "workspaces": ["ws_01J8XYZ"] },
       "source": { "type": "market", "mcpId": "...", "version": 3 },
       "approval": "session"
@@ -843,7 +821,7 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
     "jira": {
       "transport": "http",
       "url": "https://mcp.example.com/jira",
-      "headers": { "Authorization": "secret://keychain/hu-agent/jira-token" },
+      "headers": { "Authorization": "secret://keychain/hu-agent/mcp/jira/Authorization" },
       "enabled": { "global": false },
       "approval": "ask"
     }
@@ -851,80 +829,75 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
 }
 ```
 
-密钥**永不落配置文件**：`secret://keychain/<service>/<account>` 引用客户端密钥库（阶段 1 实现为 Electron safeStorage 加密文件，见 5.9 与 ADR 0002）；上报/同步均不包含密钥。
+密钥**永不落配置文件**：env/headers 只保留 `secret://keychain/<service>/<account>` 引用；UI 输入的明文值
+先写入 Electron safeStorage 密钥库（ADR 0002），连接前解析为真实值。上报/同步均不包含密钥。
 
 #### 5.8.2 连接与工具发现
 
-- 会话启动或用户首次触发时建立连接：stdio 拉起子进程；SSE/HTTP 直连；连接失败则该 server 工具不可用并在 UI 告警。
-- 握手后 `tools/list` 获取工具清单（支持 cursor 分页，最多 20 页），统一命名 `mcp__<server>__<tool>`，注入模型工具定义；工具描述过长时截断到 1000 字符。
-- MCP 工具调用同样经过权限引擎（默认策略：每个工具本会话首次调用询问 + 结果脱敏提示）。
-- 生命周期：空闲 10 分钟断开 stdio 子进程；崩溃自动重连最多 3 次并退避（500ms/1s/2s）；会话结束统一回收。
+- 懒连接：`tools(ws)` 时按需建立（stdio 拉起子进程 / Streamable HTTP 直连）；应用启动与工作空间切换
+  后台预热；连接失败则该 server 工具不可用，MCP 页面展示错误。
+- 握手后 `tools/list` 取工具清单，命名 `mcp__<server>__<tool>`，描述截断到 1000 字符，产出 pi 原生
+  `NativeTool`，经 `extraTools` 与内置工具合并（5.4.1）。
+- 生命周期：空闲 10 分钟回收连接；失败重连最多 3 次（500ms 起步退避）；应用退出统一回收。
+- 安全：MCP 工具与内置工具走同一权限引擎（server 的 `approval` 配置生成默认规则），界面区分
+  denied / timeout 与执行错误。
+- Windows：`npx`/`uvx` 等 `.cmd` 包装经 `cmd.exe /d /s /c` 拉起；回收时终止整个进程树（`taskkill /T`）。
 
-实现要点（阶段 3-03/3-04）：
+#### 5.8.3 市场交互（未实现，v1.x）
 
-- 传输为换行分隔 JSON-RPC 2.0；`initialize` 握手超时 60s（`npx -y` 首次拉包可能较慢），`tools/call` 超时 120s，超时错误带上 stderr 末尾便于定位。
-- Windows 下 `npx`/`uvx` 等为 `.cmd` 包装，子进程经 `cmd.exe /d /s /c` 拉起；参数做 Windows 引号转义；回收时终止整个进程树（`taskkill /T`）。
-- `secret://keychain/<service>/<account>` 在连接前解析为真实值；UI 输入的明文密钥写入密钥库后配置里只留引用。
-- 应用启动与工作空间切换时后台预热连接；MCP 页面展示每个 server 的状态、工具数、最后错误与「测试连接」结果。
-
-#### 5.8.3 市场交互
-
-| 操作 | 流程 |
-| --- | --- |
-| 浏览 | `GET /marketplace/mcp-servers`，展示描述、传输方式、环境变量要求、变更记录 |
-| 安装 | 获取配置模板 → 本地生成 `mcp.json` 条目 → 引导填写密钥（写入 safeStorage 密钥库） |
-| 启用/禁用 | Global 与 Workspace 可独立配置（Workspace 同名覆盖 Global）；写 `enabled` 字段，下一会话生效；已运行会话提示重启工具连接 |
-| 更新 | 拉取新版本描述与配置模板；若 `env_schema` 新增必填项，强制引导补齐；保留旧配置快照便于回滚 |
+MCP 市场（浏览/安装/更新）与市场来源的配置模板尚未实现；当前通过本地 `mcp.json` 手工配置。
+计划中的流程（浏览 → 生成模板 → 引导填密钥 → 启用/禁用/更新）见 `docs/plan.md` 的 5-08。
 
 ### 5.9 本地大模型配置（Global）
 
-> ⚠️ provider 配置已改成 pi 的 `models.json` 格式（薄适配加载，见 `model/pi_config.ts`），
-> 与 pi CLI 的配置可互换；企业模式由服务端持密钥。归属见 5.0。
+> provider 配置使用 pi 的 `models.json` 格式（`model/pi_config.ts` 薄适配加载），与 pi CLI 配置可互换；
+> 运行时注册进 pi-ai 的 models 集合（`model/pi_runtime.ts`）。归属见 5.0。
+
+#### 5.9.1 文件与格式
+
+- 位置：`~/.hu-agent/agent/models.json`（`HUAGENT_AGENT_DIR` 可覆盖；不碰 pi CLI 的 `~/.pi/agent`）。
+- 格式与 pi 相同：`providers.<id>.{ api, baseUrl, apiKey?, headers?, models[] }`；设置页的 `apiType`
+  （`openai-chat` / `openai-responses` / `anthropic-messages`）映射到 pi 的 `api`
+  （`openai-completions` / `openai-responses` / `anthropic-messages`）。
+- `defaults`（`primary` / `fast`）存在 `~/.hu-agent/config.json`：与 `ui.locale`、全局权限规则共用文件，
+  写模型设置时**只覆盖 `defaults` 键**。`fast` 为后续低价值调用预留，当前未使用（pi-durable 自管压缩）。
+
+示例（与 pi CLI 手工配置可互换）：
 
 ```json
 {
-  "providers": [
-    {
-      "id": "openai",
-      "apiType": "openai-chat",
+  "providers": {
+    "openai": {
+      "api": "openai-completions",
       "baseUrl": "https://api.openai.com/v1",
-      "apiKeyRef": "secret://keychain/hu-agent/openai",
       "models": [
-        {
-          "name": "gpt-4o",
-          "capabilities": { "tools": true, "vision": true, "contextWindow": 128000, "maxOutput": 16384 },
-          "roles": ["primary"]
-        },
-        {
-          "name": "gpt-4o-mini",
-          "capabilities": { "tools": true, "reasoningEffort": true, "contextWindow": 128000, "maxOutput": 16384 },
-          "roles": ["fast"]
-        }
+        { "id": "gpt-4o", "name": "gpt-4o", "contextWindow": 128000, "maxTokens": 16384 }
       ]
     },
-    {
-      "id": "local-ollama",
-      "apiType": "openai-chat",
+    "local-ollama": {
+      "api": "openai-completions",
       "baseUrl": "http://127.0.0.1:11434/v1",
-      "apiKeyRef": null,
-      "models": [{ "name": "qwen2.5:14b", "capabilities": { "tools": true, "contextWindow": 32768 } }]
+      "models": [{ "id": "qwen2.5:14b", "name": "qwen2.5:14b", "contextWindow": 32768 }]
     }
-  ],
-  "defaults": { "primary": "openai/gpt-4o", "fast": "openai/gpt-4o-mini" },
-  "reporting": { "enabled": true, "priceTableSource": "server" }
+  }
 }
 ```
 
-要点：
+#### 5.9.2 密钥与运行时注册
 
-- **API 接入类型（`apiType`）**：`openai-chat`（Chat Completions）、`openai-responses`（Responses API）、`anthropic-messages`（Anthropic Messages API）；大多数厂商支持前两者之一，在模型设置中按供应商选择。适配层负责消息结构、工具定义、流式事件与思考强度的协议差异（ADR 0003）。部分厂商同时提供多种协议（如 DeepSeek 的 Anthropic 兼容入口为 `https://api.deepseek.com/anthropic`），可用同一模型配置切换 apiType 验证。
-- Provider 类型：三种 apiType 均内置于网关；`openai-chat` 自动兼容 OpenAI / Azure / vLLM / Ollama / DeepSeek 等；"是否支持 tools/vision"由用户在模型能力中声明，客户端只做能力提示。
-- 密钥存储（阶段 1 已实现）：`apiKeyRef` 指向客户端密钥库；实现为 Electron safeStorage（加密密钥由 Windows DPAPI / macOS Keychain 保护）加密后写入 `~/.hu-agent/secrets.enc.json`，配置文件、日志与上报中永不出现明文（ADR 0002）。
-- "快速模型"用于会话标题、历史压缩、ask_guide 生成等低价值调用（也计入用量上报，标记 `purpose: fast`）。
-- 思考强度：模型声明 `capabilities.reasoningEffort = true` 后，会话可选择 关闭/低/中/高（见 5.2.6）；协议映射：OpenAI 系 `reasoning_effort`（chat）/ `reasoning.effort`（responses），Anthropic 为 `thinking.budget_tokens`（低 2048 / 中 8192 / 高 16384）；Anthropic 工具续轮时必须按 API 要求回传 thinking 块与 signature，已随会话 JSONL 持久化。
-- 模型不可用时的降级：按配置顺序回落，全部失败则提示用户（不静默切到本地小模型）。
-- 中转/代理：支持 `baseUrl` 指向企业网关；不支持客户端级 HTTP 代理配置（v1 直接用系统代理）。
-- 未来可选服务端下发模型白名单/默认模型（企业统一管控，见 D11）。
+- **密钥引用名统一为 `model:<providerId>`**：设置页保存的密钥写入本机密钥库（Electron safeStorage，
+  ADR 0002）；启动时一次性迁移历史引用名 `provider.<id>` → `model:<id>`（幂等）。
+- 密钥优先级：文件内 `apiKey`（兼容 pi CLI/手工配置）> 本机密钥库（`model:<providerId>`）；
+  设置页写回 `models.json` 时不落新密钥（已存在的手工 `apiKey` 与 `headers` 保留）；
+  企业模式两者都不用，由服务端 `streamProxy` 供流。
+- `createPiRuntime` 是长生命周期对象：启动时 `refresh()` 一次，设置页保存/删除 provider 后再次调用；
+  `refresh()` 重新注册 `models.json` 里的 provider 并注销已删除项。所有工作空间的
+  `DurableSessions`/harness 共用这一份 models 集合。
+- 思考强度：设置页三档（关闭 / 低 / 中 / 高）→ pi 的 `thinkingLevel` 存在会话配置；到具体 provider
+  参数（`reasoning_effort`、Anthropic `thinking.budget_tokens` 等）的映射由 pi-ai 负责。
+- 未配置任何 provider 时：新建会话不带模型，回合开始前报可操作错误（提示在设置页填写 baseUrl/模型/密钥）。
+- 中转/代理：支持 `baseUrl` 指向企业网关；v1 不支持客户端级 HTTP 代理配置（直接用系统代理）。
+- 企业统一管控（模型白名单/默认模型下发）见 D11，字段预留。
 
 ### 5.10 用量上报
 
@@ -2015,7 +1988,7 @@ Skill 管理与审核（列表/详情/SKILL.md 预览/版本列表/上架/下架
 
 - 服务端 API 只做加法变更；废弃字段先标记 `deprecated`，至少跨 1 个小版本后移除。
 - 客户端 `X-Client-Version` 上报；服务端 `system_settings.min_client_version` 强制升级（只对需要新协议的功能阻断，本地功能不受影响）。
-- 包格式（`.hskill`）与 JSONL 均带 `v` 版本字段，升级时按版本迁移，不破坏旧文件。
+- 包格式（`.hskill`）带 `v` 版本字段，升级时按版本迁移，不破坏旧文件。
 
 ## 9. 非功能设计
 
@@ -2067,7 +2040,7 @@ Skill 管理与审核（列表/详情/SKILL.md 预览/版本列表/上架/下架
 | 阶段 | 交付物 | 验收标准 |
 | --- | --- | --- |
 | M0 设计冻结与技术验证 | 本文档基线；接口 schema（OpenAPI 骨架）；`db/ddl` 初版脚本；Python 3.14 依赖兼容性验证 | 11 章决策全部关闭；FastAPI / SQLAlchemy / psycopg 兼容性结论明确 |
-| M1 Agent MVP | 客户端：Agent Loop + 6 个内置工具 + 会话 JSONL + 模型配置；服务端：账号/登录 | 本地无网环境下完成一次编码任务；会话可恢复 |
+| M1 Agent MVP | 客户端：回合循环（pi-durable）+ 6 个内置工具 + 会话持久化 + 模型配置；服务端：账号/登录 | 本地无网环境下完成一次编码任务；会话可恢复 |
 | M2 Workspace 与安全 | 沙箱、权限引擎、授权卡片、审计；工作空间管理、会话索引/搜索 | 越界访问 100% 弹窗；保护文件不可写；崩溃后会话可恢复 |
 | M3 协作与市场 | 组织/团队/RBAC/审批；Skill 市场（上传-审批-下载-启用）；MCP 市场 | 端到端跑通：上传→审批→成员安装启用；越权用例测试通过 |
 | M4 同步与统计 | 快照上传/下载/冲突处理；用量上报 + 聚合 + 统计页；管理台完整 | 换机器恢复工作空间；统计与本地记账对账误差 < 1% |

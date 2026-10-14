@@ -23,6 +23,7 @@ import { DurableSessions, type SessionView } from './session/durable'
 import {
   countAssistantEntries,
   fromSessionOptions,
+  lastContextTokensOf,
   toSessionItems,
   toSessionMeta,
   toSessionOptions,
@@ -197,7 +198,8 @@ export function registerIpc(context: AppContext): void {
   })
   ipcMain.handle('settings:save-provider', async (_event, input: SaveProviderInputWire) => {
     const settings = await context.settings.load()
-    const secretKey = input.apiKeyRef ?? `provider.${input.id}`
+    // 模型密钥统一存 `model:<providerId>`：这是 pi 运行时读取的引用名（ADR-0006 决策 8）
+    const secretKey = `model:${input.id}`
     if (typeof input.apiKey === 'string') {
       if (input.apiKey.length === 0) await context.secrets.delete(secretKey)
       else await context.secrets.set(secretKey, input.apiKey)
@@ -263,11 +265,14 @@ export function registerIpc(context: AppContext): void {
   ipcMain.handle('sessions:stats', async (_event, sessionId: string) => {
     const { sessions } = await scoped(context)
     const view = await sessions.view(sessionId)
+    const entries = (Array.isArray(view.entries) ? view.entries : []) as never[]
     const options = toSessionOptions(await sessions.agentConfig(sessionId))
     const settings = await context.settings.load()
+    const lastContextTokens = lastContextTokensOf(entries)
     return toSessionUsage(usageOf(view), {
-      calls: countAssistantEntries(view.entries as never[]),
+      calls: countAssistantEntries(entries),
       contextWindow: contextWindowOf(settings, options.model),
+      ...(lastContextTokens !== undefined ? { lastContextTokens } : {}),
     })
   })
   ipcMain.handle('sessions:search', async (_event, query: string) => (await scoped(context)).sessions.search(query))
@@ -681,7 +686,6 @@ interface SaveProviderInputWire {
   apiType: ModelSettings['providers'][number]['apiType']
   baseUrl: string
   apiKey?: string | null
-  apiKeyRef?: string | null
   models: ModelSettings['providers'][number]['models']
 }
 
