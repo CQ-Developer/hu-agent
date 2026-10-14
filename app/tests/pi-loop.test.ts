@@ -1,18 +1,18 @@
 /**
- * 新循环测试（P1.2-c）：用 faux provider 跑真实 pi `Agent`，断言 8 项职责中可离线验证的部分：
+ * 新循环测试（R2/R3 之间）：用 faux provider 跑真实 pi `Agent`，断言可离线验证的职责：
  * 事件序列与停止原因、会话双写（用户/助手/工具调用/工具结果/用量）、用量三写、步数上限。
  *
- * 不联网、不碰真实文件系统：会话/账本/遥测都用内存假实现。
+ * 工具是 pi 原生 `AgentTool`（不再有包装器）；不联网、不碰真实文件系统。
  */
 
 import { createModels } from '@earendil-works/pi-ai/models'
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from '@earendil-works/pi-ai/providers/faux'
+import { Type } from 'typebox'
 import { describe, expect, it } from 'vitest'
 
-import { runTurnWithPi, type ModelResolver, type PiLoopDeps } from '../src/main/agent/pi-loop'
 import type { AgentEvent } from '../src/main/agent/events'
-import { ToolRegistry } from '../src/main/tools/registry'
-import type { AnyTool, ToolContext, ToolResult } from '../src/main/tools/types'
+import { runTurnWithPi, type ModelResolver, type PiLoopDeps } from '../src/main/agent/pi-loop'
+import type { NativeTool } from '../src/main/tools/native/tool'
 
 interface SessionItem {
   type: string
@@ -44,15 +44,16 @@ class MemorySessions {
   }
 }
 
-function echoTool(executed: string[]): AnyTool {
+function echoTool(executed: string[]): NativeTool {
   return {
     name: 'echo',
+    label: '回显',
     description: '回显',
     category: 'read',
-    parameters: { type: 'object', properties: { text: { type: 'string' } } },
-    run: async (input: unknown, _ctx: ToolContext): Promise<ToolResult> => {
-      executed.push(String((input as { text?: string }).text ?? ''))
-      return { status: 'ok', output: 'echo:ok' }
+    parameters: Type.Object({ text: Type.String() }),
+    execute: async (_toolCallId, params) => {
+      executed.push(String((params as { text?: string }).text ?? ''))
+      return { content: [{ type: 'text' as const, text: 'echo:ok' }], details: { status: 'ok' } }
     },
   }
 }
@@ -81,13 +82,16 @@ function setup(responses: ReturnType<typeof fauxAssistantMessage>[]) {
 
   const deps: PiLoopDeps = {
     resolver,
-    tools: new ToolRegistry([echoTool(executed)]),
+    tools: [echoTool(executed)],
     sessions: sessions as unknown as PiLoopDeps['sessions'],
     artifacts: { save: async () => '/tmp/artifact' } as unknown as PiLoopDeps['artifacts'],
     ledger: { record: async (entry: unknown) => void ledger.push(entry) } as unknown as PiLoopDeps['ledger'],
     telemetry: { record: async (entry: unknown) => void telemetry.push(entry) } as unknown as PiLoopDeps['telemetry'],
     permissions: { check: async () => ({ action: 'allow' }) } as unknown as PiLoopDeps['permissions'],
-    interactions: { requestApproval: async () => 'allow_once', requestGuide: async () => '' } as unknown as PiLoopDeps['interactions'],
+    interactions: {
+      requestApproval: async () => 'allow_once',
+      requestGuide: async () => '',
+    } as unknown as PiLoopDeps['interactions'],
     emit: (event) => void events.push(event),
     workspaceRoot: '/ws',
   }
@@ -134,7 +138,6 @@ describe('pi 新循环', () => {
     expect(results).toHaveLength(1)
     expect(results[0]).toMatchObject({ status: 'ok', output: 'echo:ok' })
 
-    // 工具调用事件也要到 UI
     expect(events.some((event) => event.type === 'tool.call')).toBe(true)
     expect(events.some((event) => event.type === 'tool.result')).toBe(true)
     expect(events.at(-1)).toMatchObject({ type: 'turn.end', stopReason: 'done' })
@@ -144,22 +147,18 @@ describe('pi 新循环', () => {
   })
 
   it('步数上限：达到 maxSteps 时以 max_steps 结束并写入错误项', async () => {
-    const { deps, sessions, events } = setup([
+    const first = setup([
       fauxAssistantMessage([fauxToolCall('echo', { text: 'hi' })]),
       fauxAssistantMessage([fauxText('不该到这里')]),
     ])
+    await runTurnWithPi(first.deps, options)
+    expect(first.events.at(-1)).toMatchObject({ type: 'turn.end', stopReason: 'done' })
+    expect(first.sessions.of('error')).toEqual([])
 
-    await runTurnWithPi(deps, { ...options, sessionId: 's2' })
-    // 用 maxSteps=1 重跑一次
     const second = setup([fauxAssistantMessage([fauxToolCall('echo', { text: 'hi' })])])
     await runTurnWithPi({ ...second.deps, maxSteps: 1 }, { ...options, sessionId: 's3' })
 
-    const errors = second.sessions.of('error')
-    expect(errors.some((item) => item.code === 'MAX_STEPS')).toBe(true)
+    expect(second.sessions.of('error').some((item) => item.code === 'MAX_STEPS')).toBe(true)
     expect(second.events.at(-1)).toMatchObject({ type: 'turn.end', stopReason: 'max_steps' })
-
-    // 第一次（默认 50 步）应正常结束
-    expect(events.at(-1)).toMatchObject({ type: 'turn.end', stopReason: 'done' })
-    expect(sessions.of('error')).toEqual([])
   })
 })

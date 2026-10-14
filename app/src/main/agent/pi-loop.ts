@@ -6,16 +6,16 @@
  * 2) system prompt —— `initialState.systemPrompt`；
  * 3) 超阈值压缩 + `session.compacted` —— `transformContext` + 循环发事件；
  * 4) 流式文本与思考、工具调用 —— `pi-events.ts` 映射；
- * 5) 权限/审批/拒绝 —— `pi-governance.ts` 钩子；
- * 6) 工具执行语义与会话双写 —— `createAgentTools` + 本模块在工具事件上双写；
+ * 5) 权限/审批/拒绝 —— `pi-governance.ts` 纯钩子；
+ * 6) 工具执行语义与会话双写 —— 工具本身是 pi 原生（自带截断/产物在钩子里），循环在工具事件上双写；
  * 7) 用量三写（sessions + ledger + telemetry，含失败路径 0 用量与 errorCode）—— `message_end.usage`；
  * 8) 停止原因（done / cancelled / max_steps / error，含 OUTPUT_TRUNCATED / MAX_STEPS 错误项）—— 本模块。
  *
- * 刻意不依赖 `ModelGateway`：模型解析与压缩分别走 `ModelResolver` / `HistorySummarizer` 能力接口，
- * 这样 P1.2-d 能一次性删除旧网关、旧 provider 与旧循环（否则新循环会把它们绑死）。
+ * 工具直接使用 pi 原生 `AgentTool`（不再有包装器）；模型解析与压缩走两个能力接口，
+ * 由 `model/pi-runtime.ts` 用 pi 实现，因此旧网关、旧 provider 与旧循环可以整批删除。
  */
 
-import type { AgentTool, AgentToolResult } from '@earendil-works/pi-agent-core'
+import type { AgentTool } from '@earendil-works/pi-agent-core'
 import { Agent } from '@earendil-works/pi-agent-core'
 
 import type { AgentEvent, TurnStopReason } from '../../shared/events'
@@ -27,13 +27,12 @@ import type { ArtifactStore } from '../session/artifacts'
 import type { SessionStore } from '../session/store'
 import type { MessagePart, ToolStatus } from '../session/types'
 import { ulid } from '../session/ulid'
-import type { ToolRegistry } from '../tools/registry'
-import type { AnyTool } from '../tools/types'
+import type { NativeTool } from '../tools/native/tool'
 import type { UsageLedger } from '../usage/ledger'
 import type { TelemetryInput, TelemetrySink } from '../usage/telemetry'
 import { COMPACT_THRESHOLD } from './compaction'
 import { mapPiEvent, type PiEventContext } from './pi-events'
-import { createAfterToolCall, createAgentTools, createBeforeToolCall, createGovernanceState } from './pi-governance'
+import { createAfterToolCall, createBeforeToolCall, createGovernanceState } from './pi-governance'
 import { buildSystemPrompt } from './prompt'
 
 /** 一轮对话的用量记录形态（与旧循环一致） */
@@ -60,20 +59,20 @@ export interface ResolvedModel {
   streamFn: unknown
 }
 
-/** 模型解析：P1.2-d 用 pi-config + createModels 实现；测试用假实现 */
+/** 模型解析：由 model/pi-runtime.ts 用 pi-config + createModels 实现 */
 export interface ModelResolver {
   resolve(target?: string): Promise<ResolvedModel>
 }
 
-/** 历史压缩：用一次非流式调用产出摘要（P1.2-d 用 pi 实现） */
+/** 历史压缩：用一次非流式调用产出摘要（由 pi-runtime 实现） */
 export interface HistorySummarizer {
   summarize(history: string, signal: AbortSignal): Promise<string>
 }
 
 export interface PiLoopDeps {
   resolver: ModelResolver
-  tools: ToolRegistry
-  extraTools?: AnyTool[]
+  /** 本次回合可用的原生工具（默认工具集 + 运行时注入的 MCP 工具） */
+  tools: NativeTool[]
   sessions: SessionStore
   artifacts: ArtifactStore
   ledger: UsageLedger
@@ -185,27 +184,28 @@ export async function runTurnWithPi(deps: PiLoopDeps, options: PiTurnOptions): P
     const history = await deps.sessions.loadContextMessages(sessionId)
 
     const governance = createGovernanceState()
-    const scope = { sessionId, turnId, signal }
+    const scope = { sessionId, turnId }
     const governanceDeps = {
       workspaceRoot: deps.workspaceRoot,
       permissions: deps.permissions,
-      artifacts: deps.artifacts,
-      interactions: deps.interactions,
-      tools: [...deps.tools.list(), ...(deps.extraTools ?? [])],
-      outputLimit: deps.outputLimit,
+      tools: deps.tools,
     }
 
     const agent = new Agent({
       initialState: {
         systemPrompt: buildSystemPrompt(deps.workspaceRoot, deps.skillSection),
         model: resolved.model as never,
-        tools: createAgentTools(governanceDeps, scope) as AgentTool[],
+        // 工具就是 pi 原生工具：直接交给 Agent，不做任何包装
+        tools: deps.tools as AgentTool[],
         messages: toTranscriptMessages(history, resolved) as never,
       },
       streamFn: resolved.streamFn as never,
       beforeToolCall: createBeforeToolCall(governanceDeps, scope, governance),
-      afterToolCall: createAfterToolCall(governance),
-      // 3) 超阈值压缩：压缩后重新装载会话上下文（与旧循环同一套阈值与降级策略）
+      afterToolCall: createAfterToolCall(
+        { artifacts: deps.artifacts, outputLimit: deps.outputLimit },
+        governance,
+      ),
+      // 3) 超阈值压缩：压缩后重新装载会话上下文（同一套阈值与降级策略）
       transformContext: async (messages) => {
         if (!deps.summarizer || resolved.contextWindow <= 0) return messages
         // 近似估算：字符数 / 4；只为判断是否越过压缩阈值（精确计数由 pi 的 usage 提供）
@@ -222,7 +222,7 @@ export async function runTurnWithPi(deps: PiLoopDeps, options: PiTurnOptions): P
           return (messages as unknown[]).slice(-keep) as never
         }
       },
-      // 8) 步数上限：达到即结束本轮（等价于旧循环的 maxSteps）
+      // 8) 步数上限：达到即结束本轮
       finishTurn: async () => {
         steps += 1
         if (steps >= maxSteps) {
@@ -239,7 +239,7 @@ export async function runTurnWithPi(deps: PiLoopDeps, options: PiTurnOptions): P
       },
     })
 
-    // 4) 事件映射 + 6) 工具调用/结果与会话双写 + 7) 用量三写
+    // 4) 事件映射 + 6) 工具与会话双写 + 7) 用量三写
     agent.subscribe(async (event) => {
       const context: PiEventContext = {
         sessionId,
@@ -284,7 +284,7 @@ export async function runTurnWithPi(deps: PiLoopDeps, options: PiTurnOptions): P
           stopReason?: string
         }
         if (message.role !== 'assistant') return
-        const durationMs = 0
+
         const usage: TokenUsage = {
           inputTokens: message.usage?.input ?? 0,
           outputTokens: message.usage?.output ?? 0,
@@ -297,19 +297,20 @@ export async function runTurnWithPi(deps: PiLoopDeps, options: PiTurnOptions): P
             model: resolved.modelId,
             role: 'primary',
             ...usage,
-            durationMs,
+            durationMs: 0,
             status: 'success',
           },
           true,
         )
-        // 助手消息落库：会话历史与 UI 都依赖它（与旧循环一致：reasoning 在前、text 在后）
+
+        // 助手消息落库（会话历史与 UI 依赖它；reasoning 在前、text 在后）
         const blocks = (event.message as { content?: unknown }).content
         const parts: MessagePart[] = []
         let reasoning = ''
         let text = ''
         if (Array.isArray(blocks)) {
           for (const block of blocks) {
-            const candidate = block as { type?: string; text?: string; thinking?: string; thinkingSignature?: string }
+            const candidate = block as { type?: string; text?: string; thinking?: string }
             if (candidate.type === 'thinking' && candidate.thinking) reasoning += candidate.thinking
             if (candidate.type === 'text' && candidate.text) text += candidate.text
           }
@@ -377,5 +378,3 @@ async function recordTelemetry(deps: PiLoopDeps, sessionId: string, entry: Usage
     console.warn(t('[telemetry] 入队失败：'), error)
   }
 }
-
-export type { AgentToolResult }
