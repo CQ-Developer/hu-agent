@@ -8,7 +8,27 @@ The project follows [Semantic Versioning](https://semver.org/) and the structure
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- One-command observability stack (`docker/compose.observability.yaml` overlay +
+  `scripts/quickstart.sh monitoring up`): Prometheus (the 12 alert rules and 3 recording rules now ship
+  with the repository), Grafana (4 provisioned dashboards: API golden signals, background jobs & data,
+  authentication & SSO, logs), Alertmanager (email routing, delivered to the bundled Mailpit inbox by
+  default; enterprise SMTP and webhooks documented) and optional Loki + Promtail log aggregation
+  (`logs` profile).
+- New metric `huagent_job_staleness_budget_seconds{job_id}`: how long a worker job may go without a
+  successful run before it is considered stale, derived from its schedule (interval jobs: 3x period,
+  minimum 15 minutes; daily cron jobs: 26 hours).
+- Worker schedules consolidated into `worker/schedule.py` as the single source of truth for both the
+  scheduler and the staleness budgets.
+
+### Fixed
+
+- `HuAgentWorkerJobStale` used a hard-coded 2 hour threshold, so daily cron jobs (partition
+  maintenance, snapshot cleanup, PII purge, daily usage pruning) alerted continuously between runs;
+  it now compares against each job's own budget.
+- `prometheus.yml` was missing `alerting.alertmanagers`, so rules fired without ever sending a
+  notification (found by triggering a real alert during verification).
 
 ## [0.1.0] - 2026-10-14
 

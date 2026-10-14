@@ -1,0 +1,49 @@
+# Prometheus 采集配置（hu-agent）
+#
+# 抓取目标来自 file_sd 文件（可编辑、可在不重启的情况下热加载，默认 30s 刷新一次）：
+#   /etc/prometheus/targets/huagent-api.yml
+# 指标端点的 Bearer 令牌来自文件（避免明文写进配置）：
+#   /etc/prometheus/huagent_metrics_token
+# 两个文件都由 scripts/quickstart.sh monitoring up 生成；手工部署见 docs/delivery/monitoring.md。
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  external_labels:
+    deployment: hu-agent
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+# 告警投递目标（缺失则规则只会 fire 而不会通知——已踩坑，勿删）
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+      timeout: 10s
+
+scrape_configs:
+  # 服务端（API + worker 共用一个进程指标端点；worker 的作业状态经数据库汇总进该端点）
+  - job_name: hu-agent-api
+    metrics_path: /api/v1/system/metrics
+    scrape_timeout: 10s
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/huagent_metrics_token
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/huagent-api.yml
+        refresh_interval: 30s
+
+  # 监控组件自身（Prometheus/Alertmanager/Grafana 都自带 /metrics）
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+
+  - job_name: grafana
+    static_configs:
+      - targets: ["grafana:3000"]

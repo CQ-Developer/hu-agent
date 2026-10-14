@@ -8,16 +8,8 @@ import logging
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from huagent.common.runtime import new_event_loop
-from huagent.worker.jobs import (
-    heartbeat,
-    job_aggregate_usage,
-    job_cleanup_snapshots,
-    job_expire_invitations,
-    job_maintain_partitions,
-    job_prune_usage_daily,
-    job_purge_deleted_users,
-    job_remind_approvals,
-)
+from huagent.worker import schedule
+from huagent.worker.jobs import job_aggregate_usage, job_maintain_partitions
 
 logger = logging.getLogger("huagent.worker")
 
@@ -28,16 +20,8 @@ async def run() -> None:
     await job_maintain_partitions()
 
     scheduler = AsyncIOScheduler(timezone="UTC")
-    scheduler.add_job(heartbeat, "interval", minutes=5, id="heartbeat", max_instances=1)
-    # design 6.11：用量聚合每小时；分区维护每日 02:00；快照清理每日 03:00；邀请/审批每小时
-    scheduler.add_job(job_aggregate_usage, "interval", minutes=60, id="usage.aggregate", max_instances=1)
-    scheduler.add_job(job_maintain_partitions, "cron", hour=2, minute=0, id="usage.partitions", max_instances=1)
-    scheduler.add_job(job_cleanup_snapshots, "cron", hour=3, minute=0, id="snapshot.cleanup", max_instances=1)
-    scheduler.add_job(job_expire_invitations, "interval", minutes=60, id="invitation.expire", max_instances=1)
-    scheduler.add_job(job_remind_approvals, "interval", minutes=60, id="approval.remind", max_instances=1)
-    # design 6.10.5：注销宽限期到点后清理 PII；日聚合按保留策略清理
-    scheduler.add_job(job_purge_deleted_users, "cron", hour=4, minute=0, id="user.purge", max_instances=1)
-    scheduler.add_job(job_prune_usage_daily, "cron", hour=4, minute=30, id="usage.daily.prune", max_instances=1)
+    # 任务表与「新鲜度预算」都定义在 worker/schedule.py（告警阈值由周期推导）
+    schedule.register(scheduler)
     scheduler.start()
     logger.info("worker started")
     try:

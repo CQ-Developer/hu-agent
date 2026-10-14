@@ -1,0 +1,58 @@
+{
+  "uid": "huagent-logs",
+  "title": "hu-agent / 日志（Loki）",
+  "tags": ["hu-agent", "logs"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "使用说明",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "需启用 `logs` profile（`scripts/quickstart.sh monitoring up --with-logs`，仅 Linux 宿主机）。\n\n标签：`service`（api / worker / postgres …）、`project`（compose 项目名）、`stream`、`trace_id`。\n\n排障示例：拿到响应头 `X-Trace-Id` 后按 trace 过滤 → `{service=\"api\"} | trace_id=\"<id>\"`；只看错误 → `{service=~\"api|worker\"} |~ \"(?i)error|traceback\"`。"
+      }
+    },
+    {
+      "id": 2,
+      "type": "logs",
+      "title": "错误与异常（api + worker）",
+      "datasource": { "type": "loki", "uid": "huagent-loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service=~\"api|worker\"} |~ \"(?i)error|exception|traceback|critical\"",
+          "datasource": { "type": "loki", "uid": "huagent-loki" }
+        }
+      ],
+      "options": { "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true, "enableLogDetails": true }
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "API 全部日志",
+      "datasource": { "type": "loki", "uid": "huagent-loki" },
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        { "refId": "A", "expr": "{service=\"api\"}", "datasource": { "type": "loki", "uid": "huagent-loki" } }
+      ],
+      "options": { "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true, "enableLogDetails": true }
+    },
+    {
+      "id": 4,
+      "type": "logs",
+      "title": "worker 全部日志",
+      "datasource": { "type": "loki", "uid": "huagent-loki" },
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        { "refId": "A", "expr": "{service=\"worker\"}", "datasource": { "type": "loki", "uid": "huagent-loki" } }
+      ],
+      "options": { "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true, "enableLogDetails": true }
+    }
+  ]
+}

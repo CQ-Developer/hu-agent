@@ -5,7 +5,22 @@
 
 ## [Unreleased]
 
-暂无。
+### 新增
+
+- 可观测性一键部署（`docker/compose.observability.yaml` 叠加层 + `scripts/quickstart.sh monitoring up`）：
+  Prometheus（12 条告警规则与 3 条记录规则开始随仓库分发）、Grafana（4 个预置看板：
+  API 黄金指标 / 后台任务与业务数据 / 认证与 SSO / 日志）、Alertmanager（邮件路由，默认投递到内置
+  Mailpit 收件箱；企业 SMTP 与 webhook 见文档）、可选 Loki + Promtail 日志聚合（profile: logs）。
+- 新指标 `huagent_job_staleness_budget_seconds{job_id}`：worker 任务「多久未成功完成即异常」的预算，
+  由任务周期推导（心跳/每小时任务 = 3 倍周期且不低于 15 分钟；每日 cron 任务 = 26 小时）。
+- 定时任务表收敛到 `worker/schedule.py`（唯一的调度与预算来源），worker 启动改用它注册。
+
+### 修复
+
+- `HuAgentWorkerJobStale` 告警阈值写死 2 小时，导致每日 cron 任务（分区维护、快照清理、PII 清理、
+  日聚合清理）在两次执行之间必然持续误报；改为与各任务预算比较。
+- `prometheus.yml` 缺少 `alerting.alertmanagers` 配置：规则会 fire 但不会发出任何通知（实测发现）。
+- worker 任务周期与调度器不一致（原 `__main__.py` 与文档各处手写）导致的维护风险。
 
 ## [0.1.0] - 2026-10-14
 

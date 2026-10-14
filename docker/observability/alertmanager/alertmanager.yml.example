@@ -1,0 +1,45 @@
+# Alertmanager 手工配置示例（不使用 quickstart 的话，复制为 alertmanager.yml 再改）
+#
+#   cp observability/alertmanager/alertmanager.yml.example observability/alertmanager/alertmanager.yml
+#
+# 默认指向叠加层自带的 Mailpit（profile: mail），收件箱 http://localhost:8025。
+# 接企业邮箱示例：
+#   smtp_smarthost: 'smtp.example.com:587'
+#   smtp_from: 'huagent@example.com'
+#   smtp_require_tls: true
+#   smtp_auth_username: 'huagent@example.com'
+#   smtp_auth_password: '授权码'
+
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'mailpit:1025'
+  smtp_from: 'huagent-alerts@localhost'
+  smtp_require_tls: false
+
+route:
+  receiver: email
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="critical"']
+      receiver: email
+      group_wait: 10s
+      repeat_interval: 1h
+    - matchers: ['severity="info"']
+      receiver: email
+      repeat_interval: 24h
+
+receivers:
+  - name: email
+    email_configs:
+      - to: 'alerts@example.com'
+        send_resolved: true
+        headers:
+          Subject: '[hu-agent][{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+
+  # - name: webhook
+  #   webhook_configs:
+  #     - url: 'https://im-gateway.internal.example.com/huagent'
+  #       send_resolved: true

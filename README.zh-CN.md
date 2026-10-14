@@ -17,6 +17,9 @@ v1 已覆盖 Agent 循环与工具沙箱、Skill/MCP 扩展、市场治理、云
 ```bash
 git clone https://github.com/CQ-Developer/hu-agent.git && cd hu-agent
 scripts/quickstart.sh up --email you@example.com    # 生成密钥 → 起全栈 → 应用 DDL → 建首个系统管理员
+
+> 想要指标 + 看板 + 邮件告警：`scripts/quickstart.sh monitoring up`
+> （Prometheus + Grafana + Alertmanager，看板 http://localhost:3000）。
 ```
 
 ```bash

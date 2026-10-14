@@ -89,6 +89,9 @@ async def test_metrics_exposes_build_and_db_gauges(client: AsyncClient, database
     assert 'huagent_db_gauge{metric="users_total"} 1' in body
     assert 'huagent_job_last_status{job_id="usage.aggregate",status="succeeded"} 1' in body
     assert 'huagent_job_last_timestamp_seconds{job_id="usage.aggregate",phase="finished"}' in body
+    # 预算随任务表导出，与运行历史无关：告警规则据此判断「超出各自预算才算异常」
+    assert 'huagent_job_staleness_budget_seconds{job_id="usage.aggregate"} 10800' in body
+    assert 'huagent_job_staleness_budget_seconds{job_id="snapshot.cleanup"} 93600' in body
     # 本次采集请求本身不进入 HTTP 指标
     assert 'path="/api/v1/system/metrics"' not in body
 

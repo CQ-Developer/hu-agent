@@ -1,0 +1,107 @@
+# 可观测性叠加层：Prometheus + Grafana + Alertmanager（+ Mailpit、可选 Loki/Promtail）
+#
+# 三种用法：
+#   1) 与快速开始一起（推荐，自动生成令牌/抓取目标/告警路由）
+#        scripts/quickstart.sh monitoring up            # 指标+看板+告警（含 Mailpit 收信）
+#        scripts/quickstart.sh monitoring up --with-logs # 再叠加容器日志聚合（Loki）
+#   2) 叠加在任意已有编排上（compose 文件合并且同项目即可互相解析服务名）
+#        docker compose -f docker/compose.quickstart.yaml -f docker/compose.observability.yaml \
+#          up -d prometheus grafana alertmanager mailpit
+#   3) 服务端跑在宿主机（开发环境）
+#        HUAGENT_METRICS_TARGET=host.docker.internal:8080 \
+#          docker compose -f docker/compose.observability.yaml up -d
+#
+# 生成物（已在 .gitignore 中，不提交）：
+#   observability/prometheus/huagent_metrics_token  指标端点的 Bearer 令牌
+#   observability/prometheus/targets/huagent-api.yml 抓取目标（可手工编辑）
+#   observability/alertmanager/alertmanager.yml      告警路由（由模板生成，含收件人/SMTP）
+#
+# 端口一律绑 127.0.0.1：9090 Prometheus / 3000 Grafana / 9093 Alertmanager / 8025 Mailpit。
+# 生产请置于 TLS 反向代理与认证之后（见 docs/delivery/monitoring.md 第 1 节）。
+
+services:
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v3.6.0}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${PROM_RETENTION:-15d}
+      - --web.enable-lifecycle
+    volumes:
+      - ./observability/prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    restart: unless-stopped
+
+  alertmanager:
+    image: ${ALERTMANAGER_IMAGE:-prom/alertmanager:v0.28.1}
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      # 缺失时 compose 会创建同名目录导致启动失败：先执行 scripts/quickstart.sh monitoring up
+      # （或手工 cp observability/alertmanager/alertmanager.yml.example observability/alertmanager/alertmanager.yml）
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:-9093}:9093"
+    restart: unless-stopped
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:12.2.0}
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # 只读匿名访问（大屏展示用）：置 true 后任何人可看不能改
+      GF_AUTH_ANONYMOUS_ENABLED: ${GRAFANA_ANONYMOUS:-false}
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    restart: unless-stopped
+
+  # 默认的告警收件箱：收不到信时先在 http://localhost:8025 看这里
+  mailpit:
+    profiles: ["mail"]
+    image: ${MAILPIT_IMAGE:-axllent/mailpit:latest}
+    ports:
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    restart: unless-stopped
+
+  # 日志聚合（可选，profile: logs）。需要宿主机 Docker 日志目录与 socket，仅 Linux 可用；
+  # Docker Desktop（Windows/macOS）下请改用宿主日志或 Grafana Alloy，见 monitoring.md 第 5 节。
+  loki:
+    profiles: ["logs"]
+    image: ${LOKI_IMAGE:-grafana/loki:3.5.5}
+    command: ["-config.file=/etc/loki/loki-config.yml", "-config.expand-env=true"]
+    volumes:
+      - ./observability/loki/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - loki-data:/loki
+    ports:
+      - "127.0.0.1:${LOKI_PORT:-3100}:3100"
+    restart: unless-stopped
+
+  promtail:
+    profiles: ["logs"]
+    image: ${PROMTAIL_IMAGE:-grafana/promtail:3.5.5}
+    command: ["-config.file=/etc/promtail/promtail-config.yml"]
+    volumes:
+      - ./observability/promtail/promtail-config.yml:/etc/promtail/promtail-config.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  alertmanager-data:
+  grafana-data:
+  loki-data:

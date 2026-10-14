@@ -1,0 +1,42 @@
+# Promtail：采集本机 Docker 容器日志推给 Loki（profile: logs，仅 Linux 宿主机可用）
+#
+# 用 Docker 服务发现自动打上 compose 标签：service（api/worker/...）与 project（compose 项目名），
+# 于是 Grafana 里可以按 `{service="api"}`、`{service="worker"}` 直接过滤。
+#
+# Windows/macOS 的 Docker Desktop 不暴露 /var/lib/docker 与 docker.sock 的真实路径，
+# 该 profile 会失败；请在宿主机用 Loki Docker 驱动或 Grafana Alloy（见 monitoring.md 第 5 节）。
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 15s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: project
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: stream
+    pipeline_stages:
+      # Docker json-file 驱动：解析 log/stream/time 字段
+      - docker: {}
+      # 从日志文本里提取 trace id（服务端结构化日志带 X-Trace-Id / trace_id）
+      - regex:
+          source: output
+          expression: '(?:trace_id|X-Trace-Id)[=:\s"]+(?P<trace_id>[0-9a-fA-F-]{8,64})'
+      - labels:
+          trace_id:

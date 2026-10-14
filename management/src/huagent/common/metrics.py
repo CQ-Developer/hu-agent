@@ -203,3 +203,8 @@ JOB_STATUS = REGISTRY.gauge("huagent_job_last_status", "worker 任务最近一�
 JOB_TIMESTAMP = REGISTRY.gauge(
     "huagent_job_last_timestamp_seconds", "worker 任务最近开始/结束时间戳", ("job_id", "phase")
 )
+JOB_BUDGET = REGISTRY.gauge(
+    "huagent_job_staleness_budget_seconds",
+    "worker 任务「多久未成功完成即异常」的预算（由任务周期推导，见 worker/schedule.py）",
+    ("job_id",),
+)

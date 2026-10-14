@@ -119,7 +119,7 @@ dev-only 路由 `/gallery`（生产构建剔除）：令牌可视化（色板/�
 
 ---
 
-## 3. 轨道 C：可观测性一键部署
+## 3. 轨道 C：可观测性一键部署（✅ 已落地，见 docs/delivery/monitoring.md 第 7 节）
 
 目标：中小企业 `docker compose` 一键起一套完整监控，配合既有 `/api/v1/system/metrics` 与 12 条告警规则。
 

@@ -1,0 +1,122 @@
+{
+  "uid": "huagent-worker-data",
+  "title": "hu-agent / 后台任务与业务数据",
+  "tags": ["hu-agent", "worker"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "worker 任务新鲜度（距最近一次完成）",
+      "description": "超过 7200s（2h）会触发 HuAgentWorkerJobStale 告警",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - huagent_job_last_timestamp_seconds{phase='finished'}",
+          "legendFormat": "{{job_id}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3600 },
+              { "color": "red", "value": 7200 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "worker 任务最近状态",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "huagent_job_last_status == 1",
+          "legendFormat": "{{job_id}} → {{status}}",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "options": { "showHeader": true }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "数据库状态量",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [{ "refId": "A", "expr": "huagent_db_gauge", "legendFormat": "{{metric}}" }],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "用量事件处理结果（客户端上报）",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result) (rate(huagent_usage_events_total[5m]))",
+          "legendFormat": "{{result}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "待审批",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 16 },
+      "targets": [{ "refId": "A", "expr": "huagent_db_gauge{metric='approvals_pending'}", "legendFormat": "pending" }],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value" }
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "上传中快照",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        { "refId": "A", "expr": "huagent_db_gauge{metric='snapshots_uploading'}", "legendFormat": "uploading" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value" }
+    },
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "指标采集失败（近 10 分钟）",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "increase(huagent_metrics_collect_errors_total[10m])",
+          "legendFormat": "errors"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value" }
+    }
+  ]
+}

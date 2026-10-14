@@ -1,0 +1,12 @@
+# 抓取目标（file_sd）。由 scripts/quickstart.sh monitoring up 生成，也可手工编辑：
+#
+#   - 服务端在容器里（快速开始/自建编排）：targets: ["api:8080"]
+#   - 服务端在宿主机（开发环境）：        targets: ["host.docker.internal:8080"]
+#   - 多实例：每行一条；labels 可加 instance 便于区分
+#
+# 改完存盘后 Prometheus 会在 30s 内自动重载本文件（无需重启）。
+
+- targets: ["api:8080"]
+  labels:
+    instance: huagent-api
+    env: quickstart

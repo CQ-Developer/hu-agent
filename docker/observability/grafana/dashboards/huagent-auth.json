@@ -1,0 +1,100 @@
+{
+  "uid": "huagent-auth",
+  "title": "hu-agent / 认证与 SSO",
+  "tags": ["hu-agent", "auth"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "登录结果分布",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result) (rate(huagent_login_attempts_total[5m]))",
+          "legendFormat": "{{result}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "登录失败速率（口令爆破信号）",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        { "refId": "A", "expr": "huagent:login_failure_rate5m", "legendFormat": "failure/s" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "限流触发（按来源）",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result) (rate(huagent_login_attempts_total{result=~'locked_.*'}[15m]))",
+          "legendFormat": "{{result}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "近 24h 登录结果",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result) (increase(huagent_login_attempts_total[24h]))",
+          "legendFormat": "{{result}}",
+          "instant": true
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value" }
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "认证相关端点的请求量（近 1h，Top 15）",
+      "datasource": { "type": "prometheus", "uid": "huagent-prometheus" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(15, sum by (path, status) (increase(huagent_http_requests_total{path=~'/api/v1/(auth|sso).*'}[1h])))",
+          "legendFormat": "{{path}} {{status}}",
+          "instant": true,
+          "format": "table"
+        }
+      ],
+      "options": { "showHeader": true }
+    }
+  ]
+}

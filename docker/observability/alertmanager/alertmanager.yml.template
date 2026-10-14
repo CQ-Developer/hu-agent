@@ -1,0 +1,46 @@
+# Alertmanager 配置模板：由 scripts/quickstart.sh monitoring up 生成 alertmanager.yml
+# 占位符：@SMTP_SMARTHOST@ @ALERT_EMAIL_FROM@ @ALERT_EMAIL_TO@ @SMTP_REQUIRE_TLS@
+#
+# 默认走内置 Mailpit（收件箱 http://localhost:8025）；接企业邮箱请改占位符对应值：
+#   SMTP_SMARTHOST=smtp.example.com:587   ALERT_EMAIL_TO=ops@example.com   SMTP_REQUIRE_TLS=true
+# 生成的文件含收件人/口令，已在 .gitignore 中（权限 600）。
+
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: '@SMTP_SMARTHOST@'
+  smtp_from: '@ALERT_EMAIL_FROM@'
+  smtp_require_tls: @SMTP_REQUIRE_TLS@
+  # 需要认证的邮箱（如企业 SMTP/Exchange/腾讯企业邮）：
+  #   smtp_auth_username: 'ops@example.com'
+  #   smtp_auth_password: '授权码（本文件已 gitignore 且 chmod 600，不要写进仓库）'
+
+route:
+  receiver: email
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="critical"']
+      receiver: email
+      group_wait: 10s
+      repeat_interval: 1h
+    - matchers: ['severity="info"']
+      receiver: email
+      repeat_interval: 24h
+
+receivers:
+  - name: email
+    email_configs:
+      - to: '@ALERT_EMAIL_TO@'
+        send_resolved: true
+        headers:
+          Subject: '[hu-agent][{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+
+  # 通用 webhook（企业微信/钉钉/飞书/自建值班系统的适配网关）：把下面这段取消注释，
+  # 在 route 里为需要的 severity 增加 `receiver: webhook` 路由即可。
+  #
+  # - name: webhook
+  #   webhook_configs:
+  #     - url: 'https://im-gateway.internal.example.com/huagent'
+  #       send_resolved: true

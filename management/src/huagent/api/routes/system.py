@@ -14,9 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from huagent.common.config import get_settings
 from huagent.common.errors import AppError, ErrorCode
-from huagent.common.metrics import BUILD_INFO, DB_GAUGE, JOB_STATUS, JOB_TIMESTAMP, REGISTRY
+from huagent.common.metrics import BUILD_INFO, DB_GAUGE, JOB_BUDGET, JOB_STATUS, JOB_TIMESTAMP, REGISTRY
 from huagent.domain.db import get_session
 from huagent.domain.schema import applied_versions
+from huagent.worker.schedule import STALENESS_BUDGET_SECONDS
 
 router = APIRouter()
 
@@ -93,6 +94,10 @@ async def _refresh_dynamic_metrics(session: AsyncSession) -> None:
 
     JOB_STATUS.clear()
     JOB_TIMESTAMP.clear()
+    JOB_BUDGET.clear()
+    for job_id, budget_seconds in STALENESS_BUDGET_SECONDS.items():
+        # 预算随任务表变化，与运行历史无关，因此无论该任务是否跑过都要导出
+        JOB_BUDGET.set(float(budget_seconds), job_id=job_id)
     rows = (await session.execute(text(_JOB_ROWS))).mappings().all()
     for row in rows:
         JOB_STATUS.set(1, job_id=row["job_id"], status=row["status"])

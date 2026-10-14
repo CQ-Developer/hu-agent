@@ -1,0 +1,127 @@
+# hu-agent 告警规则（权威版本；docs/delivery/monitoring.md 第 3 节与本文保持一致）
+#
+# 阈值均为起步值：请在 staging 观察一周后按实际基线调整（尤其 P95 与错误率）。
+# 加载校验：docker run --rm -v $PWD:/work prom/prometheus:v3.6.0 \
+#             promtool check rules /work/rules/huagent.yml
+
+groups:
+  - name: hu-agent
+    interval: 30s
+    rules:
+      # ---- 可用性 ----
+      - alert: HuAgentApiDown
+        expr: up{job="hu-agent-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 实例不可达（{{ $labels.instance }}）"
+          runbook: "docs/delivery/operations.md#1-健康检查与监控"
+
+      - alert: HuAgentMetricsCollectFailing
+        expr: increase(huagent_metrics_collect_errors_total[10m]) > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "指标采集无法访问数据库：数据库可能不可用"
+          runbook: "docs/delivery/deployment.md#6-备份与恢复"
+
+      # ---- 错误率与延迟 ----
+      - alert: HuAgentServerErrorRate
+        expr: |
+          sum(rate(huagent_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(huagent_http_requests_total[5m])), 0.001) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "5xx 比例超过 5%"
+          runbook: "docs/delivery/operations.md#1-健康检查与监控"
+
+      - alert: HuAgentP95LatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(huagent_http_request_duration_seconds_bucket[5m])) by (le, path)
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.path }} P95 延迟超过 1s"
+          runbook: "docs/delivery/performance.md"
+
+      # ---- 认证 ----
+      - alert: HuAgentLoginFailuresBurst
+        expr: sum(rate(huagent_login_attempts_total{result="failure"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "登录失败速率偏高（可能口令爆破），检查 audit_logs 中 auth.login 失败 IP 分布"
+
+      - alert: HuAgentAccountLockouts
+        expr: increase(huagent_login_attempts_total{result=~"locked_.*"}[15m]) > 5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "多个账号/来源触发登录限流"
+
+      # ---- 业务数据 ----
+      - alert: HuAgentUsageEventRejections
+        expr: sum(rate(huagent_usage_events_total{result="rejected"}[15m])) > 0.1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "客户端用量事件被拒绝，检查时钟偏移/归属校验（sanitized）"
+
+      - alert: HuAgentSnapshotUploadingStuck
+        expr: huagent_db_gauge{metric="snapshots_uploading"} > 5
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "存在长时间未完成的快照上传；worker snapshot.cleanup 超过 24h 会置 aborted"
+
+      - alert: HuAgentApprovalsBacklog
+        expr: huagent_db_gauge{metric="approvals_pending"} > 20
+        for: 24h
+        labels:
+          severity: info
+        annotations:
+          summary: "待审批积压超过 20（审批停滞会影响组织/资源上下架）"
+
+      # ---- worker ----
+      - alert: HuAgentWorkerJobFailed
+        expr: huagent_job_last_status{status="failed"} == 1
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "worker 任务 {{ $labels.job_id }} 最近一次失败"
+          runbook: "docs/delivery/operations.md#3-后台任务与补偿"
+
+      - alert: HuAgentWorkerJobStale
+        expr: |
+          (time() - huagent_job_last_timestamp_seconds{phase="finished"})
+            > on(job_id) huagent_job_staleness_budget_seconds
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "worker 任务 {{ $labels.job_id }} 超过预算（{{ $value | humanizeDuration }}）未成功完成"
+          runbook: "docs/delivery/operations.md#3-后台任务与补偿"
+
+  - name: hu-agent-recording
+    interval: 30s
+    rules:
+      - record: huagent:http_error_ratio5m
+        expr: |
+          sum(rate(huagent_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(huagent_http_requests_total[5m])), 0.001)
+      - record: huagent:usage_accepted_rate5m
+        expr: sum(rate(huagent_usage_events_total{result="accepted"}[5m]))
+      - record: huagent:login_failure_rate5m
+        expr: sum(rate(huagent_login_attempts_total{result="failure"}[5m]))

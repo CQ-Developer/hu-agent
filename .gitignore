@@ -40,3 +40,8 @@ openapi/generated/
 # 快速开始生成的环境文件（含密钥，绝不入库）
 .env.quickstart
 .pr-deps-batch.md
+
+# 可观测性监控栈的生成物（含令牌/收件人，勿提交）
+docker/observability/prometheus/huagent_metrics_token
+docker/observability/prometheus/targets/huagent-api.yml
+docker/observability/alertmanager/alertmanager.yml

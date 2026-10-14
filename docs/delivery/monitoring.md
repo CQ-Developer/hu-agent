@@ -28,6 +28,9 @@
 | `huagent_job_last_status` | gauge | `job_id`, `status` | worker 任务最近状态（=1 生效） |
 | `huagent_job_last_timestamp_seconds` | gauge | `job_id`, `phase`=`started\|finished` | 最近开始/结束时间戳 |
 | `huagent_metrics_collect_errors_total` | counter | — | 数据库指标采集失败次数 |
+| `huagent_job_staleness_budget_seconds` | gauge | `job_id` | worker 任务「多久未成功完成即异常」的预算秒数（由任务周期推导，见 `worker/schedule.py`） |
+
+> 想直接起一套完整监控（含看板与邮件告警）：见本文档第 7 节「一键部署监控栈」。
 
 ## 2. 采集配置
 
@@ -133,13 +136,17 @@ groups:
         annotations:
           summary: "worker 任务 {{ $labels.job_id }} 最近一次失败"
 
+      # 预算由任务周期推导并作为指标导出：
+      #   心跳/每小时类任务 = 3 倍周期（下限 15 分钟）；每日 cron 任务 = 26 小时
+      # 为什么不写死阈值：快照清理/分区维护/PII 清理每日只跑一次，固定 2 小时阈值会持续误报
       - alert: HuAgentWorkerJobStale
         expr: |
-          time() - huagent_job_last_timestamp_seconds{phase="finished"} > 7200
+          (time() - huagent_job_last_timestamp_seconds{phase="finished"})
+            > on(job_id) huagent_job_staleness_budget_seconds
         for: 10m
         labels: { severity: critical }
         annotations:
-          summary: "worker 任务 {{ $labels.job_id }} 超过 2 小时未成功完成（含启动补偿机制失效）"
+          summary: "worker 任务 {{ $labels.job_id }} 超过预算（{{ $value | humanizeDuration }}）未成功完成"
 
   - name: hu-agent-recording
     rules:
@@ -152,6 +159,9 @@ groups:
 ```
 
 阈值均为**起步值**，请在 staging 观察一周后按实际基线调整（尤其 P95 与错误率）。
+
+规则的**权威版本**是仓库内的 `docker/observability/prometheus/rules/huagent.yml`（一键部署时直接加载），
+本节内容与之保持一致；修改任一处需同步另一处（校验：`promtool check rules`）。
 
 ## 4. 看板（Grafana）
 
@@ -180,4 +190,82 @@ groups:
 - **客户端侧指标**（如崩溃率、工具调用失败率、MCP 连接失败率）：目前只有本地日志与用量上报，
   没有远端聚合；建议 v1.x 在用量事件中增加 `client_feature_*` 维度或接入崩溃上报（需先做隐私评审）。
 - **对象存储与 Redis 指标**：直接采集 MinIO/Redis 自带导出器，与本端点无关。
-- **告警通知渠道**（邮件/IM/值班）：属于企业侧配置，Alertmanager 接收器不在本仓库内。
+- **告警通知渠道**：Alertmanager 与收件人配置已内置（第 7 节，默认邮件；企业 IM 需自建 webhook 网关）。
+- **从未成功完成过的任务**：`HuAgentWorkerJobStale` 依赖 `huagent_job_last_timestamp_seconds{phase="finished"}`，
+  若某任务自部署起从未成功完成（无任何时间戳），该规则不会触发；上线首日请人工确认 8 个任务都至少成功过一次
+  （Grafana「后台任务与业务数据」看板的「最近状态」表格）。
+
+## 7. 一键部署监控栈（中小企业自托管）
+
+目标：一条命令得到「指标采集 + 预置看板 + 邮件告警」，不要求运维熟悉 Prometheus。
+编排文件 `docker/compose.observability.yaml` 是**叠加层**，可叠在快速开始编排上，也可独立运行。
+
+```bash
+# 推荐：与快速开始一起（自动生成指标令牌、抓取目标、告警收件人）
+scripts/quickstart.sh up --email you@example.com --with-monitoring
+# 已经部署好了业务服务，只想加监控：
+scripts/quickstart.sh monitoring up                  # 指标 + 看板 + 告警（含内置收件箱 Mailpit）
+scripts/quickstart.sh monitoring up --with-logs      # 再叠加 Loki 容器日志聚合（仅 Linux 宿主机）
+scripts/quickstart.sh monitoring status              # 检查各组件与抓取健康
+scripts/quickstart.sh monitoring down                # 只停监控，业务服务与数据卷不受影响
+```
+
+服务端跑在宿主机（开发环境）时，让 Prometheus 抓宿主机端口：
+
+```bash
+scripts/quickstart.sh monitoring up --target host.docker.internal:8080
+```
+
+### 7.1 组件与端口（默认只绑 127.0.0.1）
+
+| 组件 | 端口 | 用途 | 备注 |
+| --- | --- | --- | --- |
+| Grafana | 3000 | 4 个预置看板（见 7.2） | 账号 `admin`，口令在 `.env.quickstart` 的 `GRAFANA_ADMIN_PASSWORD` |
+| Prometheus | 9090 | 指标库与规则求值 | 保留期 `PROM_RETENTION`（默认 15d） |
+| Alertmanager | 9093 | 告警分组与投递 | 路由与收件人见 `docker/observability/alertmanager/alertmanager.yml` |
+| Mailpit | 8025 | 默认告警收件箱（本地邮件墙） | 接企业邮箱后可以不启动 |
+| Loki | 3100 | 日志存储（`--with-logs`） | 保留 30 天（`LOKI_RETENTION`） |
+
+生成物（已 gitignore，含密钥，勿提交）：`docker/observability/prometheus/huagent_metrics_token`、
+`docker/observability/prometheus/targets/huagent-api.yml`、`docker/observability/alertmanager/alertmanager.yml`。
+
+### 7.2 预置看板
+
+| 看板 | 内容 |
+| --- | --- |
+| API 黄金指标 | 请求速率、5xx 比例、P50/P95/P99、最慢路由 Top10、采集状态、构建与 schema 版本 |
+| 后台任务与业务数据 | 任务新鲜度（对比各自预算）、任务最近状态、DB 状态量、用量事件结果、待审批/上传中快照 |
+| 认证与 SSO | 登录结果分布、失败速率、限流触发、认证端点请求量 |
+| 日志（Loki） | 错误与异常、API/worker 全量日志（按 `service` 过滤，支持 trace_id） |
+
+### 7.3 接企业邮箱
+
+改 `.env.quickstart` 后重跑 `monitoring up` 即可（会按模板重新渲染收件人）：
+
+```ini
+SMTP_SMARTHOST=smtp.example.com:587
+SMTP_REQUIRE_TLS=true
+ALERT_EMAIL_FROM=huagent@example.com
+ALERT_EMAIL_TO=ops@example.com
+```
+
+需要认证时，在生成的 `alertmanager.yml` 里补 `smtp_auth_username` / `smtp_auth_password`
+（该文件权限 600 且已 gitignore）。企业 IM（钉钉/飞书/企微）走通用 webhook：
+`alertmanager.yml` 里取消 `webhook` 接收器注释，并在 `route` 中为其加一条路由。
+
+### 7.4 验证与自检
+
+```bash
+scripts/quickstart.sh monitoring status     # 组件 + hu-agent-api 抓取健康
+# 观察任务实际用时占预算的比例（>100% 即会告警）
+curl -s --get --data-urlencode 'query=(time() - huagent_job_last_timestamp_seconds{phase="finished"}) / on(job_id) huagent_job_staleness_budget_seconds' http://localhost:9090/api/v1/query
+# 演练一条告警（不碰业务）：向 Alertmanager 注入合成告警，然后在 8025 收件箱里看邮件
+curl -s -X POST http://localhost:9093/api/v2/alerts -H 'content-type: application/json'   -d '[{"labels":{"alertname":"HuAgentVerifySynthetic","severity":"critical"},"annotations":{"summary":"pipeline check"}}]'
+```
+
+### 7.5 生产注意事项
+
+1. 本栈默认只监听 `127.0.0.1`：对运维开放 Grafana 时请置于 TLS 反向代理与认证之后（可只读匿名：`GRAFANA_ANONYMOUS=true`）。
+2. Prometheus/Grafana 建议部署在独立主机或独立故障域，避免与服务端一起挂掉；多实例服务端在 `targets/huagent-api.yml` 里加多条目标即可。
+3. `--with-logs` 依赖宿主机 `/var/lib/docker` 与 `docker.sock`，**仅 Linux 可用**；Docker Desktop（Windows/macOS）请改用宿主日志或 Grafana Alloy。
+4. 生产必须设置 `HUAGENT_METRICS_TOKEN`（一键部署会自动生成）：指标端点会带业务规模信息，不要裸奔在公网。

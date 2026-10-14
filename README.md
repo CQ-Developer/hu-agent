@@ -54,6 +54,8 @@ cd app && npm ci && npm run dev                    # server URL: http://127.0.0.
 `quickstart.sh` writes `.env.quickstart` (random secrets, already gitignored — keep it safe) and prints
 the first administrator password **once**. `HUAGENT_JWT_SECRET` and `HUAGENT_MASTER_KEY` are mandatory
 for any non-`local` environment; the server refuses to start without them.
+Want metrics, dashboards and alerts too? `scripts/quickstart.sh monitoring up` adds
+Prometheus + Grafana + Alertmanager (dashboards at http://localhost:3000).
 
 Next steps: [docs/validation.md](docs/validation.md) is the self-validation checklist, and
 [docs/delivery/](docs/delivery/) covers deployment, operations, monitoring, performance and signing.
