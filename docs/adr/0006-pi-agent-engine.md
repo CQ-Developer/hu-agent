@@ -161,7 +161,7 @@ await submission.wait(ctx)   // 运行是异步的：必须等 settle 或订阅 
 | 读取对象 | 实际形状 | 用法 |
 | --- | --- | --- |
 | `viewState().value.entries` | 数组；条目形如 `{ model: [pi 消息], kind: 'pi.user'／'pi.system'／…, id, conversationId, byTaskId? }` | 界面历史与消息投影读它（system 条目携带 `toolsAdded`、`sections`，可用于回放工具变更） |
-| `docs['pi.live']` | **运行中才有内容，settle 后为 `{}`** | 实时增量（流式文本/思考、进行中的工具调用）靠**订阅** viewState/watch 拿，不能事后读 |
+| `docs['pi.live']` | **运行中才有内容，settle 后为 `{}`**。运行期形状已实测：`{ run: { taskId, inputs }, generation?: { attempt, message: AssistantMessage } , tools?: [{ callId, name, taskId, status: 'pending'｜'running'｜'done', entry? }] }` | 实时投影：流式增量取 `generation.message.content[]`（`thinking`／`text`／`toolCall` 块，追加式，可 diff 出增量）；工具卡片按 `tools[].status` 走 pending→running→done，done 后按 `entry` 从 `entries` 读结果 |
 | `docs['pi.usage']` | `{ models: { 'provider/model': { input, output, cacheRead, cacheWrite, reasoning, totalTokens, cost } }, tools: {} }` | 用量落账与上报的数据源（比我们自算的更全：含 reasoning 与 cost） |
 | `docs['pi.agent']` | 已解析的会话配置（model/extensions/tools/modelTools/…） | 会话选项展示 |
 | `docs['pi.inbox']` | `{ items: [] }`（队列） | 排队的输入/跟进 |
