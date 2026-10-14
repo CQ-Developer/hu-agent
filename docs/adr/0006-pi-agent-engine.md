@@ -122,6 +122,29 @@ pi（源码 `C:\Users\chen\Dev\pi`，npm 版本 1.2.0，MIT）提供 11 个包�
 - 对应测试 ✅ 已删（provider/agent-loop/compaction/deepseek*）
 - `src/main/model/types.ts`（`LlmMessage` 等会话形状，随 R1 迁移完成后删除）
 
+## 修订（2026-10-14，用户决策）：不使用门面，直接使用 `pi-durable`
+
+原计划是写一个"会话门面"：用 pi-durable 的存储去实现我们旧的 `SessionStore` 接口
+（`append/loadContextMessages/loadOptions/touch`）。用户直接指出这仍是"用 pi 适配旧编程模式"，判断正确：
+门面会重建一套我们自己定义的消息/条目形状与读写时机，等于把旧模型永久保留下来。
+
+改为**直接集成**：会话、消息、回合、用量归 pi-durable；我们只在**边界**读它做 UI/同步投影。
+
+| 我们需要的能力 | pi-durable 原生提供 |
+| --- | --- |
+| 会话选项（模型/思考强度/工作目录/工具集/附加指令） | `root.configure({ model, thinkingLevel, cwd, tools, modelTools, instructions })`，按会话持久化在 `pi.agent` 文档，未设字段回落宿主 |
+| UI 实时状态（transcript、流式增量、工具调用与结果） | `root.viewState()` → `entries` + `docs["pi.live"]` + `pi.inbox`/`pi.usage`/`pi.agent`/`pi.provider`，可 `subscribe`；`watch()` 给出每次提交的 Chord 操作序列 |
+| 用量与成本 | `docs["pi.usage"]`（按 provider/model 与 tool 分账，含失败/中断）+ `harness.usage()` 整会话汇总 |
+| 系统提示 | extension sections + `instructions` 组装，按位置增量发送（保 prompt cache） |
+| 每会话自持状态 | `defineDoc` 类型化文档 + `harness.watchDoc()` + `conversationCreated` 钩子 |
+| 崩溃恢复 / 重试幂等 | `resume()` 续跑未完成运行；`submit({ requestId })` 跨重启幂等（已 spike 验证） |
+
+**我们仍然拥有（不交给 pi）**：权限判定与审批（`beforeToolCall`/`afterToolCall`）、审计（本地 + 服务端）、
+artifact 与备份、用量落账与上报（数据源换成 pi 的 usage）、同步/市场/服务端、IPC 事件的边界投影。
+
+**因此删除清单新增**：`session/{store,items,types}.ts` 与 `model/types.ts` 的会话形状部分（`LlmMessage` 等），
+以及原计划的 JSONL ↔ durable 双写与迁移脚本（改为一次性导入旧本地会话或归档为只读）。
+
 ## 后果与待办
 
 - **体积**：核心包解包约 10 MB（`pi-ai` 4.2 MB、`pi-durable` 3.2 MB、`chord` 1.5 MB…），另有 `pi-ai`

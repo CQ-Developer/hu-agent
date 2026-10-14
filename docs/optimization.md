@@ -115,7 +115,7 @@ interface HistorySummarizer {
 
 | 步 | 内容 | 出口标准 |
 | --- | --- | --- |
-| R1 | 会话与消息换 `pi-durable`（storage 选 SQLite；旧 items 一次性迁移脚本） | 崩溃恢复演练：杀进程后重开续跑；迁移双读校验 |
+| **R1** 🚧 | **直接使用 `pi-durable`（无门面）**：① 回合改为 `root.submit` + 订阅 `viewState` 投影到 IPC 事件；② 会话选项改为 `root.configure`（模型/thinkingLevel/cwd/tools/instructions）；③ 用量改从 `docs["pi.usage"]`/`harness.usage()` 读入我们的 ledger 与上报；④ 旧本地 JSONL 会话一次性导入或归档为只读；⑤ 删除 `session/{store,items,types}.ts` 与 `model/types.ts` 的会话形状 | `pi-durable@1.2.0`、`chord@1.2.0` | ① 崩溃恢复演练：杀进程重开续跑同一回合 ② 用量落账与 pi 的 usage 一致 ③ 界面（会话列表/消息/工具卡/用量）无回退 ④ 旧会话可读 |
 | R2 🚧 进行中 | 工具换 `AgentTool`（typebox 参数），删除 JSON Schema 工具接口与自研注册表。已落地 `tools/native/read_file.ts`（下划线命名）（4 条测试，含经真实 Agent 直调、无适配层），`NativeTool = AgentTool & { category }` 为产品层字段 | 6 个内置工具等价行为 + 治理钩子测试 |
 | R3 | 用 `Agent.prompt()` 原生生命周期替换 `pi-loop.ts`（删除复刻的 8 项职责代码） | e2e 与真实调用通过时无行为回退 |
 | R4 | MCP 换 `pi-mcp`；`pi-codemode` 作为可选能力 | MCP e2e 通过；越权用例被审批拦下 |
