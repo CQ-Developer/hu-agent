@@ -93,6 +93,8 @@ export interface PiTurnOptions {
   sessionId: string
   userText: string
   signal: AbortSignal
+  /** 调用方已生成 turnId 时传入（工具构造需要它，例如 ask_guide 的会话路由） */
+  turnId?: string
 }
 
 const ZERO_COST = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }
@@ -140,7 +142,7 @@ function toTranscriptMessages(
 }
 
 export async function runTurnWithPi(deps: PiLoopDeps, options: PiTurnOptions): Promise<void> {
-  const turnId = ulid()
+  const turnId = options.turnId ?? ulid()
   const { sessionId, signal } = options
   const maxSteps = deps.maxSteps ?? 50
   const now = (): string => new Date().toISOString()
