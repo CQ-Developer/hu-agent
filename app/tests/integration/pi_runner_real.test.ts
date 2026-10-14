@@ -1,88 +1,82 @@
 /**
- * 新引擎路径的真实调用验证（R3 切换前的最后一道闸）。
+ * 新引擎路径的真实调用验证（R1 切换后的整条路径）。
  *
- * 与 `pi-real.test.ts` 的区别：那个验证的是 pi-ai/pi-agent-core 的底层契约；
- * 本文件验证的是**我们装配好的整条路径**——`createPiTurnRunner`
- * （models.json → pi-ai → Agent → 原生工具 → 治理钩子 → 事件映射 → 会话/用量落库）。
+ * 验证 `createDurableTurnRunner`：pi 运行时（models.json）→ `DurableSessions`（pi-durable / SQLite）
+ * → harness 跑回合 → 原生工具 → 治理钩子 → 事件投影 → 用量落账。
  *
  * 门禁：`PI_E2E=1` 且提供 `PI_AGENT_DIR`（含 models.json 的 agent 目录）。
  * 密钥从 models.json 内联的 apiKey 解析，**不需要把密钥放进环境变量**。
  * 约定：只允许使用 `deepseek-v4.1-flash`（用户指定的测试模型）。
  */
 
-import { mkdtemp } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { createDurableTurnRunner, sessionFilesFor } from '../../src/main/agent/durable_runner'
+import { createPiRuntime } from '../../src/main/model/pi_runtime'
+import { DurableSessions } from '../../src/main/session/durable'
+import { toSessionItems } from '../../src/main/session/durable_view'
 import type { AgentEvent } from '../../src/shared/events'
-import { createPiTurnRunner, type PiRunnerOptions } from '../../src/main/agent/pi_runner'
 
 const ALLOWED_MODEL = 'deepseek-v4.1-flash'
+const PROVIDER = process.env.PI_GATEWAY_PROVIDER ?? 'token-hub'
 const agentDir = process.env.PI_AGENT_DIR ?? ''
 const enabled = process.env.PI_E2E === '1' && agentDir !== ''
 
-interface SessionItem {
-  type: string
-  [key: string]: unknown
-}
-
-class MemorySessions {
-  items: SessionItem[] = []
-
-  async append(_sessionId: string, item: SessionItem): Promise<void> {
-    this.items.push(item)
-  }
-
-  async touch(): Promise<void> {}
-
-  async loadContextMessages(): Promise<never[]> {
-    return []
-  }
-
-  async loadOptions(): Promise<{ model?: string }> {
-    return { model: `${process.env.PI_GATEWAY_PROVIDER ?? 'token-hub'}/${ALLOWED_MODEL}` }
-  }
-
-  of(type: string): SessionItem[] {
-    return this.items.filter((item) => item.type === type)
-  }
-}
-
-async function realRunner() {
-  const sessions = new MemorySessions()
-  const ledger: Array<Record<string, unknown>> = []
-  const telemetry: Array<Record<string, unknown>> = []
-  const workspaceRoot = await mkdtemp(join(tmpdir(), 'huagent-real-runner-'))
-
-  const options: PiRunnerOptions = {
-    workspaceRoot,
-    getSecret: () => null, // 密钥来自 models.json 内联 apiKey
-    permissions: { check: async () => ({ action: 'allow' }) } as never,
-    interactions: {
-      requestApproval: async () => 'allow_once',
-      requestGuide: async () => '',
-      askGuide: async () => '',
-    } as never,
-    sessions: sessions as never,
-    artifacts: { save: async () => join(workspaceRoot, 'artifact') } as never,
-    ledger: { record: async (entry: Record<string, unknown>) => void ledger.push(entry) } as never,
-    telemetry: { record: async (entry: Record<string, unknown>) => void telemetry.push(entry) } as never,
-    agentDir,
-    maxSteps: 6,
-  }
-
-  return { runner: createPiTurnRunner(options), sessions, ledger, telemetry, workspaceRoot }
-}
-
 describe.skipIf(!enabled)('新引擎路径真实调用（运行器 → 模型 → 工具 → 落库）', () => {
-  it('纯文本回合：事件、助手消息、用量三写都到位', async () => {
-    const { runner, sessions, ledger, telemetry } = await realRunner()
+  let dir: string
+  let sessions: DurableSessions | null = null
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'huagent-real-runner-'))
+  })
+
+  afterEach(async () => {
+    await sessions?.close().catch(() => undefined)
+    sessions = null
+    await rm(dir, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 }).catch(() => undefined)
+  })
+
+  async function realRunner() {
+    // 用生产装配（不再手拼 provider）：models.json → pi 的 models 集合
+    const runtime = createPiRuntime({ getSecret: () => null, path: join(agentDir, 'models.json') })
+    await runtime.refresh()
+
+    const files = sessionFilesFor(dir, 'ws_real')
+    const service = new DurableSessions({ ...files, models: runtime.models, cwd: dir, workspaceId: 'ws_real' })
+    await service.open()
+    sessions = service
+    const sessionId = (
+      await service.create({ title: '真实调用', model: { provider: PROVIDER, modelId: ALLOWED_MODEL } })
+    ).id
+
+    const ledger: Array<Record<string, unknown>> = []
+    const telemetry: Array<Record<string, unknown>> = []
+    const runner = createDurableTurnRunner({
+      sessions: service,
+      permissions: { check: async () => ({ action: 'allow' }) } as never,
+      interactions: {
+        requestApproval: async () => 'allow_once',
+        requestGuide: async () => '',
+        askGuide: async () => '',
+      } as never,
+      artifacts: { save: async () => join(dir, 'artifact') } as never,
+      ledger: { record: async (entry: Record<string, unknown>) => void ledger.push(entry) } as never,
+      telemetry: { record: async (entry: Record<string, unknown>) => void telemetry.push(entry) } as never,
+      workspaceRoot: dir,
+    })
+    return { runner, service, sessionId, ledger, telemetry }
+  }
+
+  it('纯文本回合：事件、transcript、用量三写都到位', async () => {
+    const { runner, service, sessionId, ledger, telemetry } = await realRunner()
     const events: AgentEvent[] = []
 
     await runner.runTurn({
-      sessionId: 'real-1',
+      sessionId,
       userText: '只回复两个字：收到',
       signal: new AbortController().signal,
       emit: (event) => void events.push(event),
@@ -91,45 +85,57 @@ describe.skipIf(!enabled)('新引擎路径真实调用（运行器 → 模型 �
     expect(events[0].type).toBe('turn.start')
     expect(events.at(-1)).toMatchObject({ type: 'turn.end', stopReason: 'done' })
 
-    const assistant = sessions.of('message').filter((item) => item.role === 'assistant')
+    // transcript 经边界投影（toSessionItems）后能看到助手文本
+    const view = await service.view(sessionId)
+    const items = toSessionItems(view.entries as never[])
+    const assistant = items.filter((item) => item.kind === 'message' && item.role === 'assistant')
     expect(assistant.length).toBeGreaterThan(0)
-    const text = (assistant.at(-1) as { parts: Array<{ type: string; text?: string }> }).parts
-      .filter((part) => part.type === 'text')
-      .map((part) => part.text ?? '')
+    const text = assistant
+      .map((item) => (item.kind === 'message' ? item.text : ''))
       .join('')
-    expect(text.trim().length).toBeGreaterThan(0)
-    console.log(`[pi-runner] 模型回复：${text.trim().slice(0, 60)}`)
+      .trim()
+    expect(text.length).toBeGreaterThan(0)
+    console.log(`[pi-runner] 模型回复：${text.slice(0, 60)}`)
 
-    const usage = sessions.of('usage')[0] as { input?: number; output?: number }
-    expect(usage.input ?? 0).toBeGreaterThan(0)
-    expect(usage.output ?? 0).toBeGreaterThan(0)
-    expect(ledger).toHaveLength(1)
-    expect(telemetry).toHaveLength(1)
-  }, 180_000)
+    const usage = (view.docs['pi.usage'] ?? {}) as {
+      models?: Record<string, { input?: number; output?: number }>
+    }
+    const totals = Object.values(usage.models ?? {})
+    expect(totals.some((entry) => (entry.input ?? 0) > 0 && (entry.output ?? 0) > 0)).toBe(true)
+    expect(ledger.length).toBeGreaterThan(0)
+    expect(telemetry.length).toBeGreaterThan(0)
+
+    // 第二回合：落账只加本回合的差量（累计落账会把上一回合重复计一次）
+    const ledgerAfterFirst = ledger.length
+    await runner.runTurn({
+      sessionId,
+      userText: '再回复两个字：好的',
+      signal: new AbortController().signal,
+      emit: () => undefined,
+    })
+    expect(ledger.length).toBe(ledgerAfterFirst * 2)
+  }, 240_000)
 
   it('工具回合：真实模型调用原生 write_file，工作空间内真的落盘', async () => {
-    const { runner, sessions, workspaceRoot } = await realRunner()
+    const { runner, service, sessionId } = await realRunner()
     const events: AgentEvent[] = []
 
     await runner.runTurn({
-      sessionId: 'real-2',
+      sessionId,
       userText: '请在当前目录创建文件 note.txt，内容恰好是 hu-agent-ok。创建后回复"完成"。',
       signal: new AbortController().signal,
       emit: (event) => void events.push(event),
     })
 
-    const results = sessions.of('tool_result')
-    console.log(
-      `[pi-runner] 工具调用 ${sessions.of('tool_call').length} 次，结果：${results
-        .map((item) => item.status)
-        .join(',')}`,
-    )
+    const view = await service.view(sessionId)
+    const tools = toSessionItems(view.entries as never[]).filter((item) => item.kind === 'tool')
+    console.log(`[pi-runner] 工具调用：${tools.map((item) => `${item.kind === 'tool' ? item.name : ''}:${item.kind === 'tool' ? item.status : ''}`).join(',')}`)
     // 真实模型不保证一定调工具：只在它调了的时候断言语义（避免把模型行为波动当成回归）
-    if (results.length > 0) {
-      expect(results.some((item) => item.status === 'ok')).toBe(true)
+    if (tools.length > 0) {
+      expect(tools.some((item) => item.kind === 'tool' && item.status === 'ok')).toBe(true)
       expect(events.some((event) => event.type === 'tool.result')).toBe(true)
+      expect(await readFile(join(dir, 'note.txt'), 'utf8')).toContain('hu-agent-ok')
     }
     expect(events.at(-1)).toMatchObject({ type: 'turn.end' })
-    expect(workspaceRoot.length).toBeGreaterThan(0)
   }, 240_000)
 })

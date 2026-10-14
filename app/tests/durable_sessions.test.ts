@@ -63,8 +63,10 @@ describe('DurableSessions（直接使用 pi-durable）', () => {
     sessions = opened.instance
     opened.faux.setResponses([fauxAssistantMessage([fauxText('收到')])])
 
-    const id = await sessions.create({ title: '第一会话', model: { provider: 'faux', modelId: MODEL } })
+    const created = await sessions.create({ title: '第一会话', model: { provider: 'faux', modelId: MODEL } })
+    const id = created.id
     expect(id).toBeTruthy()
+    expect(created.messageCount).toBe(0)
 
     await sessions.submit(id, '你好', 'req-1')
     const view = await sessions.view(id)
@@ -86,7 +88,8 @@ describe('DurableSessions（直接使用 pi-durable）', () => {
     sessions = first.instance
     first.faux.setResponses([fauxAssistantMessage([fauxText('收到')])])
 
-    const id = await sessions.create({ model: { provider: 'faux', modelId: MODEL } })
+    const created = await sessions.create({ model: { provider: 'faux', modelId: MODEL } })
+    const id = created.id
     const submission = await sessions.submit(id, '你好', 'idem-1')
     await sessions.configure(id, { thinkingLevel: 'high', instructions: '只读，别改文件。' })
     await sessions.close()
@@ -109,11 +112,36 @@ describe('DurableSessions（直接使用 pi-durable）', () => {
     expect((await sessions.list())[0].id).toBe(id)
   }, 60_000)
 
+  it('索引能力：submit 递增消息数、rename 改标题、search 命中文本', async () => {
+    const opened = await open()
+    sessions = opened.instance
+    opened.faux.setResponses([fauxAssistantMessage([fauxText('部署已经完成')])])
+
+    const created = await sessions.create({ title: '第一会话', model: { provider: 'faux', modelId: MODEL } })
+    await sessions.submit(created.id, '帮我看看部署进度', 'm-1')
+
+    // 提交后消息数递增（pi 不记这个数，视图索引维护）
+    expect((await sessions.list())[0].messageCount).toBe(1)
+
+    // 重命名写视图索引
+    await sessions.rename(created.id, '改名了')
+    expect((await sessions.list())[0].title).toBe('改名了')
+
+    // 搜索扫 entries 文本，命中返回片段
+    const hits = await sessions.search('部署')
+    expect(hits).toHaveLength(1)
+    expect(hits[0]).toMatchObject({ sessionId: created.id, title: '改名了' })
+    expect(hits[0].snippet).toContain('部署')
+
+    expect(await sessions.search('不存在的词')).toEqual([])
+  }, 60_000)
+
   it('索引丢失不影响会话（真相在 durable）', async () => {
     const first = await open()
     sessions = first.instance
     first.faux.setResponses([fauxAssistantMessage([fauxText('收到')])])
-    const id = await sessions.create({ model: { provider: 'faux', modelId: MODEL } })
+    const created = await sessions.create({ model: { provider: 'faux', modelId: MODEL } })
+    const id = created.id
     await sessions.submit(id, '你好', 'lost-1')
     await sessions.close()
     sessions = null

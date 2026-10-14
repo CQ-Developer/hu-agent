@@ -464,13 +464,11 @@ const enUS: Record<string, Message> = {
   'hu-agent {0} 启动（{platform} {arch}）': 'hu-agent {0} started ({platform} {arch})',
   '说明：已自动脱敏（密钥字段 ***、主目录 ~）；不含 secrets.enc.json。':
     'Note: automatically redacted (secret fields ***, home directory ~); excludes secrets.enc.json.',
-  '以下是较早对话的摘要，供你参考：\n{text}': 'Summary of earlier conversation for your reference:\n{text}',
   '可用 Skill（需要时用 read_file 读取其 SKILL.md 全文再执行）：':
     'Available Skills (use read_file to read a SKILL.md in full before running it): ',
   '适用：{whenToUse}': 'Use when: {whenToUse}',
   '选择工作空间目录': 'Choose a workspace folder',
   '新会话': 'New chat',
-  '未命名会话': 'Untitled chat',
   '该会话已有运行中的任务': 'This chat already has a running task',
   '未配置服务器地址': 'Server URL is not configured',
   '请填写服务器地址': 'Please enter the server URL',
@@ -490,8 +488,6 @@ const enUS: Record<string, Message> = {
   '快照上传失败（HTTP {status}）': 'Snapshot upload failed (HTTP {status})',
   '快照下载失败（HTTP {status}）': 'Snapshot download failed (HTTP {status})',
   '服务端快照不存在': 'The server snapshot does not exist',
-  '模型输出达到长度上限': 'Model output reached the length limit',
-  '达到最大工具轮次（{maxSteps}）': 'Reached the maximum tool rounds ({maxSteps})',
   '未知工具：{name}': 'Unknown tool: {name}',
   '权限拒绝': 'Permission denied',
   '策略允许': 'Allowed by policy',
@@ -565,7 +561,6 @@ const enUS: Record<string, Message> = {
   '会话不存在：{id}': 'Session not found: {id}',
   '[market] 激活上报失败：': '[market] activation report failed: ',
   '未配置模型：请在设置中填写 provider 的 baseUrl、模型与密钥': 'No model configured: set the provider baseUrl, model and API key in Settings',
-  '未找到模型：{providerId}/{modelId}（请检查 models.json）': 'Model not found: {providerId}/{modelId} (check models.json)',
 }
 
 export default enUS

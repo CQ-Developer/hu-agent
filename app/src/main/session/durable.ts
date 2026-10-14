@@ -3,11 +3,12 @@
  *
  * 设计要点：
  * - 会话、消息、回合、用量都归 `pi-durable`（SQLite 单文件 + `resume()` 续跑 + `requestId` 幂等）；
- * - 我们只保留一个**视图索引**（`sessions.index.json`：id/标题/时间/工作空间），用于界面列表与排序；
+ * - 我们只保留一个**视图索引**（`<workspaceId>.index.json`：id/标题/时间/消息数），用于界面列表与排序；
  *   索引不是真相，真相在 durable；索引损坏或缺失时可由 durable 重建（`rebuildIndex()`）。
- * - 会话选项走 `configure()`（模型/思考强度/工作目录/指令），不再有我们自己的会话选项存储。
+ * - 会话选项走 `configure()`（模型/思考强度/工作目录/指令），不再有我们自己的会话选项存储；
+ * - 标题、消息数、搜索是**界面需求**，durable 不提供：标题与计数记在视图索引，搜索按需扫 entries。
  *
- * 上层用法：回合循环用 `submit()` 提交输入、订阅 `view()` 投影到 IPC；界面用 `list()` 取列表。
+ * 上层用法：回合循环用 `submit()` 提交输入、订阅 `view()` 投影到 IPC；界面用 `list()`/`search()`。
  */
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
@@ -18,6 +19,7 @@ import type { MutableModels } from '@earendil-works/pi-ai/models'
 import { Harness, createRegistry, type Conversation, type ConversationId } from '@earendil-works/pi-durable'
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 
+import type { SessionSearchHitView } from '../../shared/ipc'
 import { t } from '../i18n'
 
 export interface SessionIndexEntry {
@@ -26,10 +28,12 @@ export interface SessionIndexEntry {
   workspaceId: string
   createdAt: string
   updatedAt: string
+  /** 界面列表用；pi 不记这个数，随写入在视图索引里维护 */
+  messageCount: number
 }
 
 export interface DurableSessionsOptions {
-  /** SQLite 单文件路径（如 ~/.hu-agent/sessions.sqlite） */
+  /** SQLite 单文件路径（如 ~/.hu-agent/sessions/<workspaceId>.sqlite） */
   file: string
   /** 视图索引文件（列表用；真相在 durable） */
   indexFile: string
@@ -85,7 +89,7 @@ export class DurableSessions {
   }
 
   /** 新建会话（pi-durable 的 conversation + agent 配置），并写入视图索引 */
-  async create(options: CreateSessionOptions = {}): Promise<string> {
+  async create(options: CreateSessionOptions = {}): Promise<SessionIndexEntry> {
     const harness = this.requireHarness()
     const conversation = await harness.createConversation(
       {
@@ -101,16 +105,18 @@ export class DurableSessions {
     )
     const id = String(conversation.id)
     const now = new Date().toISOString()
-    const entries = await this.readIndex()
-    entries.push({
+    const entry: SessionIndexEntry = {
       id,
       title: options.title ?? t('新会话'),
       workspaceId: this.options.workspaceId,
       createdAt: now,
       updatedAt: now,
-    })
+      messageCount: 0,
+    }
+    const entries = await this.readIndex()
+    entries.push(entry)
     await this.writeIndex(entries)
-    return id
+    return entry
   }
 
   /** 打开既有会话（不存在返回 null） */
@@ -123,7 +129,7 @@ export class DurableSessions {
   async submit(id: string, text: string, requestId: string): Promise<SubmissionResult> {
     const conversation = await this.requireConversation(id)
     const submission = await conversation.submit({ type: 'input', content: text, requestId }, BACKGROUND_CONTEXT)
-    await this.touch(id)
+    await this.touch(id, 1)
     return { id: String(submission.id) }
   }
 
@@ -151,7 +157,7 @@ export class DurableSessions {
     return { conversation: value.conversation, entries: value.entries, docs: value.docs ?? {} }
   }
 
-  /** 整会话用量（模型/工具分账，含失败与中断） */
+  /** 整库用量（模型/工具分账，含失败与中断；跨会话汇总） */
   async usage(): Promise<{ models: Record<string, unknown>; tools: Record<string, unknown> }> {
     const harness = this.requireHarness()
     const usage = (await harness.usage(BACKGROUND_CONTEXT)) as unknown as {
@@ -161,7 +167,7 @@ export class DurableSessions {
     return { models: usage.models ?? {}, tools: usage.tools ?? {} }
   }
 
-  /** 视图索引（界面列表用） */
+  /** 视图索引（界面列表用；按工作空间过滤、更新时间倒序） */
   async list(): Promise<SessionIndexEntry[]> {
     const entries = await this.readIndex()
     return entries
@@ -169,7 +175,65 @@ export class DurableSessions {
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
   }
 
-  /** 索引损坏/丢失时的兜底：至少保证不抛错（完整重建留待 R1 收尾按需求补） */
+  /** 重命名：标题属视图索引（界面元数据），不是会话真相 */
+  async rename(id: string, title: string): Promise<void> {
+    const entries = await this.readIndex()
+    const entry = entries.find((item) => item.id === id)
+    if (!entry) return
+    entry.title = title
+    entry.updatedAt = new Date().toISOString()
+    await this.writeIndex(entries)
+  }
+
+  /**
+   * 按 durable 的真实条目重算消息数（user/assistant）并写回索引。
+   * pi 不记这个数，且回合由 harness 直接提交（不经过本类），因此回合结束后调用。
+   */
+  async syncMessageCount(id: string): Promise<void> {
+    const view = await this.view(id)
+    const entries = Array.isArray(view.entries) ? view.entries : []
+    const count = entries.filter((entry) => {
+      const role = (entry as { model?: Array<{ role?: string }> }).model?.[0]?.role
+      return role === 'user' || role === 'assistant'
+    }).length
+    const all = await this.readIndex()
+    const entry = all.find((item) => item.id === id)
+    if (!entry || entry.messageCount === count) return
+    entry.messageCount = count
+    await this.writeIndex(all)
+  }
+
+  /**
+   * 会话内全文搜索（design 2-05）：扫描各会话 entries 的 user/assistant 文本块，
+   * 命中即返回片段（每个会话最多一条）。会话规模在本地场景下有限，先全扫，必要时再加索引。
+   */
+  async search(query: string, limit = 20): Promise<SessionSearchHitView[]> {
+    const keyword = query.trim().toLowerCase()
+    if (!keyword) return []
+    const hits: SessionSearchHitView[] = []
+    for (const entry of await this.list()) {
+      let view: SessionView
+      try {
+        view = await this.view(entry.id)
+      } catch {
+        continue // 索引里的孤儿条目（durable 已无此会话）：搜索跳过而不是整体失败
+      }
+      const text = searchTextOf(view.entries)
+      const position = text.toLowerCase().indexOf(keyword)
+      if (position < 0) continue
+      const start = Math.max(0, position - 40)
+      hits.push({
+        sessionId: entry.id,
+        title: entry.title,
+        snippet: text.slice(start, position + keyword.length + 120),
+        updatedAt: entry.updatedAt,
+      })
+      if (hits.length >= limit) break
+    }
+    return hits
+  }
+
+  /** 索引损坏/丢失时的兜底：至少保证不抛错（完整重建留待后续按需求补） */
   async rebuildIndex(): Promise<void> {
     const entries = await this.readIndex().catch(() => [])
     await this.writeIndex(entries)
@@ -189,7 +253,9 @@ export class DurableSessions {
   private async readIndex(): Promise<SessionIndexEntry[]> {
     try {
       const parsed = JSON.parse(await readFile(this.options.indexFile, 'utf8')) as unknown
-      return Array.isArray(parsed) ? (parsed as SessionIndexEntry[]) : []
+      if (!Array.isArray(parsed)) return []
+      // messageCount 是后加的字段：旧索引缺失时兜底为 0
+      return (parsed as SessionIndexEntry[]).map((entry) => ({ ...entry, messageCount: entry.messageCount ?? 0 }))
     } catch {
       return []
     }
@@ -202,11 +268,32 @@ export class DurableSessions {
     await rename(temp, this.options.indexFile)
   }
 
-  private async touch(id: string): Promise<void> {
+  /** 更新索引的时间与消息数（messageDelta 默认 0 = 只 touch 时间） */
+  private async touch(id: string, messageDelta = 0): Promise<void> {
     const entries = await this.readIndex()
     const entry = entries.find((item) => item.id === id)
     if (!entry) return
     entry.updatedAt = new Date().toISOString()
+    entry.messageCount += messageDelta
     await this.writeIndex(entries)
   }
+}
+
+/** 搜索文本：只取 user/assistant 的 text 块（思考内容与工具输出不参与） */
+function searchTextOf(entries: unknown): string {
+  if (!Array.isArray(entries)) return ''
+  const parts: string[] = []
+  for (const entry of entries) {
+    const message = (entry as { model?: Array<{ role?: string; content?: unknown }> }).model?.[0]
+    if (!message || (message.role !== 'user' && message.role !== 'assistant')) continue
+    if (typeof message.content === 'string') {
+      parts.push(message.content)
+      continue
+    }
+    if (!Array.isArray(message.content)) continue
+    for (const block of message.content as Array<{ type?: string; text?: string }>) {
+      if (block.type === 'text' && typeof block.text === 'string') parts.push(block.text)
+    }
+  }
+  return parts.join('\n')
 }

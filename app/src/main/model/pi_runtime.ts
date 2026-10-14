@@ -1,8 +1,8 @@
 /**
- * pi 运行时装配（P1.2-d）：把配置层（`pi-config`）与 pi-ai 组装成循环需要的两个能力接口。
+ * pi 运行时装配：把配置层（`pi-config`）读到的 `models.json` 注册进 pi-ai 的 `models` 集合。
  *
- * 这是"切掉旧网关"的最后一层——`pi-loop.ts` 只认 `ModelResolver` / `HistorySummarizer`，
- * 由本模块提供 pi 实现，于是旧 `ModelGateway`、旧 provider、SSE 解析都可以删除。
+ * 这是**长生命周期**对象：会话服务（`DurableSessions`）与 harness 共用同一份 `models`，
+ * 所以设置页保存/删除 provider 后必须调用 `refresh()` 重新注册（见 `ipc.ts`）。
  *
  * 三个 API 模块都是 pi-ai 的 `.lazy` 变体：重量级 provider SDK 在真正调用时才加载。
  */
@@ -12,9 +12,6 @@ import { anthropicMessagesApi } from '@earendil-works/pi-ai/api/anthropic-messag
 import { openAICompletionsApi } from '@earendil-works/pi-ai/api/openai-completions.lazy'
 import { openAIResponsesApi } from '@earendil-works/pi-ai/api/openai-responses.lazy'
 
-import { HISTORY_SUMMARY_SYSTEM } from '../agent/prompt'
-import type { HistorySummarizer, ModelResolver, ResolvedModel } from '../agent/pi_loop'
-import { t } from '../i18n'
 import { buildPiProviders, listProviders, readModelsFile } from './pi_config'
 import type { ApiType } from './types'
 
@@ -39,110 +36,32 @@ export interface PiRuntimeOptions {
   path?: string
   /** 测试注入（例如 faux provider）；缺省自建 createModels() */
   models?: ModelsCollection
-  /** 压缩用的模型（缺省用当前会话模型） */
-  fastTarget?: string
 }
 
 export interface PiRuntime {
-  resolver: ModelResolver
-  summarizer: HistorySummarizer
   /** 暴露 pi 的 models 集合：`DurableSessions` 必须与运行时共用同一份已注册 provider 的集合 */
   models: ModelsCollection
-  /** 配置变更后重新注册 provider（设置页保存 models.json 后调用） */
+  /** 重新注册 provider：已删除的 provider 会被注销（设置页保存/删除后调用） */
   refresh: () => Promise<void>
-}
-
-function parseTarget(target?: string): { providerId: string; modelId: string } {
-  if (!target) return { providerId: '', modelId: '' }
-  const slash = target.indexOf('/')
-  return slash >= 0
-    ? { providerId: target.slice(0, slash), modelId: target.slice(slash + 1) }
-    : { providerId: '', modelId: target }
-}
-
-function extractText(message: { content?: unknown }): string {
-  const blocks = message.content
-  if (typeof blocks === 'string') return blocks
-  if (!Array.isArray(blocks)) return ''
-  return blocks
-    .map((block) => {
-      const candidate = block as { type?: string; text?: string }
-      return candidate.type === 'text' && candidate.text ? candidate.text : ''
-    })
-    .filter((part) => part.length > 0)
-    .join('\n')
 }
 
 export function createPiRuntime(options: PiRuntimeOptions): PiRuntime {
   const models = options.models ?? createModels()
-  let loaded = false
+  let registered = new Set<string>()
 
-  const load = async (): Promise<void> => {
+  const refresh = async (): Promise<void> => {
     const file = await readModelsFile(options.path)
     const configs = await listProviders(options.path, (id) => options.getSecret(`model:${id}`) !== null)
+    const next = new Set<string>()
     for (const built of buildPiProviders(configs, file, apiFor, options.getSecret)) {
       models.setProvider(built.provider as never)
+      next.add(built.id)
     }
-    loaded = true
-  }
-
-  const resolve: ModelResolver['resolve'] = async (target): Promise<ResolvedModel> => {
-    if (!loaded) await load()
-    const { providerId, modelId } = parseTarget(target)
-
-    if (!providerId) {
-      // 未指定目标：取第一个可用 provider 的第一个模型（与设置页"默认模型"缺省行为一致）
-      const available = models.getModels()
-      const first = available[0] as { provider?: string; id?: string; contextWindow?: number } | undefined
-      if (!first?.provider || !first.id) {
-        throw new Error(t('未配置模型：请在设置中填写 provider 的 baseUrl、模型与密钥'))
-      }
-      return {
-        providerId: first.provider,
-        modelId: first.id,
-        contextWindow: first.contextWindow ?? 0,
-        model: first,
-        streamFn: models.streamSimple.bind(models),
-      }
+    for (const id of registered) {
+      if (!next.has(id)) models.deleteProvider(id)
     }
-
-    const model = models.getModel(providerId, modelId) as
-      | { id: string; contextWindow?: number }
-      | undefined
-    if (!model) throw new Error(t('未找到模型：{providerId}/{modelId}（请检查 models.json）', { providerId, modelId }))
-    return {
-      providerId,
-      modelId: model.id,
-      contextWindow: model.contextWindow ?? 0,
-      model,
-      streamFn: models.streamSimple.bind(models),
-    }
+    registered = next
   }
 
-  const summarizer: HistorySummarizer = {
-    summarize: async (history, signal) => {
-      const resolved = await resolve(options.fastTarget)
-      const message = await models.completeSimple(
-        resolved.model as never,
-        {
-          messages: [
-            { role: 'system', content: HISTORY_SUMMARY_SYSTEM, timestamp: Date.now() },
-            { role: 'user', content: history, timestamp: Date.now() },
-          ],
-        } as never,
-        { maxTokens: 1_024, signal } as never,
-      )
-      return extractText(message as { content?: unknown })
-    },
-  }
-
-  return {
-    resolver: { resolve },
-    summarizer,
-    models,
-    refresh: async () => {
-      loaded = false
-      await load()
-    },
-  }
+  return { models, refresh }
 }

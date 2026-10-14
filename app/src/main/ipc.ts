@@ -4,12 +4,14 @@ import { BrowserWindow, app, dialog, ipcMain, shell } from 'electron'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import type { PiTurnRunner } from './agent/pi_runner'
-import type { ModelSettings, ReasoningEffort } from './model/types'
+import type { DurableTurnRunner } from './agent/durable_runner'
+import { sessionFilesFor } from './agent/durable_runner'
+import type { ModelSettings } from './model/types'
+import type { PiRuntime } from './model/pi_runtime'
 
 import type { SecretStore } from './config/secrets'
 
-import { configFilePath } from './config/paths'
+import { configFilePath, globalDir } from './config/paths'
 import type { CloudClient } from './cloud/client'
 import type { UsageReporter } from './cloud/reporter'
 import { AuditLog, readAuditTail } from './permissions/audit'
@@ -17,9 +19,16 @@ import type { InteractionBroker } from './permissions/broker'
 import { PermissionEngine } from './permissions/engine'
 import type { ApprovalChoice } from './permissions/types'
 import { ArtifactStore } from './session/artifacts'
-import { buildSessionItems } from './session/items'
-import { SessionStore } from './session/store'
-import { computeSessionUsage } from './session/stats'
+import { DurableSessions, type SessionView } from './session/durable'
+import {
+  countAssistantEntries,
+  fromSessionOptions,
+  toSessionItems,
+  toSessionMeta,
+  toSessionOptions,
+  toSessionUsage,
+  type PiUsageLike,
+} from './session/durable_view'
 import { globalMcpFile, loadMcpFile, materializeSecrets, saveMcpServer, workspaceMcpFile, type McpServerConfig } from './mcp/config'
 import type { McpManager } from './mcp/manager'
 import type { SkillManager } from './skills/manager'
@@ -54,19 +63,20 @@ export interface AppContext {
   settings: ModelSettingsStore
   secrets: SecretStore
   /**
-   * 每回合构造 runner（R3 切换）：工作空间相关依赖从这里注入，
-   * 引擎装配（models.json → pi-ai → Agent → 原生工具 + 治理钩子）在 runner 内部完成。
+   * 每回合构造 runner（R1 切换）：工作空间相关依赖从这里注入，
+   * 回合由 pi-durable harness 跑（装配细节见 agent/durable_runner.ts）。
    */
   createRunner: (options: {
     workspaceRoot: string
     permissions: PermissionEngine
-    sessions: SessionStore
+    sessions: DurableSessions
     artifacts: ArtifactStore
     telemetry?: TelemetrySink
     skillSection?: string
-    fastTarget?: string
     extraTools?: NativeTool[]
-  }) => PiTurnRunner
+  }) => DurableTurnRunner
+  /** pi 运行时（长生命周期）：会话服务共用它的 models 集合；设置变更后 refresh */
+  runtime: PiRuntime
   ledger: UsageLedger
   interactions: InteractionBroker
   skills: SkillManager
@@ -80,7 +90,7 @@ export interface AppContext {
   reporter: UsageReporter
   /** sessionId -> 本会话授权 scope */
   grants: Map<string, Set<string>>
-  sessionStores: Map<string, SessionStore>
+  sessionStores: Map<string, DurableSessions>
   artifactStores: Map<string, ArtifactStore>
   auditLogs: Map<string, AuditLog>
 }
@@ -121,7 +131,7 @@ export function broadcastInteraction(view: ApprovalRequestView | GuideRequestVie
 
 interface Scoped {
   ws: WorkspacePaths
-  sessions: SessionStore
+  sessions: DurableSessions
   artifacts: ArtifactStore
 }
 
@@ -129,7 +139,15 @@ async function scoped(context: AppContext): Promise<Scoped> {
   const ws = await context.workspaces.active()
   let sessions = context.sessionStores.get(ws.root)
   if (!sessions) {
-    sessions = new SessionStore(ws.sessionDir)
+    // 每个工作空间一份 SQLite + 一份视图索引（pi-durable 的存储单进程独占）
+    const files = sessionFilesFor(globalDir(), ws.id)
+    sessions = new DurableSessions({
+      ...files,
+      models: context.runtime.models,
+      cwd: ws.root,
+      workspaceId: ws.id,
+    })
+    await sessions.open()
     context.sessionStores.set(ws.root, sessions)
   }
   let artifacts = context.artifactStores.get(ws.root)
@@ -197,12 +215,14 @@ export function registerIpc(context: AppContext): void {
       defaults.primary = `${providers[0]?.id ?? ''}/${providers[0]?.models[0]?.name ?? ''}`
     }
     await context.settings.save({ providers, defaults })
+    await context.runtime.refresh()
     return buildSettingsView(context)
   })
   ipcMain.handle('settings:remove-provider', async (_event, providerId: string) => {
     const settings = await context.settings.load()
     const providers = settings.providers.filter((provider) => provider.id !== providerId)
     await context.settings.save({ ...settings, providers })
+    await context.runtime.refresh()
     return buildSettingsView(context)
   })
   ipcMain.handle('settings:set-default', async (_event, role: 'primary' | 'fast', target: string) => {
@@ -212,31 +232,43 @@ export function registerIpc(context: AppContext): void {
     return buildSettingsView(context)
   })
 
-  // ---------- 会话 ----------
-  ipcMain.handle('sessions:list', async () => (await scoped(context)).sessions.list())
-  ipcMain.handle('sessions:create', async () => (await scoped(context)).sessions.create())
+  // ---------- 会话（pi-durable：真相在 durable，视图索引只服务界面） ----------
+  ipcMain.handle('sessions:list', async () => {
+    const { sessions } = await scoped(context)
+    return (await sessions.list()).map((entry) => toSessionMeta(entry, entry.messageCount))
+  })
+  ipcMain.handle('sessions:create', async () => {
+    const { sessions } = await scoped(context)
+    const settings = await context.settings.load()
+    const entry = await sessions.create({ title: t('新会话'), model: defaultModelOf(settings) })
+    return toSessionMeta(entry, entry.messageCount)
+  })
   ipcMain.handle('sessions:items', async (_event, sessionId: string) => {
     const { sessions } = await scoped(context)
-    return buildSessionItems((await sessions.readLines(sessionId)).lines)
+    return toSessionItems((await sessions.view(sessionId)).entries as never[])
   })
   ipcMain.handle('sessions:rename', async (_event, sessionId: string, title: string) => {
     const { sessions } = await scoped(context)
-    return sessions.rename(sessionId, title)
+    await sessions.rename(sessionId, title)
   })
-  ipcMain.handle('sessions:options', async (_event, sessionId: string) =>
-    resolveSessionOptions(context, sessionId),
-  )
+  ipcMain.handle('sessions:options', async (_event, sessionId: string) => {
+    const { sessions } = await scoped(context)
+    return toSessionOptions(await sessions.agentConfig(sessionId))
+  })
   ipcMain.handle('sessions:set-options', async (_event, sessionId: string, options: SessionOptionsView) => {
     const { sessions } = await scoped(context)
-    await sessions.setOptions(sessionId, { model: options.model, reasoningEffort: options.reasoningEffort })
-    return resolveSessionOptions(context, sessionId)
+    await sessions.configure(sessionId, fromSessionOptions(options))
+    return toSessionOptions(await sessions.agentConfig(sessionId))
   })
   ipcMain.handle('sessions:stats', async (_event, sessionId: string) => {
     const { sessions } = await scoped(context)
-    const lines = (await sessions.readLines(sessionId)).lines
-    const options = await resolveSessionOptions(context, sessionId)
+    const view = await sessions.view(sessionId)
+    const options = toSessionOptions(await sessions.agentConfig(sessionId))
     const settings = await context.settings.load()
-    return computeSessionUsage(lines, contextWindowOf(settings, options.model))
+    return toSessionUsage(usageOf(view), {
+      calls: countAssistantEntries(view.entries as never[]),
+      contextWindow: contextWindowOf(settings, options.model),
+    })
   })
   ipcMain.handle('sessions:search', async (_event, query: string) => (await scoped(context)).sessions.search(query))
 
@@ -245,7 +277,6 @@ export function registerIpc(context: AppContext): void {
     if (activeTurns.has(sessionId)) throw new Error(t('该会话已有运行中的任务'))
     const { ws, sessions, artifacts } = await scoped(context)
     const permissions = await buildEngine(context, ws)
-    const settings = await context.settings.load()
     const controller = new AbortController()
     activeTurns.set(sessionId, controller)
     try {
@@ -254,7 +285,6 @@ export function registerIpc(context: AppContext): void {
         permissions,
         sessions,
         artifacts,
-        fastTarget: settings.defaults.fast ?? settings.defaults.primary,
         skillSection: await context.skills.systemPromptSection(ws),
         extraTools: await context.mcp.tools(ws),
         telemetry: {
@@ -680,13 +710,23 @@ function contextWindowOf(settings: ModelSettings, target?: string): number {
   return model?.capabilities.contextWindow ?? 0
 }
 
-async function resolveSessionOptions(context: AppContext, sessionId: string): Promise<SessionOptionsView> {  const settings = await context.settings.load()
-  const { sessions } = await scoped(context)
-  const stored = await sessions.loadOptions(sessionId)
+/** 新建会话的默认模型：settings.defaults.primary 的 `provider/modelId` 形式 */
+function defaultModelOf(settings: ModelSettings): { provider: string; modelId: string } | undefined {
+  const slash = settings.defaults.primary.indexOf('/')
+  if (slash <= 0) return undefined
   return {
-    model: stored.model ?? settings.defaults.primary,
-    reasoningEffort: (stored.reasoningEffort ?? 'off') as ReasoningEffort,
+    provider: settings.defaults.primary.slice(0, slash),
+    modelId: settings.defaults.primary.slice(slash + 1),
   }
+}
+
+/**
+ * 会话统计的用量来源是会话自己的 `pi.usage` 文档；
+ * `DurableSessions.usage()`（harness.usage）是整库汇总，不能用于单会话。
+ */
+function usageOf(view: SessionView): PiUsageLike {
+  const usage = view.docs['pi.usage'] as PiUsageLike | undefined
+  return usage ?? { models: {}, tools: {} }
 }
 
 /** 语言视图：偏好 + 生效值 + 操作系统解析值（design 5.13） */

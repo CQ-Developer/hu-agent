@@ -211,6 +211,10 @@ artifact 与备份、用量落账与上报（数据源换成 pi 的 usage）、�
 删除：`session/{store,items,types}.ts`、`agent/pi_loop.ts`（被 `durable_loop.ts` 取代）及
 `session_store/session_items/session_stats` 三个测试。
 
+**补充决定（R1 执行时实测）**：pi-durable 的 SQLite 存储是**单进程独占**的——同一文件不能被两个
+实例同时打开。因此采用**每工作空间一份 SQLite**（`~/.hu-agent/sessions/<workspaceId>.sqlite`）；
+界面列表所需的标题/消息数存同目录的视图索引（`<workspaceId>.index.json`，可由 durable 侧重扫重建）。
+R1 最后一批已按此落地：IPC/index 切到 `DurableSessions` + `createDurableTurnRunner`，旧会话路径删除。
 
 ## 后果与待办
 

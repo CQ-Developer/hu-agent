@@ -1,6 +1,6 @@
 /**
  * 新运行器测试（R1 最终形态）：会话服务（pi-durable）+ durable 回环。
- * 无旧形状参与（没有 SessionStore／resolver／summarizer）。
+ * 无旧形状参与（没有旧会话存储／resolver／summarizer）。
  */
 
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -41,7 +41,9 @@ describe('durable 运行器', () => {
     const service = new DurableSessions({ ...files, models, cwd: dir, workspaceId: 'ws_1' })
     await service.open()
     sessions = service
-    const sessionId = await service.create({ title: '运行器测试', model: { provider: 'faux', modelId: MODEL } })
+    const sessionId = (
+      await service.create({ title: '运行器测试', model: { provider: 'faux', modelId: MODEL } })
+    ).id
 
     const events: AgentEvent[] = []
     const ledger: unknown[] = []

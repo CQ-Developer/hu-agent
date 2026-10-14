@@ -8,7 +8,7 @@
  * 刻意不依赖 `kind` 的取值分类：角色一律从条目内 pi 消息的 `role` 推断（更稳）。
  */
 
-import type { SessionIndexEntry } from './durable'
+import type { CreateSessionOptions, SessionIndexEntry } from './durable'
 import type {
   SessionItemView,
   SessionMetaView,
@@ -164,6 +164,11 @@ export function toSessionItems(entries: EntryLike[], fallbackTime = new Date(0).
   return items
 }
 
+/** 会话统计用：助手条目数（pi 的用量文档不记调用次数，用助手消息条目数最贴近） */
+export function countAssistantEntries(entries: EntryLike[]): number {
+  return entries.filter((entry) => entry.model?.[0]?.role === 'assistant').length
+}
+
 const THINKING_TO_EFFORT: Record<string, ReasoningEffortView> = {
   off: 'off',
   minimal: 'off',
@@ -185,10 +190,13 @@ export function toSessionOptions(agent: Record<string, unknown>): SessionOptions
 /** 会话选项视图 → configure 的增量（我们只改这两个字段） */
 export function fromSessionOptions(options: SessionOptionsView): {
   model?: { provider: string; modelId: string }
-  thinkingLevel?: string
+  thinkingLevel?: NonNullable<CreateSessionOptions['thinkingLevel']>
 } {
   const slash = options.model.indexOf('/')
-  const change: { model?: { provider: string; modelId: string }; thinkingLevel?: string } = {}
+  const change: {
+    model?: { provider: string; modelId: string }
+    thinkingLevel?: NonNullable<CreateSessionOptions['thinkingLevel']>
+  } = {}
   if (slash > 0) change.model = { provider: options.model.slice(0, slash), modelId: options.model.slice(slash + 1) }
   change.thinkingLevel = options.reasoningEffort === 'off' ? 'off' : options.reasoningEffort
   return change

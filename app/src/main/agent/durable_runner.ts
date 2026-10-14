@@ -2,7 +2,7 @@
  * 回合运行器（R1 最终形态）：会话服务 + durable 回环。**没有任何旧形状的残留**。
  *
  * 与上一版的区别（按"完全用 pi、不为旧代码妥协"的原则）：
- * - 不再有 `SessionStore`／`ModelResolver`／`HistorySummarizer`／`fastTarget`／`maxSteps`／自研压缩：
+ * - 不再有旧会话存储／自研模型解析与压缩／`fastTarget`／`maxSteps`：
  *   会话、消息、回合、压缩、用量全部由 pi-durable 拥有；
  * - 运行器只做三件事：按回合构造原生工具集、把会话配置与工作空间交给回环、把事件投影交给调用方。
  *
@@ -17,6 +17,7 @@ import type { InteractionBroker } from '../permissions/broker'
 import type { PermissionEngine } from '../permissions/engine'
 import type { ArtifactStore } from '../session/artifacts'
 import type { DurableSessions } from '../session/durable'
+import type { NativeTool } from '../tools/native/tool'
 import { toSessionOptions } from '../session/durable_view'
 import type { UsageLedger } from '../usage/ledger'
 import type { TelemetrySink } from '../usage/telemetry'
@@ -34,6 +35,8 @@ export interface DurableRunnerOptions {
   telemetry?: TelemetrySink
   workspaceRoot: string
   skillSection?: string
+  /** 运行时注入的工具（例如 MCP），与默认工具集合并 */
+  extraTools?: NativeTool[]
   outputLimit?: number
 }
 
@@ -64,13 +67,16 @@ export function createDurableTurnRunner(options: DurableRunnerOptions): DurableT
         throw new Error(t('未配置模型：请在设置中填写 provider 的 baseUrl、模型与密钥'))
       }
 
-      // 工具按回合构造（ask_guide 需要把提问路由到正确的会话与轮次）
-      const tools = createDefaultTools({
-        workspaceRoot,
-        interactions: options.interactions,
-        sessionId: request.sessionId,
-        turnId,
-      })
+      // 工具按回合构造（ask_guide 需要把提问路由到正确的会话与轮次；MCP 等运行时工具并入）
+      const tools = [
+        ...createDefaultTools({
+          workspaceRoot,
+          interactions: options.interactions,
+          sessionId: request.sessionId,
+          turnId,
+        }),
+        ...(options.extraTools ?? []),
+      ]
 
       await runDurableTurn(
         {

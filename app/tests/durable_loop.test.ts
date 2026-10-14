@@ -49,10 +49,12 @@ describe('durable 回环（回合由 harness 跑）', () => {
     })
     await instance.open()
     sessions = instance
-    const conversationId = await instance.create({
-      title: '回环测试',
-      model: { provider: 'faux', modelId: MODEL },
-    })
+    const conversationId = (
+      await instance.create({
+        title: '回环测试',
+        model: { provider: 'faux', modelId: MODEL },
+      })
+    ).id
 
     const events: AgentEvent[] = []
     const ledger: unknown[] = []
@@ -90,6 +92,9 @@ describe('durable 回环（回合由 harness 跑）', () => {
     expect(view.entries).toBeDefined()
     expect(view.docs['pi.usage']).toBeDefined()
     expect(view.docs['pi.agent']).toBeDefined()
+
+    // 回合结束后消息数按 durable 条目回写索引（界面列表用）
+    expect((await instance.list())[0].messageCount).toBe(2)
   }, 60_000)
 
   it('幂等：同一 turnId 重跑不产生第二个 submission（requestId 去重）', async () => {

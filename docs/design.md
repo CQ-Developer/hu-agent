@@ -273,23 +273,23 @@ sequenceDiagram
 
 | 领域 | 归属 | 客户端实现位置 |
 | --- | --- | --- |
-| 模型与 provider | pi（`pi-ai` + `models.json`） | `model/pi_config.ts`（配置层）、`model/pi_runtime.ts`（运行时装配：`ModelResolver` / `HistorySummarizer`） |
-| 回合生命周期 | pi（`pi-agent-core` 的 `Agent`） | `agent/pi_loop.ts`（回合与落库）、`agent/pi_runner.ts`（每回合装配） |
-| 消息与会话 | pi（`AgentMessage`；存储换 `pi-durable` 为 R1 目标） | 当前仍为 `session/store.ts`（迁移中） |
-| 工具 | pi（`AgentTool` + typebox） | `tools/native/*`（read/write/edit/bash/powershell/ask_guide） |
+| 模型与 provider | pi（`pi-ai` + `models.json`） | `model/pi_config.ts`（配置层）、`model/pi_runtime.ts`（运行时装配：`models` 集合注册与 `refresh()`） |
+| 回合生命周期 | pi（`pi-durable` 的 Harness/Conversation） | `agent/durable_loop.ts`（回合回环：submit + 订阅 viewState）、`agent/durable_runner.ts`（每回合装配） |
+| 消息与会话 | pi（`pi-durable` 的 entries + storage） | `session/durable.ts`（会话服务 + 视图索引）、`session/durable_view.ts`（durable → 界面视图的纯映射） |
+| 工具 | pi（`AgentTool` + typebox） | `tools/native/*`（read/write/edit/bash/powershell/ask_guide）、`agent/pi_governance.ts`（默认工具集） |
 | MCP | pi（`pi-mcp`：stdio + streamable HTTP） | `mcp/manager.ts` |
-| 权限 / 审批 / 审计 | **我们**（挂 `beforeToolCall` / `afterToolCall`） | `agent/pi_governance.ts`（纯钩子，不包装工具） |
+| 权限 / 审批 / 审计 | **我们**（挂 pi-durable 扩展的 `beforeTool` / `afterTool` 钩子） | `agent/durable_loop.ts` 的 Guard 扩展（纯钩子，不包装工具） |
 | 用量与成本 | pi 产出用量 → 我们落账与上报 | `usage/ledger.ts`、`cloud/reporter.ts` |
-| IPC 事件 | **我们**，定义为 pi 事件在边界的机械投影 | `agent/pi_events.ts`（映射表 + 契约完整性测试） |
+| IPC 事件 | **我们**，定义为 pi 事件在边界的机械投影 | `agent/durable_projection.ts`（`pi.live` → `AgentEvent`） |
 
 **关键不变式（换引擎不降级）**
 
-1. 权限判定与审批仍在 `PermissionEngine`（含敏感路径、保护文件硬规则）；被拒绝的调用在 `beforeToolCall`
-   被 block，**工具体不执行**，拒绝状态由事件映射层补 `denied`（UI 能与执行报错区分）；
-2. 超长输出落 artifact 并在 `afterToolCall` 中段截断（避免撑爆上下文）；
-3. 用量三写（会话 + ledger + telemetry）由回合循环完成，数据源是 pi 的 `usage`；
-4. 停止原因（`done` / `cancelled` / `max_steps` / `error`，含 `OUTPUT_TRUNCATED` / `MAX_STEPS` 错误项）
-   由循环决定并写入会话。
+1. 权限判定与审批仍在 `PermissionEngine`（含敏感路径、保护文件硬规则）；被拒绝的调用在 `beforeTool`
+   被 block，**工具体不执行**，拒绝状态由投影层补 `denied`（UI 能与执行报错区分）；
+2. 超长输出落 artifact 并在 `afterTool` 中段截断（避免撑爆上下文）；
+3. 用量三写（会话 + ledger + telemetry）由回合回环完成，数据源是 pi 的 `pi.usage`；
+4. 停止原因（`done` / `cancelled` / `error`）由回环决定并通过 `turn.end` 事件发出；旧 `max_steps`
+   已随自研循环删除（轮次管理归 pi-durable），IPC 契约中的该值待 R6 清理时移除。
 
 **工作空间隔离与密钥**
 
@@ -311,7 +311,7 @@ flowchart TB
 
   subgraph Main["主进程（Node.js / TypeScript）"]
     IPC["IPC 层（类型化通道）"]
-    Session["会话管理器<br/>SessionStore"]
+    Session["会话服务<br/>DurableSessions"]
     Loop["Agent Loop"]
     Ctx["上下文构建器"]
     Gateway["模型网关<br/>Provider 适配"]
@@ -369,8 +369,8 @@ flowchart TB
 
 ### 5.2 Core Agent Loop
 
-> ⚠️ 本节描述重构前的自研循环，已被 `pi-agent-core` 的 `Agent` 取代：实现见 `agent/pi_loop.ts`
-> 与 `agent/pi_runner.ts`，归属与不变式见 5.0 与 `docs/adr/0006-pi-agent-engine.md`。
+> ⚠️ 本节描述重构前的自研循环，已被 `pi-durable` 的回合回环取代：实现见 `agent/durable_loop.ts`
+> 与 `agent/durable_runner.ts`，归属与不变式见 5.0 与 `docs/adr/0006-pi-agent-engine.md`。
 
 #### 5.2.1 消息与事件模型
 
@@ -477,80 +477,48 @@ flowchart TB
 - 缓存命中率 = `cacheRead / input`（input 含缓存部分）；
 - 上下文剩余 = 1 −（最近一次调用的输入 + 输出）/ 模型 `contextWindow`，下限 0；turn 结束后由主进程重新统计校准，避免流式事件误差累积。
 
-### 5.3 会话与 JSONL 持久化
+### 5.3 会话持久化（pi-durable）
 
-> ⚠️ 会话存储正在迁移到 `pi-durable`（SQLite 单文件 + `requestId` 跨重启幂等 + `resume()` 续跑，
-> 已 spike 验证）。归属见 5.0；迁移完成后本节整体重写为 pi-durable 的 entries/storage 模型。
+> 本节描述切换后的**实际实现**：会话、消息、回合、用量都归 `pi-durable`（SQLite + Chord）。
+> 归属划分与决策过程见 5.0 与 `docs/adr/0006-pi-agent-engine.md`。
 
-#### 5.3.1 文件布局
+#### 5.3.1 存储布局
 
-```
-<workspace>/.hu/
-  workspace.json            # 工作空间元数据（id、名称、团队关联、同步状态）
-  settings.json             # 本地策略：权限规则、工具配置（随工作空间同步）
-  skills.json               # 工作空间级 Skill 启用状态
-  mcp.json                  # 工作空间级 MCP 配置（密钥用 secret 引用）
-  sessions/
-    index.json              # 会话索引（标题、更新时间、消息数；可重建）
-    <sessionId>.jsonl       # 会话正文，append-only
-    artifacts/<callId>.txt  # 超长工具输出全文
-  logs/
-    app.jsonl               # 应用日志（不进同步）
-    audit.jsonl             # 权限与敏感操作审计（不进同步）
-  sync/
-    state.json              # 同步状态（baseVersion、lastDigest）
-    conflicts/              # 冲突时保留的本地副本（不进同步）
-```
+- **每工作空间一份 SQLite**：`~/.hu-agent/sessions/<workspaceId>.sqlite`。pi-durable 的存储是
+  单进程独占的，因此不能多个工作空间共用一个文件。
+- **同名视图索引** `<workspaceId>.index.json`：id / 标题 / 时间 / 消息数，只服务界面列表与排序。
+  索引**不是真相**：标题与计数是界面元数据，会话正文与回合状态在 durable；索引损坏不影响会话。
+- **崩溃恢复与幂等**：打开存储后 `resume()` 继续上次未完成的运行；`requestId` 幂等保证重发不产生
+  重复回合（跨重启成立）。
+- 旧 JSONL 会话（`<workspace>/.hu/sessions/*.jsonl`）已停止写入，作为只读归档保留。
+- 会话 ID 即 durable 的 conversation id；工具与治理以扩展 + `beforeTool`/`afterTool` 钩子随会话
+  `configure()` 注入。
 
-会话 ID 使用 ULID（时间有序，便于列目录和分页）。
+#### 5.3.2 三处读取面（界面与用量都读它们）
 
-#### 5.3.2 JSONL 行协议
-
-每行一个 JSON 对象，按追加顺序写入；写入使用"单行原子写 + 换行"，崩溃最多损坏最后一行，加载时跳过非法行并在 UI 提示。
-
-| `type` | 关键字段 | 说明 |
+| 读取面 | 形状 | 用途 |
 | --- | --- | --- |
-| `meta` | `v, sessionId, workspaceId, createdAt, appVersion` | 文件首行，版本化 |
-| `message` | `id, role, parts[], createdAt` | 用户/助手消息；assistant 的 parts 可含 `reasoning`（思考内容，仅存档展示，不回传模型） |
-| `tool_call` | `id, name, args, turnId` | 工具调用 |
-| `tool_result` | `id, status, output, durationMs, truncated, artifactPath?` | 工具结果 |
-| `approval` | `id, toolCallId, decision(allow_once\|allow_session\|allow_always\|deny), scope, actor` | 授权决策留痕 |
-| `usage` | `provider, model, input, output, cacheRead, cacheWrite, durationMs, status` | 记账 |
-| `summary` | `text, fromLine, toLine, model` | 压缩摘要 |
-| `checkpoint` | `name, line, note?` | 手动/自动检查点，便于回滚上下文 |
-| `session_options` | `model?, reasoningEffort?, createdAt` | 会话级模型/思考强度选择，后写入者覆盖（5.2.6） |
-| `error` | `code, message, detail?` | 会话级错误 |
+| `viewState().value.entries` | `{ model: [pi 消息], kind, id, conversationId }` | 历史消息与工具卡（`session/durable_view.ts` 的 `toSessionItems`） |
+| `docs['pi.live']` | 仅运行期有内容：`generation.message.content[]`（追加式块）+ `tools[].status`（pending/running/done） | 实时事件投影（`agent/durable_projection.ts` → `AgentEvent`） |
+| `docs['pi.usage']` | `{ models: { 'provider/model': { input, output, cacheRead, cacheWrite, … } }, tools }` | 会话统计（`sessions:stats`）与用量落账（ledger / 上报） |
 
-示例（单行折行展示）：
-
-```json
-{"type":"meta","v":1,"sessionId":"01J...","createdAt":"2025-10-13T08:00:00Z"}
-{"type":"message","id":"m1","role":"user","parts":[{"type":"text","text":"帮我重构 utils.ts"}],"createdAt":"..."}
-{"type":"tool_call","id":"t1","name":"read_file","args":{"path":"src/utils.ts"},"turnId":"r1"}
-{"type":"approval","id":"a1","toolCallId":"t1","decision":"allow_session","scope":"workspace","actor":"user"}
-{"type":"tool_result","id":"t1","status":"ok","output":"...","durationMs":42,"truncated":false}
-{"type":"usage","provider":"openai","model":"gpt-4o","input":1200,"output":350,"cacheRead":0,"cacheWrite":0,"durationMs":3120,"status":"success"}
-```
-
-设计取舍：
-
-- **append-only**：天然支持崩溃恢复、审计、增量读取；不使用数据库（符合"一切皆文件"）。
-- **不含密钥与完整工具大输出**：大输出只存 artifact 路径，控制文件体积。
-- **索引可重建**：`index.json` 丢失时扫描 `.jsonl` 的 `meta/message` 行重建。
-- **会话即工作空间资产**：默认随工作空间一起同步（可在设置中排除 `.hu/sessions`，见 5.11.4）。
+派生字段的归属：标题存视图索引，消息数在回合结束时按 durable 的真实条目重算并写回；调用次数（`calls`）用助手条目数近似（pi 不记调用次数）；
+上下文窗口来自本地模型设置。投影只在 IPC/UI 边界发生（5.0 的反适配原则）。
 
 #### 5.3.3 会话操作
 
-一个工作空间可包含多个会话，互相独立、可随时切换；同一时刻同一工作空间只有一个会话在运行，切换后原会话在后台继续执行，完成后以徽标提示。
+一个工作空间可包含多个会话，互相独立、可随时切换；同一时刻同一工作空间只有一个会话在运行。
 
-| 操作 | 说明 |
+| 操作 | 实现 |
 | --- | --- |
-| 新建 | 生成 ULID，写 `meta` 行 |
-| 列表 | 读 `index.json`，按更新时间倒序 |
-| 重命名 | 更新索引（标题不写入 JSONL，避免重写文件） |
-| 删除 | 移动文件到 `.hu/sessions/.trash/`，保留 7 天 |
-| 搜索 | v1 全量扫描 JSONL 文本匹配；后续再做索引 |
-| 分支 | 从某 `checkpoint` 复制前缀为新的会话文件（v1.1 计划） |
+| 新建 | `DurableSessions.create({ title, model })`：durable `createConversation` + 写视图索引 |
+| 列表 | 读视图索引，按工作空间过滤、更新时间倒序 |
+| 消息 | `view(id).entries` → `toSessionItems` 投影为消息/工具卡 |
+| 重命名 | 只改视图索引（durable 不存标题） |
+| 选项 | `configure()` 写 durable（模型/思考强度/工作目录/指令），`agent()` 读回 |
+| 统计 | 会话自己的 `pi.usage` 文档 → `toSessionUsage` |
+| 搜索 | 按需扫 entries 的文本块，返回片段（本地规模下先全扫） |
+| 删除 / 分支 | 未实现（v1.x 计划；删除需同时清理 durable 与视图索引） |
 
 ### 5.4 工具系统
 

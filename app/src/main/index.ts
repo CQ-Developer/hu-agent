@@ -21,7 +21,8 @@ import { InteractionBroker } from './permissions/broker'
 import { McpManager } from './mcp/manager'
 import { SkillManager } from './skills/manager'
 import { FileLogger } from './logging'
-import { createPiTurnRunner } from './agent/pi_runner'
+import { createDurableTurnRunner } from './agent/durable_runner'
+import { createPiRuntime } from './model/pi_runtime'
 import { UsageLedger } from './usage/ledger'
 import { WorkspaceManager } from './workspace'
 import { initI18n, t } from './i18n'
@@ -85,6 +86,11 @@ async function bootstrap(): Promise<void> {
   })
   await settings.load()
 
+  // pi 运行时（长生命周期）：所有工作空间的会话服务共用同一份 models 集合；
+  // 设置页保存/删除 provider 后由 ipc.ts 调用 refresh() 重新注册。
+  const runtime = createPiRuntime({ getSecret: (ref) => secrets.get(ref) })
+  await runtime.refresh()
+
   const ledger = new UsageLedger(usageLedgerPath())
   const interactions = new InteractionBroker({ broadcast: broadcastInteraction })
 
@@ -129,20 +135,19 @@ async function bootstrap(): Promise<void> {
     workspaces,
     settings,
     secrets,
-    // 每回合构造 runner：工作空间相关的依赖（权限引擎、会话/产物存储、技能段、遥测出口）在这里注入。
-    // runner 内部负责 pi 运行时装配（models.json → pi-ai → Agent）与原生工具集 + 治理钩子。
+    runtime,
+    // 每回合构造 runner：工作空间相关的依赖（权限引擎、会话服务、产物存储、技能段、遥测出口、MCP 工具）
+    // 在这里注入；回合由 pi-durable harness 跑（装配见 agent/durable_runner.ts）。
     createRunner: (options) =>
-      createPiTurnRunner({
-        workspaceRoot: options.workspaceRoot,
-        getSecret: (ref) => secrets.get(ref),
+      createDurableTurnRunner({
+        sessions: options.sessions,
         permissions: options.permissions,
         interactions,
-        sessions: options.sessions,
         artifacts: options.artifacts,
         ledger,
+        workspaceRoot: options.workspaceRoot,
         ...(options.telemetry ? { telemetry: options.telemetry } : {}),
         ...(options.skillSection ? { skillSection: options.skillSection } : {}),
-        ...(options.fastTarget ? { fastTarget: options.fastTarget } : {}),
         ...(options.extraTools ? { extraTools: options.extraTools } : {}),
       }),
     ledger,

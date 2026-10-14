@@ -28,7 +28,3 @@ export function buildSystemPrompt(workspaceRoot: string, skillSection?: string):
   if (skillSection) parts.push('', skillSection)
   return parts.join('\n')
 }
-
-/** 历史压缩提示（模型面向文案，白名单见 scripts/i18n-config.mjs） */
-export const HISTORY_SUMMARY_SYSTEM =
-  '你是对话压缩器。把用户给出的对话记录压缩成要点摘要，保留事实、数字、路径与未完成事项。只输出摘要正文。'

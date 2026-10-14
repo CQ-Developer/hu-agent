@@ -53,8 +53,15 @@ export interface DurableTurnOptions {
   signal: AbortSignal
 }
 
+interface UsageEntry {
+  input?: number
+  output?: number
+  cacheRead?: number
+  cacheWrite?: number
+}
+
 interface UsageLike {
-  models?: Record<string, { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }>
+  models?: Record<string, UsageEntry>
   tools?: Record<string, unknown>
 }
 
@@ -156,6 +163,8 @@ export async function runDurableTurn(deps: DurableTurnDeps, options: DurableTurn
 
   let stopReason: 'done' | 'cancelled' | 'error' = 'done'
   let errorMessage: string | undefined
+  // 回合前的用量快照：pi 的会话用量是累计值，落账只记差值
+  const usageBefore = usageModelsOf(await deps.sessions.view(conversationId))
 
   try {
     const submission = await conversation.submit(
@@ -166,8 +175,8 @@ export async function runDurableTurn(deps: DurableTurnDeps, options: DurableTurn
     if (options.signal.aborted) stopReason = 'cancelled'
     else if (settled?.status === 'failed') stopReason = 'error'
 
-    // 用量落账：数据源是 pi 的汇总（含失败与中断）
-    const usage = (await deps.sessions.usage()) as UsageLike
+    // 用量落账：会话自己的 pi.usage 在回合前后的差量（含失败与中断；重放时差量为 0）
+    const usage = usageDelta(usageModelsOf(await deps.sessions.view(conversationId)), usageBefore)
     await recordUsage(deps, conversationId, usage, options.turnId, stopReason)
   } catch (error) {
     if (options.signal.aborted) {
@@ -179,12 +188,38 @@ export async function runDurableTurn(deps: DurableTurnDeps, options: DurableTurn
   } finally {
     options.signal.removeEventListener('abort', onAbort)
     unsubscribe()
+    // 界面列表的消息数（pi 不记）：回合结束后按 durable 的真实条目重算
+    await deps.sessions.syncMessageCount(conversationId).catch(() => undefined)
   }
 
   emit({ ...base, type: 'turn.end', stopReason, ...(errorMessage ? { error: errorMessage } : {}) })
 }
 
-/** 把 pi 的用量汇总写进我们的 ledger 与上报（会话侧的用量由 pi 自己记录） */
+/** 会话自己的 `pi.usage.models`（不是 `harness.usage()` 的整库汇总） */
+function usageModelsOf(view: { docs: Record<string, unknown> }): Record<string, UsageEntry> {
+  const usage = view.docs['pi.usage'] as UsageLike | undefined
+  return usage?.models ?? {}
+}
+
+/** 本次回合的用量 = 回合前后会话用量之差（同名 requestId 重放差量为 0，不会重复记账） */
+function usageDelta(after: Record<string, UsageEntry>, before: Record<string, UsageEntry>): UsageLike {
+  const models: Record<string, UsageEntry> = {}
+  for (const [target, entry] of Object.entries(after)) {
+    const previous = before[target] ?? {}
+    const delta: UsageEntry = {
+      input: (entry.input ?? 0) - (previous.input ?? 0),
+      output: (entry.output ?? 0) - (previous.output ?? 0),
+      cacheRead: (entry.cacheRead ?? 0) - (previous.cacheRead ?? 0),
+      cacheWrite: (entry.cacheWrite ?? 0) - (previous.cacheWrite ?? 0),
+    }
+    const changed =
+      (delta.input ?? 0) > 0 || (delta.output ?? 0) > 0 || (delta.cacheRead ?? 0) > 0 || (delta.cacheWrite ?? 0) > 0
+    if (changed) models[target] = delta
+  }
+  return { models }
+}
+
+/** 把本回合的用量写进我们的 ledger 与上报（会话侧的累计用量由 pi 自己记录） */
 async function recordUsage(
   deps: DurableTurnDeps,
   sessionId: string,

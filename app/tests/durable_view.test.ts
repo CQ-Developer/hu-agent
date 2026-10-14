@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  countAssistantEntries,
   fromSessionOptions,
   toSessionItems,
   toSessionMeta,
@@ -84,6 +85,9 @@ describe('durable → 视图映射', () => {
       output: 'echo:hi',
     })
     expect(last).toMatchObject({ kind: 'message', role: 'assistant', text: '完成' })
+
+    // 会话统计的调用数：助手条目数（两条 assistant）
+    expect(countAssistantEntries(entries)).toBe(2)
   })
 
   it('会话摘要：索引字段直传，消息数由调用方给出', () => {
