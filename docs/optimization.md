@@ -68,6 +68,37 @@
 
 轨道 B（UI 令牌 + 动效）不依赖 P1–P5，可与引擎切换并行；轨道 C 已落地。
 
+### 1.5 P1.2-c 蓝图：用 pi 的 `Agent` 替换旧循环
+
+读完旧循环（388 行）后，它的对外行为可归为 **8 项职责**。逐一给出 pi 的落点，避免"用旧网关写一遍新循环"：
+
+| # | 旧循环职责（必须保持） | pi 的落点 |
+| --- | --- | --- |
+| 1 | 追加用户消息、`touch` 会话、发 `turn.start` | 循环外层（`prepareRequest` 之前） |
+| 2 | 组装 system prompt（工作空间 + Skill 段） | `initialState.systemPrompt` / system 消息 |
+| 3 | 上下文超阈值压缩（`COMPACT_THRESHOLD`、`session.compacted`、失败降级为保留最近 N 条） | `transformContext`（回调内调用现有压缩能力）+ 由循环发 `session.compacted` |
+| 4 | 流式文本/思考增量、工具调用收集 | pi 事件 → `pi-events.ts` 映射（已完成） |
+| 5 | 权限/审批/拒绝语义（敏感路径、保护文件、ask 等审批） | `beforeToolCall` + `afterToolCall`（已完成，含拒绝状态补标） |
+| 6 | 工具执行语义（截断、产物落盘、status 分类、`tool_call`/`tool_result` 双写会话） | `createAgentTools` 负责执行与 details；会话双写由循环在 `tool_execution_start/end` 上做 |
+| 7 | 用量三写：`sessions.append(usage)` + `ledger.record` + `telemetry.record`（含失败路径的 0 用量与 errorCode） | `message_end` 的 `usage`（映射已完成）→ 循环写三处；失败路径用 `agent_end` 后的错误处理 |
+| 8 | 停止原因：无工具调用即结束、`length` → `OUTPUT_TRUNCATED` 错误项、步数上限 → `max_steps` + `MAX_STEPS` 错误项、取消 → `cancelled`、异常 → `TURN_FAILED` | `finishTurn` 返回 `{ action: 'end' }` 控制步数；循环据信号与异常决定 `turn.end` 的 stopReason |
+
+**前置设计决定（本文件记录，避免返工）**：新循环**不依赖 `ModelGateway`**，而是依赖两个能力接口，
+由 P1.2-d 用 pi 实现、测试里用假实现：
+
+```ts
+interface ModelResolver {
+  resolve(target?: string): Promise<{ providerId: string; modelId: string; contextWindow: number; model: PiModel }>
+}
+interface HistorySummarizer {
+  summarize(messages: LlmMessage[], signal: AbortSignal): Promise<string>   // 供压缩使用
+}
+```
+
+理由：`compaction.ts` 现在是照 `ModelGateway.chat()` 写的；若新循环继续用它，P1.2-d 就删不掉网关。
+改成能力接口后，网关与旧 provider 可在 d 批一次性删除，压缩改为调用 `HistorySummarizer`
+（由 pi 的一次非流式调用实现）。
+
 ### 1.4 P1 进度
 
 已完成：依赖安装（精确 1.2.0；`pi-ai` 5.9 MB + `pi-agent-core` 319 KB + `pi-telemetry` 175 KB，传递依赖
