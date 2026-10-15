@@ -3,9 +3,9 @@
 > 适用：v1 单机/小规模部署（Docker Compose）。更大规模请按 design 3.3 迁移到 K8s，
 > 应用本身无状态，数据库与对象存储是唯一状态源。
 
-> 监控栈可直接用叠加层一键起：`scripts/quickstart.sh monitoring up`
+> 全组件（含监控栈）默认一键起：`scripts/quickstart.sh up`
 > （Prometheus + Grafana + Alertmanager，见 `docs/delivery/monitoring.md` 第 7 节；
-> 编排文件 `docker/compose.observability.yaml`）。
+> 单文件编排 `docker/compose.yaml`，profile 一览见文件头）。
 
 ## 1. 组件与端口
 

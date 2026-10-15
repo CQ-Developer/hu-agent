@@ -33,5 +33,5 @@ USER huagent
 
 EXPOSE 8080
 
-# 默认启动 API；worker 用同一镜像覆盖 command（见 docker/compose.quickstart.yaml）
+# 默认启动 API；worker 用同一镜像覆盖 command（见 docker/compose.yaml）
 CMD ["huagent-api"]

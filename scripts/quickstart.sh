@@ -1,29 +1,33 @@
 #!/usr/bin/env bash
-# 一条命令起全栈（评估 / 小型自托管）：
-#   scripts/quickstart.sh up [--email you@example.com] [--with-sso] [--with-monitoring]
+# 一键部署全部组件（单文件编排 docker/compose.yaml）：
+#   scripts/quickstart.sh up [--email you@example.com] [--core-only] [--with-logs]
 #   scripts/quickstart.sh down
 #   scripts/quickstart.sh reset          # 停止并删除数据卷（数据不可恢复，谨慎使用）
 #   scripts/quickstart.sh logs [服务名]
 #   scripts/quickstart.sh admin --email you@example.com
 #
-# 监控栈（Prometheus + Grafana + Alertmanager，可选 Loki 日志聚合）：
+# 默认 up 启动：PostgreSQL/Redis/MinIO + API/worker + Keycloak + Mailpit + 监控栈（Prometheus/Grafana/Alertmanager）
+#   --core-only   只起依赖（本地开发用）；--with-logs 追加 Loki/Promtail（仅 Linux，见 monitoring.md 第 5 节）
+#
+# 监控栈单独操作（同一编排，不动业务服务）：
 #   scripts/quickstart.sh monitoring up [--with-logs] [--target host.docker.internal:8080]
 #   scripts/quickstart.sh monitoring status
 #   scripts/quickstart.sh monitoring logs
-#   scripts/quickstart.sh monitoring down      # 只停监控，不影响业务服务
+#   scripts/quickstart.sh monitoring down
 #
 # 行为：
 # 1) 首次运行时生成 .env.quickstart（随机数据库口令、JWT_SECRET、MASTER_KEY）并提示保存；
-# 2) 构建镜像并启动 PostgreSQL/Redis/MinIO/API/worker；
+# 2) 构建镜像并启动依赖（--core-only 时到此为止）；
 # 3) 应用数据库 DDL（huagent-admin db-migrate）；
-# 4) 创建首个系统管理员（未提供 --email 时交互式询问，口令随机生成并打印一次）。
+# 4) 启动 API/worker、创建首个系统管理员，并确保监控栈就绪。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 ENV_FILE="$ROOT/.env.quickstart"
-COMPOSE=(docker compose -f docker/compose.quickstart.yaml --env-file "$ENV_FILE")
-# 叠加可观测性编排（同项目 → 服务名互通，Prometheus 可直接抓 api:8080）
-COMPOSE_ALL=(docker compose -f docker/compose.quickstart.yaml -f docker/compose.observability.yaml --env-file "$ENV_FILE")
+# 单文件编排（profile 见 docker/compose.yaml 头部）；同项目 → 服务名互通，Prometheus 直接抓 api:8080
+COMPOSE=(docker compose -f docker/compose.yaml --env-file "$ENV_FILE")
+# down/reset/logs/admin 需要显式激活全部 profile（compose 默认只处理无 profile 的服务）
+COMPOSE_PROFILES=(--profile app --profile sso --profile mail --profile monitoring --profile logs)
 OBS_DIR="$ROOT/docker/observability"
 
 banner() { printf '\n\033[1m%s\033[0m\n' "$*"; }
@@ -90,30 +94,41 @@ wait_healthy() {
 }
 
 cmd_up() {
-  local email="" sso=0 monitoring=0
+  local email="" core_only=0 with_logs=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --email) email="$2"; shift 2 ;;
-      --with-sso) sso=1; shift ;;
-      --with-monitoring) monitoring=1; shift ;;
+      --core-only) core_only=1; shift ;;
+      --with-logs) with_logs=1; shift ;;
+      # 兼容旧参数：SSO 与监控现已默认包含在 up 中
+      --with-sso|--with-monitoring) shift ;;
       *) fail "未知参数：$1" ;;
     esac
   done
   require_docker
   ensure_env_file
 
-  banner "构建镜像并启动依赖（PostgreSQL / Redis / MinIO${sso:+ / Keycloak}）"
-  local deps=(postgres redis minio)
-  local profile_args=()
-  if [[ $sso -eq 1 ]]; then
-    deps+=(keycloak)
-    profile_args=(--profile sso)
+  banner "构建镜像并启动依赖（PostgreSQL / Redis / MinIO）"
+  "${COMPOSE[@]}" up -d --build --wait postgres redis minio
+
+  if [[ $core_only -eq 1 ]]; then
+    "${COMPOSE[@]}" ps
+    echo "仅启动了依赖（--core-only）。完整部署：scripts/quickstart.sh up"
+    return 0
   fi
-  "${COMPOSE[@]}" "${profile_args[@]}" up -d --build --wait "${deps[@]}"
+
+  # 监控令牌/告警路由必须先就绪：API 启动时要读到 METRICS_TOKEN
+  ensure_monitoring_env
+  ensure_observability_files
+
+  local profiles=(--profile app --profile sso --profile mail --profile monitoring)
+  [[ $with_logs -eq 1 ]] && profiles+=(--profile logs)
+  banner "启动 Keycloak 与 Mailpit"
+  "${COMPOSE[@]}" "${profiles[@]}" up -d --wait keycloak mailpit
 
   # 迁移必须在 API 启动前完成：API 启动时会校验 schema 版本（design 6.8.3）
   banner "应用数据库 DDL"
-  if ! "${COMPOSE[@]}" run --rm --no-deps api huagent-admin db-migrate; then
+  if ! "${COMPOSE[@]}" "${profiles[@]}" run --rm -T --no-deps api huagent-admin db-migrate; then
     cat <<'EOF' >&2
 
 [quickstart] 迁移失败。最常见原因：该目录之前用过不同的 .env.quickstart（数据卷里的库口令与当前配置不一致）。
@@ -123,12 +138,13 @@ EOF
     exit 1
   fi
 
-  banner "启动 API 与 worker"
-  "${COMPOSE[@]}" "${profile_args[@]}" up -d --wait api worker
+  banner "启动 API、worker 与监控栈"
+  "${COMPOSE[@]}" "${profiles[@]}" up -d --wait api worker prometheus alertmanager grafana
   wait_healthy
 
   banner "创建首个系统管理员"
-  if [[ -z "$email" ]]; then
+  # 非交互（管道/CI）时跳过，避免 read 在 EOF 上返回非零触发 set -e
+  if [[ -z "$email" && -t 0 ]]; then
     read -r -p "管理员邮箱（回车跳过，可稍后用 scripts/quickstart.sh admin 创建）: " email
   fi
   if [[ -n "$email" ]]; then
@@ -137,23 +153,23 @@ EOF
     echo "已跳过（稍后执行：scripts/quickstart.sh admin --email you@example.com）"
   fi
 
-  if [[ $monitoring -eq 1 ]]; then
-    cmd_monitoring up
-  fi
-
   banner "完成"
-  cat <<'EOF'
+  cat <<EOF
 服务地址：
-  API        http://127.0.0.1:8080/api/v1/system/health
-  指标       http://127.0.0.1:8080/api/v1/system/metrics
+  API          http://127.0.0.1:8080/api/v1/system/health
+  指标         http://127.0.0.1:8080/api/v1/system/metrics
   MinIO 控制台 http://127.0.0.1:9001（凭据见 .env.quickstart）
+  Keycloak     http://127.0.0.1:8081（企业 SSO 联调）
+  告警收件箱    http://127.0.0.1:$(env_get MAILPIT_UI_PORT 8025)（Mailpit）
+  Grafana      http://127.0.0.1:$(env_get GRAFANA_PORT 3000)   用户 $(env_get GRAFANA_ADMIN_USER admin) / 口令见 .env.quickstart
+  Prometheus   http://127.0.0.1:$(env_get PROMETHEUS_PORT 9090)
 
 后续步骤：
   1) 启动管理台：cd management-ui && npm ci && npm run dev   （http://localhost:5173）
   2) 启动客户端：cd app && npm ci && npm run dev
   3) 客户端登录页「服务器地址」填 http://127.0.0.1:8080
   4) 自验证清单：docs/validation.md  ·  部署与运维：docs/delivery/
-  5) 监控栈：scripts/quickstart.sh monitoring up   （Grafana http://localhost:3000）
+  5) 日志聚合（仅 Linux）：scripts/quickstart.sh up --with-logs
 EOF
 }
 
@@ -181,6 +197,21 @@ EOF
   chmod 600 "$OBS_DIR/alertmanager/alertmanager.yml" 2>/dev/null || true
 }
 
+# 监控栈所需的环境变量（幂等写入 .env.quickstart）
+ensure_monitoring_env() {
+  ensure_env_var METRICS_TOKEN "$(random_secret)"
+  ensure_env_var GRAFANA_ADMIN_PASSWORD "$(random_secret)"
+  ensure_env_var ALERT_EMAIL_FROM huagent-alerts@localhost
+  ensure_env_var ALERT_EMAIL_TO alerts@example.com
+  ensure_env_var SMTP_SMARTHOST mailpit:1025
+  ensure_env_var SMTP_REQUIRE_TLS false
+  ensure_env_var HUAGENT_METRICS_TARGET api:8080
+  if [[ -n "${HUAGENT_METRICS_TARGET:-}" ]]; then
+    sed -i.bak "s|^HUAGENT_METRICS_TARGET=.*|HUAGENT_METRICS_TARGET=${HUAGENT_METRICS_TARGET}|" "$ENV_FILE"
+    rm -f "$ENV_FILE.bak"
+  fi
+}
+
 cmd_monitoring() {
   local action="${1:-up}" with_logs=0
   shift || true
@@ -196,26 +227,18 @@ cmd_monitoring() {
 
   case "$action" in
     up)
-      ensure_env_var METRICS_TOKEN "$(random_secret)"
-      ensure_env_var GRAFANA_ADMIN_PASSWORD "$(random_secret)"
-      ensure_env_var ALERT_EMAIL_FROM huagent-alerts@localhost
-      ensure_env_var ALERT_EMAIL_TO alerts@example.com
-      ensure_env_var SMTP_SMARTHOST mailpit:1025
-      ensure_env_var SMTP_REQUIRE_TLS false
-      ensure_env_var HUAGENT_METRICS_TARGET api:8080
-      if [[ -n "${HUAGENT_METRICS_TARGET:-}" ]]; then
-        sed -i.bak "s|^HUAGENT_METRICS_TARGET=.*|HUAGENT_METRICS_TARGET=${HUAGENT_METRICS_TARGET}|" "$ENV_FILE"
-        rm -f "$ENV_FILE.bak"
-      fi
+      ensure_monitoring_env
       ensure_observability_files
-      banner "启动监控栈（Prometheus / Grafana / Alertmanager${with_logs:+ / Loki}）"
-      local profiles=(--profile mail)
+      banner "启动监控栈（Prometheus / Grafana / Alertmanager / Mailpit${with_logs:+ / Loki}）"
+      local profiles=(--profile monitoring --profile mail)
       [[ $with_logs -eq 1 ]] && profiles+=(--profile logs)
       local services=(prometheus alertmanager grafana mailpit)
       [[ $with_logs -eq 1 ]] && services+=(loki promtail)
-      # 先重建 api 以加载 HUAGENT_METRICS_TOKEN，再起监控组件
-      "${COMPOSE_ALL[@]}" "${profiles[@]}" up -d api
-      "${COMPOSE_ALL[@]}" "${profiles[@]}" up -d "${services[@]}"
+      # 若 API 容器已在运行，先重建以加载最新的 HUAGENT_METRICS_TOKEN
+      if "${COMPOSE[@]}" --profile app ps --status running --services 2>/dev/null | grep -qx api; then
+        "${COMPOSE[@]}" --profile app up -d api
+      fi
+      "${COMPOSE[@]}" "${profiles[@]}" up -d "${services[@]}"
       sleep 3
       cmd_monitoring_status
       cat <<EOF
@@ -228,11 +251,11 @@ Alertmanager   http://localhost:$(env_get ALERTMANAGER_PORT 9093)
 EOF
       ;;
     down)
-      "${COMPOSE_ALL[@]}" --profile mail --profile logs rm -sf prometheus alertmanager grafana mailpit loki promtail
+      "${COMPOSE[@]}" --profile monitoring --profile mail --profile logs rm -sf prometheus alertmanager grafana mailpit loki promtail
       echo "监控栈已停止（业务服务与数据卷未受影响）"
       ;;
     status) cmd_monitoring_status ;;
-    logs) "${COMPOSE_ALL[@]}" --profile mail --profile logs logs -f --tail=100 prometheus alertmanager grafana ;;
+    logs) "${COMPOSE[@]}" --profile monitoring --profile mail logs -f --tail=100 prometheus alertmanager grafana ;;
     *) fail "用法：scripts/quickstart.sh monitoring {up|down|status|logs} [--with-logs] [--target host:port]" ;;
   esac
 }
@@ -243,10 +266,15 @@ cmd_monitoring_status() {
   targets="$(curl -fsS "$prometheus/api/v1/targets" 2>/dev/null || true)"
   local scrape="", api=""
   if [[ -n "$targets" ]]; then
-    if printf '%s' "$targets" | grep -q '"job":"hu-agent-api","health":"up"\\|"health":"up","job":"hu-agent-api"'; then
-      scrape="UP"
+    # 单行 JSON：同一目标对象里 scrapePool 与 health 之间只有字符串字段，无嵌套 }
+    if printf '%s' "$targets" | grep -q '"scrapePool":"hu-agent-api"'; then
+      if printf '%s' "$targets" | grep -q '"scrapePool":"hu-agent-api"[^}]*"health":"up"'; then
+        scrape="UP"
+      else
+        scrape="DOWN（检查抓取目标与 METRICS_TOKEN 是否与 api 一致）"
+      fi
     else
-      scrape="DOWN（检查抓取目标与 METRICS_TOKEN 是否与 api 一致）"
+      scrape="未找到（检查 HUAGENT_METRICS_TARGET 与 Prometheus 配置）"
     fi
     api="$targets"
   fi
@@ -257,7 +285,7 @@ cmd_monitoring_status() {
   return 0
 }
 
-cmd_down() { require_docker; ensure_env_file; "${COMPOSE[@]}" down "$@"; }
+cmd_down() { require_docker; ensure_env_file; "${COMPOSE[@]}" "${COMPOSE_PROFILES[@]}" down "$@"; }
 
 cmd_reset() {
   require_docker
@@ -266,15 +294,15 @@ cmd_reset() {
 '
   read -r -p "输入 yes 确认: " reply
   [[ "$reply" == "yes" ]] || fail "已取消"
-  "${COMPOSE[@]}" down -v
+  "${COMPOSE[@]}" "${COMPOSE_PROFILES[@]}" down -v
   echo "已删除数据卷；下次 up 会重新初始化。"
 }
-cmd_logs() { require_docker; ensure_env_file; "${COMPOSE[@]}" logs -f --tail=200 "$@"; }
+cmd_logs() { require_docker; ensure_env_file; "${COMPOSE[@]}" "${COMPOSE_PROFILES[@]}" logs -f --tail=200 "$@"; }
 
 cmd_admin() {
   require_docker
   ensure_env_file
-  "${COMPOSE[@]}" exec -T api huagent-admin "$@"
+  "${COMPOSE[@]}" --profile app exec -T api huagent-admin "$@"
 }
 
 case "${1:-up}" in

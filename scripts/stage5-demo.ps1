@@ -14,7 +14,8 @@
 param(
   [string]$BaseUrl = "http://127.0.0.1:8080",
   [string]$Password = "Str0ng-Passphrase-2026",
-  [string]$PgContainer = "huagent-postgres",
+  # 本地开发便捷通道：直连 compose 的 postgres 服务标记系统管理员
+  [string]$PgService = "postgres",
   # 保留已发布资源（跳过最后的软删除），供客户端市场联调使用
   [switch]$KeepResource
 )
@@ -102,7 +103,8 @@ $outsider = EnsureUser "outsider@example.com" "无关用户"
 Ok "4 个账号就绪"
 
 Step "把 sysadmin 标记为系统管理员（本地开发便捷通道）"
-$null = docker exec $PgContainer psql -U huagent -d huagent -c "update users set is_system_admin = true where email = 'sysadmin@example.com'"
+$ComposeFile = Join-Path $PSScriptRoot ".." "docker" "compose.yaml"
+$null = docker compose -f $ComposeFile exec -T $PgService psql -U huagent -d huagent -c "update users set is_system_admin = true where email = 'sysadmin@example.com'"
 Ok "is_system_admin = true"
 
 $suffix = Get-Random -Minimum 1000 -Maximum 9999
