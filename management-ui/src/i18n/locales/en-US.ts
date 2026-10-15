@@ -1,5 +1,10 @@
 export default {
   app: { name: 'hu-agent Console' },
+  theme: {
+    system: 'System',
+    light: 'Light',
+    dark: 'Dark',
+  },
   menu: {
     dashboard: 'Overview',
     approvals: 'Approvals',

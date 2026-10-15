@@ -11,6 +11,7 @@ import { ssoApi } from '../api/endpoints'
 import { useSession } from '../auth/SessionProvider'
 import { useAsync } from '../lib/useAsync'
 import i18n from '../i18n'
+import { useTheme } from '../app/theme'
 import { errorText } from '../lib/errorText'
 
 interface FormValues {
@@ -21,6 +22,7 @@ interface FormValues {
 export default function Login() {
   const { t } = useTranslation()
   const { status, login } = useSession()
+  const { preference: themePreference, setPreference: setThemePreference } = useTheme()
   const location = useLocation()
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -91,6 +93,16 @@ export default function Login() {
           </>
         ) : null}
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'center' }}>
+          <Segmented
+            size="small"
+            value={themePreference}
+            onChange={(value) => setThemePreference(String(value) as 'system' | 'light' | 'dark')}
+            options={[
+              { label: t('theme.system'), value: 'system' },
+              { label: t('theme.light'), value: 'light' },
+              { label: t('theme.dark'), value: 'dark' },
+            ]}
+          />
           <Segmented
             size="small"
             value={i18n.language}
