@@ -333,6 +333,11 @@
     outline-offset: 3px;
   }
 
+  .ui-icon-btn:focus-visible {
+    outline: 2px solid var(--ui-accent-ring);
+    outline-offset: 2px;
+  }
+
   .ui-btn-primary {
     color: var(--ui-accent-contrast);
     background: linear-gradient(180deg, rgb(126 154 255 / 0.95), rgb(72 96 230 / 0.9));
