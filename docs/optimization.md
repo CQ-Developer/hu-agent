@@ -196,6 +196,10 @@ interface HistorySummarizer {
 **导航重构已实施**：顶部只保留「对话 / 市场」，模型/Skill/MCP/工作空间/云同步/用量/权限/关于收进设置弹层
 （分组：工作区 / 团队与云 / 系统）。页面底色为中性浅灰渐变（无彩色光斑），元素无鼠标跟随光环，
 按钮不做磁吸位移（悬停移位会导致点击丢失）。
+
+**元素细化（2026-10-15 晚）**：全部原生 `<select>`（15 处）替换为自研玻璃下拉 `GlassSelect`
+（原生弹出层在深色主题下白底浅字不可读）；对话气泡改为悬浮玻璃——用户气泡 `glass glass-accent`
+（强调色透明玻璃）、助手气泡 `glass glass-bubble`（小一号悬浮投影 + 入场动画）。
 画廊入口：`HUAGENT_RENDERER_PORT=5179 npx electron-vite dev --rendererOnly` 后访问 `/gallery.html`；
 主应用用 `@source not './gallery'` 排除画廊类名，画廊用独立的 `gallery.css` 入口。
 

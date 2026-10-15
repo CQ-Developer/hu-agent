@@ -15,7 +15,7 @@ export default function MessageBubble({ role, text, reasoning, streaming = false
   if (role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[80%] whitespace-pre-wrap rounded-card rounded-br-md bg-accent px-4 py-2.5 text-sm text-accent-contrast shadow-[0_12px_28px_-10px_var(--ui-accent-ring)]">
+        <div className="glass glass-accent glass-bubble max-w-[80%] animate-fade-up whitespace-pre-wrap rounded-card rounded-br-md px-4 py-2.5 text-sm text-accent-contrast">
           {text}
         </div>
       </div>
@@ -26,7 +26,7 @@ export default function MessageBubble({ role, text, reasoning, streaming = false
 
   return (
     <div className="flex justify-start">
-      <div className="glass max-w-[85%] rounded-card rounded-bl-md px-4 py-2.5 text-sm">
+      <div className="glass glass-bubble max-w-[85%] animate-fade-up rounded-card rounded-bl-md px-4 py-2.5 text-sm">
         {reasoning && (
           <details
             open={streaming}

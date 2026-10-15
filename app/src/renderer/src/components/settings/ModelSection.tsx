@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { ApiTypeView, ModelEntryView, SettingsView } from '@shared/ipc'
 import { t } from '../../i18n'
+import GlassSelect from '../ui/GlassSelect'
 
 interface FormState {
   id: string
@@ -148,15 +149,16 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
           value={form.id}
           onChange={(event) => setForm({ ...form, id: event.target.value })}
         />
-        <select
-          className="w-full rounded border border-line-strong px-2 py-1.5 text-sm"
+        <GlassSelect
+          className="w-full"
           value={form.apiType}
-          onChange={(event) => setForm({ ...form, apiType: event.target.value as ApiTypeView })}
-        >
-          <option value="openai-chat">OpenAI Chat Completions</option>
-          <option value="openai-responses">OpenAI Responses</option>
-          <option value="anthropic-messages">Anthropic Messages</option>
-        </select>
+          onChange={(value) => setForm({ ...form, apiType: value as ApiTypeView })}
+          options={[
+            { value: 'openai-chat', label: 'OpenAI Chat Completions' },
+            { value: 'openai-responses', label: 'OpenAI Responses' },
+            { value: 'anthropic-messages', label: 'Anthropic Messages' },
+          ]}
+        />
         <input
           className="w-full rounded border border-line-strong px-2 py-1.5 text-sm"
           placeholder={t("Base URL（如 https://api.deepseek.com）")}

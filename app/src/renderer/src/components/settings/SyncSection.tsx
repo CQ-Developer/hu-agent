@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { SyncSettingsView, SyncStatusView, SyncVersionView } from '@shared/ipc'
 import { t } from '../../i18n'
+import GlassSelect from '../ui/GlassSelect'
 
 const STATUS_LABEL: Record<string, string> = {
   unlinked: t('未关联服务端工作空间'),
@@ -139,26 +140,22 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
           </button>
           <label className="flex items-center gap-2 text-xs text-fg-muted">
             {t('定时同步')}
-            <select
-              className="rounded border border-line-strong px-2 py-1"
+            <GlassSelect
+              small
+              className="w-28"
               value={settings?.schedule ?? 'off'}
-              onChange={(event) =>
+              onChange={(value) =>
                 void run(async () => {
                   setSettings(
                     await window.huAgent.sync.setSettings({
-                      schedule: event.target.value as SyncSettingsView['schedule'],
+                      schedule: value as SyncSettingsView['schedule'],
                       includeSessions: settings?.includeSessions !== false,
                     }),
                   )
                 })
               }
-            >
-              {SCHEDULE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={SCHEDULE_OPTIONS}
+            />
           </label>
         </div>
         {message && <p className="mt-2 text-xs text-fg-muted">{message}</p>}

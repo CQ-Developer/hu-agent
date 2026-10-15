@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { MarketMcpDetailView, MarketMcpServerView } from '@shared/ipc'
 import { t } from '../../i18n'
+import GlassSelect from '../ui/GlassSelect'
 import { MARKET_STATE_LABEL } from './market_labels'
 
 /** MCP 市场（design 5.8.3 / 6.5）：浏览 → 详情（config_template/env_schema）→ 安装引导填密钥。 */
@@ -67,14 +68,16 @@ export default function McpMarketSection({ onChanged }: { onChanged: () => void 
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <select
-          className="rounded border border-line-strong px-2 py-1.5 text-sm"
+        <GlassSelect
+          small
+          className="w-32"
           value={sort}
-          onChange={(event) => setSort(event.target.value as typeof sort)}
-        >
-          <option value="updated">{t('按更新')}</option>
-          <option value="name">{t('按名称')}</option>
-        </select>
+          onChange={(value) => setSort(value as typeof sort)}
+          options={[
+            { value: 'updated', label: t('按更新') },
+            { value: 'name', label: t('按名称') },
+          ]}
+        />
         <button
           type="button"
           disabled={busy}

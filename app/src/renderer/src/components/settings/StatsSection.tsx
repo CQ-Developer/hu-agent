@@ -11,6 +11,7 @@ import type {
 
 import { csvBlob, toCsv } from '../../lib/csv'
 import { t } from '../../i18n'
+import GlassSelect from '../ui/GlassSelect'
 
 const GROUP_BY_OPTIONS: Record<StatsScope, { value: UsageGroupBy; label: string }[]> = {
   self: [
@@ -168,55 +169,44 @@ export default function StatsSection() {
       <div className="flex flex-wrap items-end gap-2 text-xs">
         <label className="flex flex-col gap-1">
           {t('范围')}
-          <select
-            className="rounded border border-line-strong px-2 py-1.5 text-sm"
+          <GlassSelect
+            className="w-28"
             value={scope}
-            onChange={(event) => {
-              const next = event.target.value as StatsScope
-              setScope(next)
-              setGroupBy(GROUP_BY_OPTIONS[next][0]!.value)
+            onChange={(next) => {
+              const target = next as StatsScope
+              setScope(target)
+              setGroupBy(GROUP_BY_OPTIONS[target][0]!.value)
             }}
-          >
-            {scopeOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            options={scopeOptions}
+          />
         </label>
 
         {scope === 'team' && (
           <label className="flex flex-col gap-1">
             {t('团队')}
-            <select
-              className="rounded border border-line-strong px-2 py-1.5 text-sm"
+            <GlassSelect
+              className="w-44"
               value={teamId}
-              onChange={(event) => setTeamId(event.target.value)}
-            >
-              <option value="">{t('（选择团队）')}</option>
-              {teams.map((team) => (
-                <option key={team.id} value={team.id}>
-                  {team.name}
-                </option>
-              ))}
-            </select>
+              onChange={setTeamId}
+              options={[
+                { value: '', label: t('（选择团队）') },
+                ...teams.map((team) => ({ value: team.id, label: team.name })),
+              ]}
+            />
           </label>
         )}
         {scope === 'org' && (
           <label className="flex flex-col gap-1">
             {t('组织')}
-            <select
-              className="rounded border border-line-strong px-2 py-1.5 text-sm"
+            <GlassSelect
+              className="w-44"
               value={orgId}
-              onChange={(event) => setOrgId(event.target.value)}
-            >
-              <option value="">{t('（选择组织）')}</option>
-              {orgs.map((org) => (
-                <option key={org.id} value={org.id}>
-                  {org.name}
-                </option>
-              ))}
-            </select>
+              onChange={setOrgId}
+              options={[
+                { value: '', label: t('（选择组织）') },
+                ...orgs.map((org) => ({ value: org.id, label: org.name })),
+              ]}
+            />
           </label>
         )}
 
@@ -240,17 +230,12 @@ export default function StatsSection() {
         </label>
         <label className="flex flex-col gap-1">
           {t('维度')}
-          <select
-            className="rounded border border-line-strong px-2 py-1.5 text-sm"
+          <GlassSelect
+            className="w-28"
             value={groupBy}
-            onChange={(event) => setGroupBy(event.target.value as UsageGroupBy)}
-          >
-            {GROUP_BY_OPTIONS[scope].map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => setGroupBy(value as UsageGroupBy)}
+            options={GROUP_BY_OPTIONS[scope]}
+          />
         </label>
 
         <button
