@@ -293,7 +293,7 @@ sequenceDiagram
 
 **工作空间隔离与密钥**
 
-- 每个工作空间的权限引擎、会话与产物存储、技能段、遥测出口在**每回合装配**（`ipc.ts` 的 `context.createRunner`）；
+- 每个工作空间的权限引擎、会话与产物存储、技能段、遥测出口在**每回合装配**（`ipc/sessions.ts` 的 `agent:send` → `context.createRunner`）；
 - 个人模式：密钥在本机密钥库（safeStorage），**按请求注入 pi**，不写进 `models.json`；
 - 企业模式：密钥只在服务端，由 `streamProxy` 供流（客户端不持有）。
 
@@ -436,7 +436,7 @@ flowchart TB
 
 #### 5.2.5 并发与取消
 
-- 同一会话同一时刻只允许一个活跃 turn：`ipc.ts` 的 `activeTurns` 挡住重复发送（提示"该会话已有运行中的任务"）；
+- 同一会话同一时刻只允许一个活跃 turn：`ipc/sessions.ts` 的 `activeTurns` 挡住重复发送（提示"该会话已有运行中的任务"）；
 - 取消信号通过 `AbortController` 传播到 `conversation.abort()`；
 - 同一 turn 内的工具并行/串行策略由 pi-durable 的工具执行器决定；MCP 工具按其 client 的并发约束执行。
 
