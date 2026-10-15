@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import type { SessionMetaView, SessionSearchHitView, WorkspaceInfoView } from '@shared/ipc'
 import { t } from '../i18n'
+import GlassSelect from './ui/GlassSelect'
 
 interface Props {
   sessions: SessionMetaView[]
@@ -53,18 +54,14 @@ export default function Sidebar({
       </div>
 
       <div className="flex items-center gap-1 px-3 pb-2">
-        <select
+        <GlassSelect
+          small
+          className="min-w-0 flex-1"
           value={workspace?.id ?? ''}
-          onChange={(event) => onSwitchWorkspace(event.target.value)}
-          className="min-w-0 flex-1 truncate rounded-md border border-line-strong bg-surface-2 px-2 py-1 text-xs"
+          onChange={onSwitchWorkspace}
           title={workspace?.root}
-        >
-          {workspaces.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
+          options={workspaces.map((item) => ({ value: item.id, label: item.name }))}
+        />
         <button
           type="button"
           onClick={onPickWorkspace}

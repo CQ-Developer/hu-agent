@@ -9,6 +9,7 @@ import type {
   WorkspaceInfoView,
 } from '@shared/ipc'
 import { applyResolved, t } from '../../i18n'
+import GlassSelect from '../ui/GlassSelect'
 
 /** 语言设置（design 5.13 / D13）：默认跟随系统，切换后立即生效并同步到服务端（通知/邮件用）。 */
 /** 数据与隐私（design 6.10.5）：导出本人数据、申请注销账号。 */
@@ -151,15 +152,17 @@ function LocaleSetting() {
     <section>
       <h3 className="mb-2 text-xs font-semibold text-fg-muted">{t('语言')}</h3>
       <div className="flex items-center gap-2 text-xs">
-        <select
-          className="rounded border border-line-strong bg-surface-2 px-2 py-1"
+        <GlassSelect
+          small
+          className="w-44"
           value={locale?.preference ?? 'system'}
-          onChange={(event) => void change(event.target.value as LocalePreferenceView)}
-        >
-          <option value="system">{t('跟随系统（{0}）', { 0: locale?.system === 'en-US' ? 'English' : t('中文') })}</option>
-          <option value="zh-CN">{t('简体中文')}</option>
-          <option value="en-US">English</option>
-        </select>
+          onChange={(value) => void change(value as LocalePreferenceView)}
+          options={[
+            { value: 'system', label: t('跟随系统（{0}）', { 0: locale?.system === 'en-US' ? 'English' : t('中文') }) },
+            { value: 'zh-CN', label: t('简体中文') },
+            { value: 'en-US', label: 'English' },
+          ]}
+        />
         <span className="text-fg-subtle">{t('切换语言立即生效，并用于通知与邮件')}</span>
       </div>
     </section>

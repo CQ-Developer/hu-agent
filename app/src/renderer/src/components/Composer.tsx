@@ -2,6 +2,7 @@ import { useState } from 'react'
 
 import type { ModelOptionView, ReasoningEffortView, SessionOptionsView, SessionUsageView } from '@shared/ipc'
 import { t } from '../i18n'
+import GlassSelect from './ui/GlassSelect'
 
 interface Props {
   running: boolean
@@ -41,35 +42,35 @@ export default function Composer({ running, models, options, stats, onOptionsCha
   return (
     <div className="glass rounded-none border-t border-line px-4 py-3 shadow-none">
       <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-fg-muted">
-        <select
+        <GlassSelect
+          small
+          placement="up"
+          className="w-56"
           value={selected?.target ?? ''}
-          onChange={(event) => options && onOptionsChange({ ...options, model: event.target.value })}
-          className="ui-field w-auto px-3 py-1.5 text-xs"
-          title={t("本会话使用的模型")}
-        >
-          {models.length === 0 && <option value="">{t('（未配置模型）')}</option>}
-          {models.map((model) => (
-            <option key={model.target} value={model.target}>
-              {model.providerId} / {model.name}
-            </option>
-          ))}
-        </select>
+          onChange={(next) => options && onOptionsChange({ ...options, model: next })}
+          title={t('本会话使用的模型')}
+          options={
+            models.length === 0
+              ? [{ value: '', label: t('（未配置模型）') }]
+              : models.map((model) => ({ value: model.target, label: `${model.providerId} / ${model.name}` }))
+          }
+        />
 
-        <select
+        <GlassSelect
+          small
+          placement="up"
+          className="w-28"
           value={options?.reasoningEffort ?? 'off'}
           disabled={effortDisabled}
-          onChange={(event) =>
-            options && onOptionsChange({ ...options, reasoningEffort: event.target.value as ReasoningEffortView })
+          onChange={(next) =>
+            options && onOptionsChange({ ...options, reasoningEffort: next as ReasoningEffortView })
           }
-          className="ui-field w-auto px-3 py-1.5 text-xs disabled:opacity-40"
           title={effortDisabled ? t('当前模型未声明支持思考强度（可在模型设置中开启）') : t('思考强度')}
-        >
-          {(['off', 'low', 'medium', 'high'] as const).map((level) => (
-            <option key={level} value={level}>
-              {EFFORT_LABELS[level]}
-            </option>
-          ))}
-        </select>
+          options={(['off', 'low', 'medium', 'high'] as const).map((level) => ({
+            value: level,
+            label: EFFORT_LABELS[level],
+          }))}
+        />
 
         {stats && (
           <span className="ml-auto tabular-nums">

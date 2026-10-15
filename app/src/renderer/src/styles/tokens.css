@@ -294,6 +294,31 @@
     z-index: 3;
   }
 
+  /* 强调色玻璃（用户消息气泡、选中态强调块） */
+  .glass-accent {
+    background: linear-gradient(
+      160deg,
+      rgb(126 154 255 / 0.62) 0%,
+      rgb(72 96 230 / 0.42) 52%,
+      rgb(126 154 255 / 0.52) 100%
+    );
+  }
+
+  /* 气泡：小一号的悬浮投影，避免大面板阴影压住对话 */
+  .glass-bubble {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.5),
+      inset 0 -1px 0 rgb(255 255 255 / 0.1),
+      0 1px 2px rgb(20 25 45 / 0.05),
+      0 10px 24px -12px rgb(20 25 45 / 0.28);
+  }
+
+  /* 原生 select 的兜底（尚未迁移处）：选项跟随主题 */
+  select option {
+    background-color: var(--ui-canvas);
+    color: var(--ui-fg);
+  }
+
   /* ---------------- 按钮 ---------------- */
 
   .ui-btn {

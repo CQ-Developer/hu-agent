@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { McpSaveInput, McpServerView, McpTestResultView } from '@shared/ipc'
 import { t } from '../../i18n'
+import GlassSelect from '../ui/GlassSelect'
 
 interface FormState {
   name: string
@@ -239,15 +240,17 @@ export default function McpSection({ onChanged }: { onChanged: () => void }) {
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
           />
-          <select
-            className="rounded border border-line-strong px-2 py-1.5 text-sm"
+          <GlassSelect
+            small
+            className="w-40"
             value={form.transport}
-            onChange={(event) => setForm({ ...form, transport: event.target.value as FormState['transport'] })}
-          >
-            <option value="stdio">stdio</option>
-            <option value="http">{t('http（阶段 3-05）')}</option>
-            <option value="sse">{t('sse（阶段 3-05）')}</option>
-          </select>
+            onChange={(value) => setForm({ ...form, transport: value as FormState['transport'] })}
+            options={[
+              { value: 'stdio', label: 'stdio' },
+              { value: 'http', label: t('http（阶段 3-05）') },
+              { value: 'sse', label: t('sse（阶段 3-05）') },
+            ]}
+          />
         </div>
 
         {form.transport === 'stdio' ? (
@@ -290,26 +293,30 @@ export default function McpSection({ onChanged }: { onChanged: () => void }) {
         <div className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
           <label className="flex items-center gap-1">
             {t('保存到')}
-            <select
-              className="rounded border border-line-strong px-2 py-1"
+            <GlassSelect
+              small
+              className="w-36"
               value={form.scope}
-              onChange={(event) => setForm({ ...form, scope: event.target.value as FormState['scope'] })}
-            >
-              <option value="global">{t('全局配置')}</option>
-              <option value="workspace">{t('当前工作空间')}</option>
-            </select>
+              onChange={(value) => setForm({ ...form, scope: value as FormState['scope'] })}
+              options={[
+                { value: 'global', label: t('全局配置') },
+                { value: 'workspace', label: t('当前工作空间') },
+              ]}
+            />
           </label>
           <label className="flex items-center gap-1">
             {t('审批')}
-            <select
-              className="rounded border border-line-strong px-2 py-1"
+            <GlassSelect
+              small
+              className="w-40"
               value={form.approval}
-              onChange={(event) => setForm({ ...form, approval: event.target.value as FormState['approval'] })}
-            >
-              <option value="ask">{t('每次会话首次询问')}</option>
-              <option value="session">{t('本会话放行')}</option>
-              <option value="always">{t('始终放行')}</option>
-            </select>
+              onChange={(value) => setForm({ ...form, approval: value as FormState['approval'] })}
+              options={[
+                { value: 'ask', label: t('每次会话首次询问') },
+                { value: 'session', label: t('本会话放行') },
+                { value: 'always', label: t('始终放行') },
+              ]}
+            />
           </label>
         </div>
 

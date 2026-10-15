@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { InstalledSkillView, MarketDetailView, MarketSkillView } from '@shared/ipc'
 import { t } from '../../i18n'
+import GlassSelect from '../ui/GlassSelect'
 import McpMarketSection from './McpMarketSection'
 import { MARKET_STATE_LABEL } from './market_labels'
 
@@ -87,15 +88,17 @@ export default function MarketSection({ onChanged }: { onChanged: () => void }) 
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <select
-          className="rounded border border-line-strong px-2 py-1.5 text-sm"
+        <GlassSelect
+          small
+          className="w-32"
           value={sort}
-          onChange={(event) => setSort(event.target.value as typeof sort)}
-        >
-          <option value="updated">{t('按更新')}</option>
-          <option value="name">{t('按名称')}</option>
-          <option value="downloads">{t('按下载量')}</option>
-        </select>
+          onChange={(value) => setSort(value as typeof sort)}
+          options={[
+            { value: 'updated', label: t('按更新') },
+            { value: 'name', label: t('按名称') },
+            { value: 'downloads', label: t('按下载量') },
+          ]}
+        />
         <button
           type="button"
           disabled={busy}
