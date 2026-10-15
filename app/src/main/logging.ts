@@ -79,7 +79,7 @@ export class FileLogger {
     try {
       if (!existsSync(this.file) || statSync(this.file).size < this.maxBytes) return
     } catch {
-      return
+      return // 日志文件不可读：跳过本次滚动
     }
     // app.log → app.log.1 → app.log.2 …，最多保留 keepFiles 份
     try {

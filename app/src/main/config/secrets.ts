@@ -78,6 +78,6 @@ function decode(encoded: string): string {
   try {
     return safeStorage.decryptString(Buffer.from(encoded, 'base64'))
   } catch {
-    return ''
+    return '' // 换机器/换用户后不可解密：视为未配置，由用户重新填写
   }
 }

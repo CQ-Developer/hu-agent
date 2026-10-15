@@ -14,7 +14,7 @@ async function readJson(file: string): Promise<Record<string, unknown> | null> {
   try {
     return JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>
   } catch {
-    return null
+    return null // 缺失或损坏：按未配置处理
   }
 }
 

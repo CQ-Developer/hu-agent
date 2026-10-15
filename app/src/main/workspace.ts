@@ -89,6 +89,7 @@ export class WorkspaceManager {
         this.index = { workspaces: parsed.workspaces, activeId: parsed.activeId ?? '' }
       }
     } catch {
+      // 索引缺失/损坏：从空索引开始（init 会重建默认工作空间）
       this.index = { workspaces: [], activeId: '' }
     }
   }
@@ -115,6 +116,7 @@ export class WorkspaceManager {
         }
       }
     } catch {
+      // 元数据缺失/损坏：按新工作空间处理
       record = null
     }
     if (!record) {
@@ -137,6 +139,7 @@ export class WorkspaceManager {
     try {
       await readFile(metaFile)
     } catch {
+      // 首次进入该工作空间：写入元数据
       await writeFile(metaFile, JSON.stringify(record, null, 2), 'utf8')
     }
 
