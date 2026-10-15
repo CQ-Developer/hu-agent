@@ -74,34 +74,38 @@ class ResetPasswordOut(ApiModel):
     expires_at: datetime
 
 
-_USER_COLUMNS = """
-    id, email, display_name, status, is_system_admin, locale, created_at,
-    deletion_requested_at, purged_at, (password_hash IS NOT NULL) AS has_password,
-    CASE WHEN deletion_requested_at IS NULL THEN NULL
-         ELSE deletion_requested_at + make_interval(days => :grace_days) END AS purge_at
-"""
-
-_USER_FILTERS = """
-    (:q = '' OR email::text ILIKE :pattern OR display_name ILIKE :pattern)
-    AND (
-      CAST(:status AS text) IS NULL
-      OR (:status = 'active' AND status = 'active' AND deletion_requested_at IS NULL)
-      OR (:status = 'disabled' AND status = 'disabled' AND deletion_requested_at IS NULL)
-      OR (:status = 'pending_deletion' AND deletion_requested_at IS NOT NULL AND purged_at IS NULL)
-    )
-"""
-
+#: 列表与计数的 WHERE 保持同一份条件（写两遍是为了静态 SQL：动态拼接会被 bandit B608 标记）
 SELECT_USERS = text(
-    f"""
-    SELECT {_USER_COLUMNS}
+    """
+    SELECT id, email, display_name, status, is_system_admin, locale, created_at,
+           deletion_requested_at, purged_at, (password_hash IS NOT NULL) AS has_password,
+           CASE WHEN deletion_requested_at IS NULL THEN NULL
+                ELSE deletion_requested_at + make_interval(days => :grace_days) END AS purge_at
     FROM users
-    WHERE {_USER_FILTERS}
+    WHERE (:q = '' OR email::text ILIKE :pattern OR display_name ILIKE :pattern)
+      AND (
+        CAST(:status AS text) IS NULL
+        OR (:status = 'active' AND status = 'active' AND deletion_requested_at IS NULL)
+        OR (:status = 'disabled' AND status = 'disabled' AND deletion_requested_at IS NULL)
+        OR (:status = 'pending_deletion' AND deletion_requested_at IS NOT NULL AND purged_at IS NULL)
+      )
     ORDER BY created_at DESC
     LIMIT :limit OFFSET :offset
-    """  # noqa: S608 —— 拼接的只是模块内常量，参数均走绑定
+    """
 )
 
-COUNT_USERS = text(f"SELECT count(*) FROM users WHERE {_USER_FILTERS}")  # noqa: S608 —— 同上
+COUNT_USERS = text(
+    """
+    SELECT count(*) FROM users
+    WHERE (:q = '' OR email::text ILIKE :pattern OR display_name ILIKE :pattern)
+      AND (
+        CAST(:status AS text) IS NULL
+        OR (:status = 'active' AND status = 'active' AND deletion_requested_at IS NULL)
+        OR (:status = 'disabled' AND status = 'disabled' AND deletion_requested_at IS NULL)
+        OR (:status = 'pending_deletion' AND deletion_requested_at IS NOT NULL AND purged_at IS NULL)
+      )
+    """
+)
 
 SELECT_TARGET = text(
     """
