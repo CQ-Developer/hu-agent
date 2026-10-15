@@ -16,7 +16,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from huagent.api.deps import Actor, client_ip, get_actor
+from huagent.api.deps import Actor, client_ip, get_actor, require_system_admin
 from huagent.api.schemas import ApiModel
 from huagent.common.crypto import SecretCipher, get_secret_cipher
 from huagent.common.errors import AppError, ErrorCode
@@ -128,14 +128,9 @@ REVOKE_PROVIDER_SESSIONS = text(
 )
 
 
-def _require_system_admin(actor: Actor) -> None:
-    if not actor.is_system_admin:
-        raise AppError(ErrorCode.FORBIDDEN, "需要系统管理员权限")
-
-
 @router.get("", response_model=list[ProviderOut])
 async def list_providers(actor: ActorDep, session: SessionDep) -> list[ProviderOut]:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     rows = (await session.execute(SELECT_PROVIDERS)).mappings().all()
     return [_to_out(row) for row in rows]
 
@@ -149,7 +144,7 @@ async def create_provider(
     http: HttpDep,
     cipher: CipherDep,
 ) -> ProviderOut:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     issuer = _validate_issuer(payload.issuer_url)
     # 校验发现文档可达（填错 issuer 时立即报错）
     await fetch_discovery(http, issuer, force=True)
@@ -199,7 +194,7 @@ async def update_provider(
     http: HttpDep,
     cipher: CipherDep,
 ) -> ProviderOut:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     existing = (await session.execute(SELECT_PROVIDER, {"provider_id": provider_id})).mappings().first()
     if existing is None:
         raise AppError(ErrorCode.NOT_FOUND, "身份源不存在")
@@ -254,7 +249,7 @@ async def delete_provider(
     request: Request,
     session: SessionDep,
 ) -> dict[str, object]:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     existing = (await session.execute(SELECT_PROVIDER, {"provider_id": provider_id})).mappings().first()
     if existing is None:
         raise AppError(ErrorCode.NOT_FOUND, "身份源不存在")

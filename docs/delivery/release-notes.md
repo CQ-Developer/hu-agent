@@ -17,7 +17,7 @@
 
 - 客户端：Windows 10/11 x64、macOS 12+（Apple Silicon / Intel）；需可访问服务端（HTTPS 建议）。
 - 服务端：Linux（推荐）或 Windows + Docker；PostgreSQL 18、Redis 7、S3 兼容对象存储（MinIO 需本地源码构建，见 `docs/delivery/deployment.md`）、可选 Keycloak 26+。
-- 数据库：DDL 脚本 `V0001`–`V0005`（应用启动只校验版本，不自动迁移）。
+- 数据库：DDL 脚本 `V0001`–`V0006`（应用启动只校验版本，不自动迁移）。
 
 ## 3. 重要行为说明（务必先读）
 

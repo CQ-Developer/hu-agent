@@ -74,6 +74,16 @@ class InvitationOut(ApiModel):
     accept_token: str
 
 
+class PendingInvitationOut(ApiModel):
+    id: UUID
+    email: str
+    role: str
+    status: str
+    expires_at: datetime
+    created_at: datetime
+    invited_by_email: str | None
+
+
 SELECT_MY_TEAMS = text(
     """
     SELECT t.id, t.org_id, t.name, t.description, t.status,
@@ -371,6 +381,32 @@ async def invite_to_team(
     )
     await session.commit()
     return InvitationOut(**dict(row), type="team", accept_token=token)
+
+
+SELECT_PENDING_TEAM_INVITATIONS = text(
+    """
+    SELECT i.id, i.email, i.role, i.status, i.expires_at, i.created_at,
+           u.email AS invited_by_email
+    FROM invitations i
+    LEFT JOIN users u ON u.id = i.invited_by
+    WHERE i.team_id = :team_id AND i.status = 'pending' AND i.expires_at > now()
+    ORDER BY i.created_at DESC
+    """
+)
+
+
+@router.get("/teams/{team_id}/invitations", response_model=list[PendingInvitationOut])
+async def list_team_invitations(
+    team_id: UUID,
+    actor: ActorDep,
+    session: SessionDep,
+) -> list[PendingInvitationOut]:
+    """待处理邀请（design 6.3.4）：仅团队管理员可见，用于撤销。"""
+    await require_team_access(session, actor, team_id, admin=True)
+    rows = (
+        await session.execute(SELECT_PENDING_TEAM_INVITATIONS, {"team_id": team_id})
+    ).mappings().all()
+    return [PendingInvitationOut(**dict(row)) for row in rows]
 
 
 @router.patch("/teams/{team_id}/members/{user_id}")

@@ -35,6 +35,10 @@ def test_params_and_defaults() -> None:
     # 无审批意见：用模板默认值
     assert render_notification("approval.approved", "zh-CN", {"comment": None})[1] == "你的申请已通过。"
     assert render_notification("approval.approved", "en-US", {})[1] == "Your request was approved."
+    # 管理员禁用账号：带原因用原因，无原因用默认提示
+    assert render_notification("user.disabled", "zh-CN", {"reason": "安全事件排查"})[1] == "安全事件排查"
+    assert "系统管理员" in render_notification("user.disabled", "zh-CN", {})[1]
+    assert render_notification("user.restored", "en-US", {})[0] == "Account restored"
 
 
 def test_approval_type_is_localized() -> None:

@@ -7,7 +7,7 @@
 
 ### 新增
 
-- 可观测性一键部署（`docker/compose.observability.yaml` 叠加层 + `scripts/quickstart.sh monitoring up`）：
+- 可观测性一键部署（`docker/compose.yaml` 的 `monitoring` profile + `scripts/quickstart.sh` 系列入口）：
   Prometheus（12 条告警规则与 3 条记录规则开始随仓库分发）、Grafana（4 个预置看板：
   API 黄金指标 / 后台任务与业务数据 / 认证与 SSO / 日志）、Alertmanager（邮件路由，默认投递到内置
   Mailpit 收件箱；企业 SMTP 与 webhook 见文档）、可选 Loki + Promtail 日志聚合（profile: logs）。

@@ -19,6 +19,7 @@ from huagent.worker.jobs import (
     job_cleanup_snapshots,
     job_expire_invitations,
     job_maintain_partitions,
+    job_prune_password_reset_tokens,
     job_prune_usage_daily,
     job_purge_deleted_users,
     job_remind_approvals,
@@ -70,6 +71,8 @@ JOBS: tuple[JobSpec, ...] = (
     # design 6.10.5：注销宽限期到点后清理 PII；日聚合按保留策略清理
     JobSpec("user.purge", job_purge_deleted_users, "cron", hour=4, minute=0),
     JobSpec("usage.daily.prune", job_prune_usage_daily, "cron", hour=4, minute=30),
+    # design 6.10.1：密码重置令牌已用/过期 7 天后清理
+    JobSpec("password_reset.prune", job_prune_password_reset_tokens, "cron", hour=4, minute=45),
 )
 
 #: 供指标端点导出（api/routes/system.py）与告警规则使用

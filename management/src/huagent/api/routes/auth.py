@@ -70,6 +70,11 @@ class LogoutIn(ApiModel):
     device_id: str | None = None
 
 
+class PasswordResetIn(ApiModel):
+    token: str
+    password: str
+
+
 class UserOut(ApiModel):
     id: UUID
     email: str
@@ -171,6 +176,23 @@ INSERT_NOTIFICATION = text(
     INSERT INTO notifications (user_id, type, title, body, payload)
     VALUES (:user_id, :type, :title, :body, CAST(:payload AS jsonb))
     """
+)
+
+SELECT_RESET_TOKEN = text(
+    """
+    SELECT t.id, t.user_id, t.expires_at, t.used_at, u.email, u.purged_at
+    FROM password_reset_tokens t
+    JOIN users u ON u.id = t.user_id
+    WHERE t.token_hash = :token_hash
+    """
+)
+
+# 条件更新同时充当并发门禁：同一令牌只能兑换一次
+MARK_RESET_TOKEN_USED = text(
+    "UPDATE password_reset_tokens SET used_at = now() WHERE id = :id AND used_at IS NULL"
+)
+SET_PASSWORD = text(
+    "UPDATE users SET password_hash = :password_hash, updated_at = now() WHERE id = :user_id"
 )
 
 
@@ -464,3 +486,49 @@ async def logout(
     )
     await session.commit()
     return {"revoked": int(getattr(result, "rowcount", 0) or 0)}
+
+
+@router.post("/password/reset")
+async def reset_password(
+    payload: PasswordResetIn,
+    request: Request,
+    session: SessionDep,
+) -> dict[str, str]:
+    """一次性重置令牌兑换（design 6.10.1）：设置新密码并撤销该账号全部会话（公开接口）。
+
+    令牌由系统管理员在管理台签发（`POST /admin/users/{id}:reset-password`）；
+    自助「忘记密码」的邮件投递待邮件通道批次接入。
+    """
+    validate_password(payload.password)
+    row = (
+        await session.execute(
+            SELECT_RESET_TOKEN, {"token_hash": hash_refresh_token(payload.token)}
+        )
+    ).mappings().first()
+    if row is None:
+        raise AppError(ErrorCode.NOT_FOUND, "重置链接无效")
+    if row["purged_at"] is not None:
+        raise AppError(ErrorCode.VALIDATION_FAILED, "账号已完成注销清理")
+    expires_at: datetime = row["expires_at"]
+    if expires_at <= datetime.now(UTC):
+        raise AppError(ErrorCode.CONFLICT, "重置链接已过期，请联系管理员重新生成")
+
+    marked = await session.execute(MARK_RESET_TOKEN_USED, {"id": row["id"]})
+    if int(getattr(marked, "rowcount", 0) or 0) != 1:
+        raise AppError(ErrorCode.CONFLICT, "重置链接已被使用")
+    await session.execute(
+        SET_PASSWORD,
+        {"user_id": row["user_id"], "password_hash": hash_password(payload.password)},
+    )
+    revoked = await session.execute(REVOKE_ALL, {"user_id": row["user_id"]})
+    await record_audit(
+        session,
+        action="auth.password.reset",
+        actor_id=row["user_id"],
+        target_type="user",
+        target_id=str(row["user_id"]),
+        detail={"revokedTokens": int(getattr(revoked, "rowcount", 0) or 0)},
+        actor_ip=client_ip(request),
+    )
+    await session.commit()
+    return {"status": "ok"}

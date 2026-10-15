@@ -83,6 +83,16 @@ class InvitationOut(ApiModel):
     accept_token: str | None = None
 
 
+class PendingInvitationOut(ApiModel):
+    id: UUID
+    email: str
+    role: str
+    status: str
+    expires_at: datetime
+    created_at: datetime
+    invited_by_email: str | None
+
+
 class TeamBriefOut(ApiModel):
     id: UUID
     name: str
@@ -387,6 +397,32 @@ async def invite_to_org(
 ) -> InvitationOut:
     await require_org_access(session, actor, org_id, admin=True)
     return await _create_org_invitation(session, actor, org_id, payload, request)
+
+
+SELECT_PENDING_ORG_INVITATIONS = text(
+    """
+    SELECT i.id, i.email, i.role, i.status, i.expires_at, i.created_at,
+           u.email AS invited_by_email
+    FROM invitations i
+    LEFT JOIN users u ON u.id = i.invited_by
+    WHERE i.org_id = :org_id AND i.status = 'pending' AND i.expires_at > now()
+    ORDER BY i.created_at DESC
+    """
+)
+
+
+@router.get("/orgs/{org_id}/invitations", response_model=list[PendingInvitationOut])
+async def list_org_invitations(
+    org_id: UUID,
+    actor: ActorDep,
+    session: SessionDep,
+) -> list[PendingInvitationOut]:
+    """待处理邀请（design 6.3.4）：仅组织管理员可见，用于撤销。"""
+    await require_org_access(session, actor, org_id, admin=True)
+    rows = (
+        await session.execute(SELECT_PENDING_ORG_INVITATIONS, {"org_id": org_id})
+    ).mappings().all()
+    return [PendingInvitationOut(**dict(row)) for row in rows]
 
 
 @router.get("/orgs/{org_id}/teams", response_model=OrgTeamsOut)

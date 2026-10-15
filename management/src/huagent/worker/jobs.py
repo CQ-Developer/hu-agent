@@ -449,6 +449,21 @@ async def prune_usage_daily(session: AsyncSession) -> int:
     await session.commit()
     return int(getattr(result, "rowcount", 0) or 0)
 
+
+async def prune_password_reset_tokens(session: AsyncSession) -> int:
+    """清理已使用或已过期 7 天以上的密码重置令牌（design 6.10.1，幂等）。
+
+    令牌不存明文且审计已在 audit_logs，保留 7 天仅用于排查「链接刚过期」类问题。
+    """
+    result = await session.execute(
+        text(
+            "DELETE FROM password_reset_tokens "
+            "WHERE COALESCE(used_at, expires_at) < now() - interval '7 days'"
+        )
+    )
+    await session.commit()
+    return int(getattr(result, "rowcount", 0) or 0)
+
 # ---------------------------------------------------------------------------
 # 调度入口
 # ---------------------------------------------------------------------------
@@ -485,3 +500,7 @@ async def job_purge_deleted_users() -> None:
 
 async def job_prune_usage_daily() -> None:
     await run_job("usage.daily.prune", prune_usage_daily)
+
+
+async def job_prune_password_reset_tokens() -> None:
+    await run_job("password_reset.prune", prune_password_reset_tokens)

@@ -10,8 +10,8 @@ The project follows [Semantic Versioning](https://semver.org/) and the structure
 
 ### Added
 
-- One-command observability stack (`docker/compose.observability.yaml` overlay +
-  `scripts/quickstart.sh monitoring up`): Prometheus (the 12 alert rules and 3 recording rules now ship
+- One-command observability stack (`docker/compose.yaml` `monitoring` profile +
+  `scripts/quickstart.sh` entrypoints): Prometheus (the 12 alert rules and 3 recording rules now ship
   with the repository), Grafana (4 provisioned dashboards: API golden signals, background jobs & data,
   authentication & SSO, logs), Alertmanager (email routing, delivered to the bundled Mailpit inbox by
   default; enterprise SMTP and webhooks documented) and optional Loki + Promtail log aggregation
