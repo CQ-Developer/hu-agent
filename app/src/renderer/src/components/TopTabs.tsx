@@ -31,18 +31,17 @@ interface Props {
 
 export default function TopTabs({ active, onChange }: Props) {
   return (
-    <nav className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-neutral-200 bg-white px-3">
+    <nav className="glass flex shrink-0 items-center gap-1 overflow-x-auto rounded-none px-3 shadow-none">
       {APP_TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
           onClick={() => onChange(tab.id)}
-          className={`relative whitespace-nowrap px-3 py-2.5 text-sm ${
-            tab.id === active ? 'font-medium text-neutral-900' : 'text-neutral-500 hover:text-neutral-900'
+          className={`whitespace-nowrap rounded-chip px-3 py-2 text-small transition duration-200 ease-standard ${
+            tab.id === active ? 'bg-surface-3 font-medium text-fg' : 'text-fg-muted hover:bg-surface-2 hover:text-fg'
           }`}
         >
           {tab.label}
-          {tab.id === active && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-neutral-900" />}
         </button>
       ))}
     </nav>

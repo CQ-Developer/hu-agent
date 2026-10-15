@@ -12,7 +12,19 @@ body,
 
 body {
   margin: 0;
-  font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-family: var(--ui-font-ui);
+  background-color: var(--ui-canvas);
+  background-image: var(--ui-canvas-image);
+  background-attachment: fixed;
+  color: var(--ui-fg);
+}
+
+/* 迁移期：旧页面用 bg-surface* 表达表面；统一补上玻璃模糊（新页面直接用 .glass） */
+.bg-surface,
+.bg-surface-2,
+.bg-surface-3 {
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  backdrop-filter: blur(18px) saturate(180%);
 }
 
 /* 助手消息的 Markdown 渲染样式（react-markdown + rehype-sanitize） */
@@ -64,13 +76,13 @@ body {
 }
 
 .markdown a {
-  color: #2563eb;
+  color: var(--ui-accent);
   text-decoration: underline;
 }
 
 .markdown blockquote {
-  border-left: 3px solid #d4d4d8;
+  border-left: 3px solid var(--ui-line-strong);
   margin: 0.5em 0;
   padding-left: 0.75em;
-  color: #52525b;
+  color: var(--ui-fg-muted);
 }

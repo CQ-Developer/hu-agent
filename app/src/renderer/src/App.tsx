@@ -13,6 +13,7 @@ import type {
 } from '@shared/ipc'
 
 import ChatView from './components/ChatView'
+import { useGlassEffects } from './components/ui/glass'
 import LoginGate from './components/LoginGate'
 import ProfileDialog from './components/ProfileDialog'
 import Sidebar from './components/Sidebar'
@@ -40,6 +41,7 @@ import {
 } from './state/agent_stream'
 
 export default function App() {
+  useGlassEffects()
   // 订阅语言：切换语言时由根组件带动整树重渲染（design 5.13）
   useI18n()
   const [sessions, setSessions] = useState<SessionMetaView[]>([])
@@ -338,7 +340,7 @@ export default function App() {
 
   if (sessionState === 'loading') {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-neutral-100 text-sm text-neutral-500">
+      <div className="flex h-screen w-screen items-center justify-center text-sm text-fg-muted">
         {t('正在连接服务端…')}
       </div>
     )
@@ -356,7 +358,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-neutral-100 text-neutral-900">
+    <div className="flex h-screen w-screen text-fg">
       <Sidebar
         sessions={sessions}
         currentId={currentId}
