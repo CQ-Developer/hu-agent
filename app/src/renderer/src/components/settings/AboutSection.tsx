@@ -26,30 +26,30 @@ export default function AboutSection() {
   }
 
   return (
-    <div className="max-w-xl space-y-4 text-sm text-fg">
-      <section className="rounded-lg border border-line p-4">
+    <div className="max-w-xl space-y-4 text-sm text-neutral-700">
+      <section className="rounded-lg border border-neutral-200 p-4">
         <div className="text-base font-medium">{t('hu-agent 客户端')}</div>
-        <div className="mt-1 text-xs text-fg-subtle">v{version} · Electron + React + TypeScript</div>
+        <div className="mt-1 text-xs text-neutral-400">v{version} · Electron + React + TypeScript</div>
       </section>
 
-      <section className="rounded-lg border border-line p-4 text-xs leading-relaxed">
-        <div className="mb-2 text-xs font-semibold text-fg-muted">{t('诊断')}</div>
+      <section className="rounded-lg border border-neutral-200 p-4 text-xs leading-relaxed">
+        <div className="mb-2 text-xs font-semibold text-neutral-500">{t('诊断')}</div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             disabled={exporting}
             onClick={() => void exportDiagnostics()}
-            className="rounded-md border border-line-strong px-3 py-1.5 hover:bg-surface-2 disabled:opacity-40"
+            className="rounded-md border border-neutral-300 px-3 py-1.5 hover:bg-neutral-100 disabled:opacity-40"
           >
             {exporting ? t('导出中…') : t('导出诊断包')}
           </button>
-          <span className="text-fg-subtle">{t('日志（10MB × 5 滚动）与本地配置，自动脱敏且不含密钥库')}</span>
+          <span className="text-neutral-400">{t('日志（10MB × 5 滚动）与本地配置，自动脱敏且不含密钥库')}</span>
         </div>
-        {exportMessage && <p className="mt-2 break-all text-fg-muted">{exportMessage}</p>}
+        {exportMessage && <p className="mt-2 break-all text-neutral-500">{exportMessage}</p>}
       </section>
 
-      <section className="rounded-lg border border-line p-4 text-xs leading-relaxed">
-        <div className="mb-2 text-xs font-semibold text-fg-muted">{t('文档')}</div>
+      <section className="rounded-lg border border-neutral-200 p-4 text-xs leading-relaxed">
+        <div className="mb-2 text-xs font-semibold text-neutral-500">{t('文档')}</div>
         <ul className="space-y-1">
           <li>
             <code>docs/design.md</code> {t('— 设计基线')}
@@ -63,8 +63,8 @@ export default function AboutSection() {
         </ul>
       </section>
 
-      <section className="rounded-lg border border-line p-4 text-xs leading-relaxed text-fg-muted">
-        <div className="mb-2 text-xs font-semibold text-fg-muted">{t('本地数据位置')}</div>
+      <section className="rounded-lg border border-neutral-200 p-4 text-xs leading-relaxed text-neutral-500">
+        <div className="mb-2 text-xs font-semibold text-neutral-500">{t('本地数据位置')}</div>
         <ul className="space-y-1">
           <li>
             {t('配置与密钥：')}<code>~/.hu-agent/</code>{t('（密钥经 safeStorage 加密）')}

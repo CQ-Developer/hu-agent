@@ -94,28 +94,28 @@ export default function LoginGate({ notice, retryOnly, onLoggedIn, onRetry }: Pr
   }, [form, mode, onLoggedIn])
 
   return (
-    <div className="flex h-screen w-screen items-center justify-center text-fg">
-      <div className="glass w-[460px] p-8">
+    <div className="flex h-screen w-screen items-center justify-center bg-neutral-100 text-neutral-900">
+      <div className="w-[460px] rounded-xl border border-neutral-200 bg-white p-8 shadow-sm">
         <div className="mb-1 text-lg font-semibold tracking-wide">hu-agent</div>
-        <div className="mb-6 text-xs text-fg-muted">
+        <div className="mb-6 text-xs text-neutral-500">
           {t('企业 Agent 平台 · 需注册登录后使用（本地 Agent、Skill、MCP 均要求有效账号）')}
         </div>
 
         {notice && (
-          <div className="mb-3 rounded-md bg-warning-soft px-3 py-2 text-xs text-warning">
+          <div className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
             {notice}
             {retryOnly && <div className="mt-1 text-[11px]">{t('当前保留了本地登录态，服务恢复后可直接重试。')}</div>}
           </div>
         )}
 
-        <div className="mb-4 flex rounded-chip bg-surface-2 p-1 text-sm">
+        <div className="mb-4 flex rounded-md bg-neutral-100 p-0.5 text-sm">
           {(['login', 'register'] as const).map((item) => (
             <button
               key={item}
               type="button"
               onClick={() => setMode(item)}
-              className={`flex-1 rounded-chip px-3 py-1.5 ${
-                mode === item ? 'bg-surface-3 font-medium' : 'text-fg-muted hover:text-fg'
+              className={`flex-1 rounded px-3 py-1.5 ${
+                mode === item ? 'bg-white font-medium shadow-sm' : 'text-neutral-500 hover:text-neutral-800'
               }`}
             >
               {item === 'login' ? t('登录') : t('注册')}
@@ -124,10 +124,10 @@ export default function LoginGate({ notice, retryOnly, onLoggedIn, onRetry }: Pr
         </div>
 
         <div className="space-y-2">
-          <label className="block text-xs text-fg-muted">
+          <label className="block text-xs text-neutral-500">
             {t('服务器地址')}
             <input
-              className="ui-field mt-1"
+              className="mt-1 w-full rounded border border-neutral-300 px-2 py-2 text-sm"
               placeholder="https://hu-agent.example.com"
               value={form.serverUrl}
               onChange={(event) => setForm({ ...form, serverUrl: event.target.value })}
@@ -135,44 +135,44 @@ export default function LoginGate({ notice, retryOnly, onLoggedIn, onRetry }: Pr
           </label>
 
           {ssoProviders.length > 0 && (
-            <div className="rounded-md border border-line bg-surface p-2">
-              <div className="mb-1 text-[11px] text-fg-muted">{t('企业账号登录')}</div>
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 p-2">
+              <div className="mb-1 text-[11px] text-neutral-500">{t('企业账号登录')}</div>
               {ssoProviders.map((provider) => (
                 <button
                   key={provider.id}
                   type="button"
                   disabled={busy}
                   onClick={() => void ssoLogin(provider.id)}
-                  className="mb-1 w-full rounded-md border border-line-strong bg-surface-2 px-3 py-2 text-sm hover:bg-surface-2 disabled:opacity-40"
+                  className="mb-1 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm hover:bg-neutral-100 disabled:opacity-40"
                 >
                   {t('使用')} {provider.name} {t('登录')}
                 </button>
               ))}
-              <div className="text-[10px] text-fg-subtle">{t('将打开系统浏览器完成身份验证，完成后自动返回应用。')}</div>
+              <div className="text-[10px] text-neutral-400">{t('将打开系统浏览器完成身份验证，完成后自动返回应用。')}</div>
             </div>
           )}
-          <label className="block text-xs text-fg-muted">
+          <label className="block text-xs text-neutral-500">
             {t('邮箱')}
             <input
-              className="ui-field mt-1"
+              className="mt-1 w-full rounded border border-neutral-300 px-2 py-2 text-sm"
               value={form.email}
               onChange={(event) => setForm({ ...form, email: event.target.value })}
             />
           </label>
           {mode === 'register' && (
-            <label className="block text-xs text-fg-muted">
+            <label className="block text-xs text-neutral-500">
               {t('昵称')}
               <input
-                className="ui-field mt-1"
+                className="mt-1 w-full rounded border border-neutral-300 px-2 py-2 text-sm"
                 value={form.displayName}
                 onChange={(event) => setForm({ ...form, displayName: event.target.value })}
               />
             </label>
           )}
-          <label className="block text-xs text-fg-muted">
+          <label className="block text-xs text-neutral-500">
             {t('密码')}
             <input
-              className="ui-field mt-1"
+              className="mt-1 w-full rounded border border-neutral-300 px-2 py-2 text-sm"
               type="password"
               placeholder={mode === 'register' ? t('至少 10 位，不能是常见弱口令') : undefined}
               value={form.password}
@@ -184,14 +184,14 @@ export default function LoginGate({ notice, retryOnly, onLoggedIn, onRetry }: Pr
           </label>
         </div>
 
-        {error && <div className="mt-3 rounded-md bg-danger-soft px-3 py-2 text-xs text-danger">{error}</div>}
+        {error && <div className="mt-3 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>}
 
         <div className="mt-5 flex items-center gap-2">
           <button
             type="button"
             disabled={busy}
             onClick={() => void submit()}
-            className="ui-btn ui-btn-primary flex-1 py-2.5 text-small disabled:opacity-40"
+            className="flex-1 rounded-md bg-neutral-900 px-3 py-2 text-sm text-white hover:bg-neutral-700 disabled:opacity-40"
           >
             {busy ? t('处理中…') : mode === 'login' ? t('登录') : t('注册并登录')}
           </button>
@@ -200,14 +200,14 @@ export default function LoginGate({ notice, retryOnly, onLoggedIn, onRetry }: Pr
               type="button"
               disabled={busy}
               onClick={onRetry}
-              className="ui-btn ui-btn-glass px-4 py-2.5 text-small disabled:opacity-40"
+              className="rounded-md border border-neutral-300 px-3 py-2 text-sm hover:bg-neutral-100 disabled:opacity-40"
             >
               {t('重试连接')}
             </button>
           )}
         </div>
 
-        <p className="mt-4 text-[11px] leading-relaxed text-fg-subtle">
+        <p className="mt-4 text-[11px] leading-relaxed text-neutral-400">
           {t('登录态保存在本机（系统密钥库加密）；服务端不可用时无法进入应用，这是企业身份管控的要求。')}
         </p>
       </div>

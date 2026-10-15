@@ -36,8 +36,7 @@ function* walk(dir: string): Generator<string> {
   for (const name of readdirSync(dir)) {
     const path = join(dir, name)
     if (statSync(path).isDirectory()) {
-      // gallery：dev-only 设计画廊（生产构建不包含），仅供设计评审，不参与 i18n 检查
-      if (name === 'i18n' || name === 'node_modules' || name === 'gallery') continue
+      if (name === 'i18n' || name === 'node_modules') continue
       yield* walk(path)
     } else if (/\.tsx?$/.test(name) && !name.endsWith('.d.ts') && name !== 'en-US.ts') {
       yield path

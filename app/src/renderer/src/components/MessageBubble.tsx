@@ -15,7 +15,7 @@ export default function MessageBubble({ role, text, reasoning, streaming = false
   if (role === 'user') {
     return (
       <div className="flex justify-end">
-        <div className="glass glass-accent glass-bubble max-w-[80%] animate-fade-up whitespace-pre-wrap rounded-card rounded-br-md px-4 py-2.5 text-sm text-accent-contrast">
+        <div className="max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-blue-600 px-4 py-2.5 text-sm text-white">
           {text}
         </div>
       </div>
@@ -26,16 +26,16 @@ export default function MessageBubble({ role, text, reasoning, streaming = false
 
   return (
     <div className="flex justify-start">
-      <div className="glass glass-bubble max-w-[85%] animate-fade-up rounded-card rounded-bl-md px-4 py-2.5 text-sm">
+      <div className="max-w-[85%] rounded-2xl rounded-bl-sm border border-neutral-200 bg-white px-4 py-2.5 text-sm">
         {reasoning && (
           <details
             open={streaming}
-            className="mb-2 rounded-lg border border-warning bg-warning-soft/60 px-3 py-2"
+            className="mb-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2"
           >
-            <summary className="cursor-pointer select-none text-xs font-medium text-warning">
+            <summary className="cursor-pointer select-none text-xs font-medium text-amber-700">
               {streaming ? t('思考中…') : t('思考过程')}
             </summary>
-            <div className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-warning/80">
+            <div className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap text-xs leading-relaxed text-amber-900/80">
               {reasoning}
             </div>
           </details>
@@ -45,7 +45,7 @@ export default function MessageBubble({ role, text, reasoning, streaming = false
             <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{text}</ReactMarkdown>
           </div>
         )}
-        {!hasText && streaming && !reasoning && <div className="text-xs text-fg-subtle">{t('思考中…')}</div>}
+        {!hasText && streaming && !reasoning && <div className="text-xs text-neutral-400">{t('思考中…')}</div>}
       </div>
     </div>
   )

@@ -2,7 +2,6 @@ import { useState } from 'react'
 
 import type { ModelOptionView, ReasoningEffortView, SessionOptionsView, SessionUsageView } from '@shared/ipc'
 import { t } from '../i18n'
-import GlassSelect from './ui/GlassSelect'
 
 interface Props {
   running: boolean
@@ -40,37 +39,37 @@ export default function Composer({ running, models, options, stats, onOptionsCha
   }
 
   return (
-    <div className="glass rounded-none border-t border-line px-4 py-3 shadow-none">
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-fg-muted">
-        <GlassSelect
-          small
-          placement="up"
-          className="w-56"
+    <div className="border-t border-neutral-200 bg-white px-4 py-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-neutral-500">
+        <select
           value={selected?.target ?? ''}
-          onChange={(next) => options && onOptionsChange({ ...options, model: next })}
-          title={t('本会话使用的模型')}
-          options={
-            models.length === 0
-              ? [{ value: '', label: t('（未配置模型）') }]
-              : models.map((model) => ({ value: model.target, label: `${model.providerId} / ${model.name}` }))
-          }
-        />
+          onChange={(event) => options && onOptionsChange({ ...options, model: event.target.value })}
+          className="rounded border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700"
+          title={t("本会话使用的模型")}
+        >
+          {models.length === 0 && <option value="">{t('（未配置模型）')}</option>}
+          {models.map((model) => (
+            <option key={model.target} value={model.target}>
+              {model.providerId} / {model.name}
+            </option>
+          ))}
+        </select>
 
-        <GlassSelect
-          small
-          placement="up"
-          className="w-28"
+        <select
           value={options?.reasoningEffort ?? 'off'}
           disabled={effortDisabled}
-          onChange={(next) =>
-            options && onOptionsChange({ ...options, reasoningEffort: next as ReasoningEffortView })
+          onChange={(event) =>
+            options && onOptionsChange({ ...options, reasoningEffort: event.target.value as ReasoningEffortView })
           }
+          className="rounded border border-neutral-300 bg-white px-2 py-1 text-xs text-neutral-700 disabled:opacity-40"
           title={effortDisabled ? t('当前模型未声明支持思考强度（可在模型设置中开启）') : t('思考强度')}
-          options={(['off', 'low', 'medium', 'high'] as const).map((level) => ({
-            value: level,
-            label: EFFORT_LABELS[level],
-          }))}
-        />
+        >
+          {(['off', 'low', 'medium', 'high'] as const).map((level) => (
+            <option key={level} value={level}>
+              {EFFORT_LABELS[level]}
+            </option>
+          ))}
+        </select>
 
         {stats && (
           <span className="ml-auto tabular-nums">
@@ -92,10 +91,14 @@ export default function Composer({ running, models, options, stats, onOptionsCha
           }}
           rows={3}
           placeholder={t("描述你的任务…（Enter 发送，Shift+Enter 换行）")}
-          className="ui-field min-h-[64px] flex-1 resize-none py-2"
+          className="min-h-[64px] flex-1 resize-none rounded-lg border border-neutral-300 px-3 py-2 text-sm outline-none focus:border-neutral-500"
         />
         {running ? (
-          <button type="button" onClick={onStop} className="ui-btn ui-btn-danger px-5 py-2 text-small">
+          <button
+            type="button"
+            onClick={onStop}
+            className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500"
+          >
             {t('停止')}
           </button>
         ) : (
@@ -103,7 +106,7 @@ export default function Composer({ running, models, options, stats, onOptionsCha
             type="button"
             onClick={submit}
             disabled={!text.trim()}
-            className="ui-btn ui-btn-primary px-5 py-2 text-small disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {t('发送')}
           </button>
