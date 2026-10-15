@@ -48,6 +48,10 @@ const api: HuAgentApi = {
     uninstall: (skillId) => ipcRenderer.invoke('market:uninstall', skillId),
     installed: () => ipcRenderer.invoke('market:installed'),
     checkStatus: (force) => ipcRenderer.invoke('market:check-status', force),
+    mcpList: (params) => ipcRenderer.invoke('market:mcp-list', params),
+    mcpDetail: (serverId) => ipcRenderer.invoke('market:mcp-detail', serverId),
+    mcpInstall: (serverId, version, values) => ipcRenderer.invoke('market:mcp-install', serverId, version, values),
+    mcpUninstall: (serverId) => ipcRenderer.invoke('market:mcp-uninstall', serverId),
   },
   sync: {
     status: () => ipcRenderer.invoke('sync:status'),

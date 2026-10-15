@@ -9,7 +9,7 @@ import { dirname, join } from 'node:path'
 
 import { globalDir } from '../config/paths'
 import { compareSemver } from '../skills/parser'
-import type { MarketClient, ResourceState, StatusCheckResult } from './client'
+import type { MarketClient, ResourceState, StatusCheckItem, StatusCheckResult } from './client'
 import type { SkillInstaller } from './installer'
 
 export type StatusEntry = {
@@ -36,8 +36,23 @@ export interface StatusServiceOptions {
   staleMs?: number
   intervalMs?: number
   initialDelayMs?: number
+  /** 市场安装的 MCP 资源（读取本地 mcp.json 的 source.mcpId）：参与同一次状态检查 */
+  listMarketMcp?: () => Promise<MarketMcpRef[]>
   /** 状态进入硬停用时的本地审计回调 */
-  onHardDisabled?: (entry: { skillId: string; name?: string; status: ResourceState; reason?: string }) => Promise<void>
+  onHardDisabled?: (entry: {
+    resourceType: 'skill' | 'mcp'
+    refId: string
+    name?: string
+    status: ResourceState
+    reason?: string
+  }) => Promise<void>
+}
+
+/** 本地 mcp.json 中记录的市场来源（install 时写入 source）。 */
+export interface MarketMcpRef {
+  mcpId: string
+  name: string
+  version: number
 }
 
 export class ResourceStatusService {
@@ -77,6 +92,10 @@ export class ResourceStatusService {
     return this.cache.skills[skillId]
   }
 
+  statusForMcp(mcpId: string): StatusEntry | undefined {
+    return this.cache.mcp[mcpId]
+  }
+
   async check(options: { force?: boolean } = {}): Promise<{ checked: number; skipped: boolean; error?: string }> {
     await this.load()
     const installed = await this.installer.list()
@@ -87,28 +106,32 @@ export class ResourceStatusService {
         latestByName.set(item.name, { skillId: item.skillId, version: item.version, teamId: item.teamId })
       }
     }
-    if (latestByName.size === 0) return { checked: 0, skipped: false }
+    const mcpRefs = (await this.options.listMarketMcp?.().catch(() => [])) ?? []
+    if (latestByName.size === 0 && mcpRefs.length === 0) return { checked: 0, skipped: false }
 
     const lastCheck = this.cache.lastCheckAt ? Date.parse(this.cache.lastCheckAt) : 0
     if (!options.force && lastCheck > 0 && Date.now() - lastCheck < this.staleMs) {
       return { checked: 0, skipped: true }
     }
 
-    const items = [...latestByName.values()].map((item) => ({
-      type: 'skill' as const,
-      refId: item.skillId,
-      version: item.version,
-    }))
+    const items: StatusCheckItem[] = [
+      ...[...latestByName.values()].map((item) => ({
+        type: 'skill' as const,
+        refId: item.skillId,
+        version: item.version,
+      })),
+      ...mcpRefs.map((item) => ({ type: 'mcp' as const, refId: item.mcpId, version: String(item.version) })),
+    ]
     try {
       const results = await this.market.checkStatus(items)
       const checkedAt = new Date().toISOString()
       for (const result of results) {
-        if (result.type !== 'skill') continue
-        this.cache.skills[result.refId] = toEntry(result, checkedAt)
+        if (result.type === 'skill') this.cache.skills[result.refId] = toEntry(result, checkedAt)
+        else if (result.type === 'mcp') this.cache.mcp[result.refId] = toEntry(result, checkedAt)
       }
       this.cache.lastCheckAt = checkedAt
       await this.persist()
-      await this.auditHardDisabled(results)
+      await this.auditHardDisabled(results, mcpRefs)
       return { checked: results.length, skipped: false }
     } catch (error) {
       return {
@@ -141,12 +164,15 @@ export class ResourceStatusService {
     await rename(temp, this.cacheFile)
   }
 
-  private async auditHardDisabled(results: StatusCheckResult[]): Promise<void> {
+  private async auditHardDisabled(results: StatusCheckResult[], mcpRefs: MarketMcpRef[]): Promise<void> {
     if (!this.options.onHardDisabled) return
+    const mcpNames = new Map(mcpRefs.map((item) => [item.mcpId, item.name]))
     for (const result of results) {
       if (!isHardDisabled(result.status)) continue
       await this.options.onHardDisabled({
-        skillId: result.refId,
+        resourceType: result.type === 'mcp' ? 'mcp' : 'skill',
+        refId: result.refId,
+        ...(result.type === 'mcp' ? { name: mcpNames.get(result.refId) } : {}),
         status: result.status,
         reason: result.reason ?? undefined,
       })

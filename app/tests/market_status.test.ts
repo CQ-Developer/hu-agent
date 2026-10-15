@@ -12,10 +12,12 @@ import { ResourceStatusService, isHardDisabled } from '../src/main/market/status
 
 class FakeMarket {
   calls = 0
+  items: unknown[] = []
   result: StatusCheckResult[] = []
 
-  async checkStatus(): Promise<StatusCheckResult[]> {
+  async checkStatus(items?: unknown): Promise<StatusCheckResult[]> {
     this.calls += 1
+    this.items = items ?? []
     return this.result
   }
 }
@@ -123,13 +125,44 @@ describe('ResourceStatusService', () => {
       market as unknown as MarketClient,
       new FakeInstaller([installed('demo-skill', '1.0.0'), installed('demo-skill', '2.0.0')]) as unknown as SkillInstaller,
       cacheFile,
-      { onHardDisabled: async (entry) => events.push(`${entry.skillId}:${entry.status}`) },
+      { onHardDisabled: async (entry) => events.push(`${entry.resourceType}:${entry.refId}:${entry.status}`) },
     )
 
     const result = await service.check({ force: true })
     expect(result.checked).toBe(1)
     expect(service.statusForSkill('skill-1')).toMatchObject({ status: 'disabled', reason: '存在安全问题' })
-    expect(events).toEqual(['skill-1:disabled'])
+    expect(events).toEqual(['skill:skill-1:disabled'])
+  })
+
+  it('市场 MCP 一起检查：请求带 refId，结果入 mcp 缓存，硬停用回调带出 name', async () => {
+    const market = new FakeMarket()
+    market.result = [
+      {
+        type: 'mcp',
+        refId: 'mcp-1',
+        version: '2',
+        status: 'disabled',
+        reason: '外部域名不可信',
+        replacementVersion: null,
+        revision: 30,
+      },
+    ]
+    const events: string[] = []
+    const service = new ResourceStatusService(
+      market as unknown as MarketClient,
+      new FakeInstaller([]) as unknown as SkillInstaller,
+      cacheFile,
+      {
+        listMarketMcp: async () => [{ mcpId: 'mcp-1', name: 'github', version: 2 }],
+        onHardDisabled: async (entry) => events.push(`${entry.resourceType}:${entry.refId}:${entry.name}`),
+      },
+    )
+
+    const result = await service.check({ force: true })
+    expect(result.checked).toBe(1)
+    expect(market.items).toEqual([{ type: 'mcp', refId: 'mcp-1', version: '2' }])
+    expect(service.statusForMcp('mcp-1')).toMatchObject({ status: 'disabled', reason: '外部域名不可信' })
+    expect(events).toEqual(['mcp:mcp-1:github'])
   })
 
   it('没有已安装资源时不请求；检查失败时返回错误而不破坏缓存', async () => {

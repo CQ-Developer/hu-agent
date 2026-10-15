@@ -3,6 +3,7 @@
  */
 
 import {
+  ApiOutlined,
   ApartmentOutlined,
   BellOutlined,
   AuditOutlined,
@@ -50,6 +51,7 @@ export default function AdminLayout() {
     ]
     if (scope.adminTeams.length > 0) {
       entries.push({ key: '/skills', icon: <SafetyCertificateOutlined />, label: t('menu.skills') })
+      entries.push({ key: '/mcp-servers', icon: <ApiOutlined />, label: t('menu.mcp') })
     }
     if (scope.canManageOrg || scope.adminTeams.length > 0) {
       entries.push({ key: '/members', icon: <TeamOutlined />, label: t('menu.members') })

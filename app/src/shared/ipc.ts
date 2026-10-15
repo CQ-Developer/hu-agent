@@ -182,6 +182,47 @@ export interface MarketInstallResultView {
   files: number
 }
 
+/** MCP 市场的环境变量声明（`secret` 项的值只进本机密钥库，服务端不接触）。 */
+export interface McpEnvFieldView {
+  key: string
+  label: string
+  secret: boolean
+  required: boolean
+  help?: string | null
+}
+
+export interface MarketMcpVersionView {
+  id: string
+  version: number
+  status: string
+  transport: 'stdio' | 'sse' | 'http'
+  changelog: string | null
+  createdAt: string
+}
+
+export interface MarketMcpServerView {
+  id: string
+  name: string
+  description: string
+  tags: string[]
+  latestVersion: number | null
+  updatedAt: string
+  /** 本地 mcp.json 已安装的版本（无则为 null） */
+  installedVersion: number | null
+  updateAvailable: boolean
+  state?: 'active' | 'delisted' | 'disabled' | 'revoked' | 'not_found' | 'unknown'
+  stateReason?: string
+  replacementVersion?: string
+}
+
+export interface MarketMcpDetailView extends MarketMcpServerView {
+  disabledReason: string | null
+  configTemplate: Record<string, unknown>
+  envSchema: McpEnvFieldView[]
+  docsMd: string
+  versions: MarketMcpVersionView[]
+}
+
 export interface InstalledSkillView {
   skillId: string
   name: string
@@ -470,6 +511,12 @@ export interface HuAgentApi {
     uninstall(skillId: string): Promise<number>
     installed(): Promise<InstalledSkillView[]>
     checkStatus(force?: boolean): Promise<MarketCheckResultView>
+    mcpList(params?: { q?: string; tag?: string; sort?: 'updated' | 'name' }): Promise<MarketMcpServerView[]>
+    mcpDetail(serverId: string): Promise<MarketMcpDetailView>
+    /** 安装/更新市场 MCP：配置模板 + env 值 → 本地 mcp.json（密钥写密钥库） */
+    mcpInstall(serverId: string, version: number, values: Record<string, string>): Promise<McpServerView[]>
+    /** 卸载市场 MCP（从全局 mcp.json 移除） */
+    mcpUninstall(serverId: string): Promise<McpServerView[]>
   }
   sync: {
     status(): Promise<SyncStatusView>

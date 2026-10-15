@@ -48,7 +48,7 @@
 | 监控 | 指标端点与 12 条告警规则已就绪；Prometheus/Grafana 接入、Alertmanager 接收器与值班表需企业提供 | 企业侧接入 |
 | 性能 | 仅有单机基线（见 `docs/delivery/performance.md`）；生产容量需在 staging 按目标拓扑复测 | 上线前完成 |
 | 通知/邮件 | 站内通知已按收件人语言渲染；**邮件通道未实现**（邀请以邀请码形式交付） | 按需 |
-| MCP | stdio 与 streamable HTTP（http/sse 配置）均已支持（R4，`pi-mcp`）；MCP 市场（5-08）未做 | 后续版本 |
+| MCP | stdio 与 streamable HTTP（http/sse 配置）均已支持（R4，`pi-mcp`）；**MCP 市场（5-08）已交付**：浏览/详情/安装（引导填密钥）/更新/卸载 + 审批、上下架、停用、撤回；管理台提供 MCP 管理页 | 已交付 |
 | 定时同步 | 冲突时自动暂停，需人工处理（不做自动合并） | 设计如此 |
 | macOS | 未在真实 macOS 机器上做端到端验证（单测覆盖路径/保留名/UNC/符号链接） | 建议发布前实机验证 |
 

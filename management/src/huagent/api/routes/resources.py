@@ -112,6 +112,14 @@ SELECT_MCP_VERSION_STATUS = text(
     """
 )
 
+SELECT_LATEST_MCP_VERSION = text(
+    """
+    SELECT version::text AS version FROM mcp_server_versions
+    WHERE mcp_server_id = :server_id AND status IN ('published', 'superseded') AND version <> :excluded
+    ORDER BY version DESC LIMIT 1
+    """
+)
+
 DELETE_ACTIVATIONS = text(
     """
     DELETE FROM activation_reports
@@ -303,12 +311,19 @@ async def _check_mcp(
                 )
             ).mappings().first()
             if version_row is not None and version_row["status"] == "revoked":
+                replacement = (
+                    await session.execute(
+                        SELECT_LATEST_MCP_VERSION,
+                        {"server_id": item.ref_id, "excluded": item.version},
+                    )
+                ).scalar_one_or_none()
                 return StatusItemOut(
                     type="mcp",
                     ref_id=item.ref_id,
                     version=item.version,
                     status="revoked",
                     reason=str(version_row["revoked_reason"] or "该版本已被撤回"),
+                    replacement_version=str(replacement) if replacement and replacement != item.version else None,
                     revision=int(row["status_revision"]),
                 )
 

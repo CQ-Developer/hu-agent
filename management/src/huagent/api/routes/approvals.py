@@ -189,6 +189,13 @@ async def reject(
             text("UPDATE skill_versions SET status = 'rejected' WHERE id = :id AND status = 'pending'"),
             {"id": row["target_id"]},
         )
+    if row["type"] == "mcp_version_publish" and row["target_id"]:
+        await session.execute(
+            text(
+                "UPDATE mcp_server_versions SET status = 'rejected' WHERE id = :id AND status = 'pending'"
+            ),
+            {"id": row["target_id"]},
+        )
     updated = await _decide(session, approval_id, actor, "rejected", comment)
     await notify(
         session,
@@ -219,6 +226,13 @@ async def cancel(approval_id: UUID, actor: ActorDep, session: SessionDep) -> App
     if row["type"] == "skill_version_publish" and row["target_id"]:
         await session.execute(
             text("UPDATE skill_versions SET status = 'rejected' WHERE id = :id AND status = 'pending'"),
+            {"id": row["target_id"]},
+        )
+    if row["type"] == "mcp_version_publish" and row["target_id"]:
+        await session.execute(
+            text(
+                "UPDATE mcp_server_versions SET status = 'rejected' WHERE id = :id AND status = 'pending'"
+            ),
             {"id": row["target_id"]},
         )
     updated = await _decide(session, approval_id, actor, "cancelled", "申请人撤回")
@@ -311,6 +325,9 @@ async def _apply_effect(session: AsyncSession, row: RowMapping, actor: Actor) ->
         return
     if row["type"] == "skill_version_publish":
         await _effect_skill_publish(session, row["target_id"])
+        return
+    if row["type"] == "mcp_version_publish":
+        await _effect_mcp_publish(session, row["target_id"])
         return
     raise AppError(ErrorCode.VALIDATION_FAILED, f"暂不支持审批类型：{row['type']}")
 
@@ -413,6 +430,48 @@ async def _effect_skill_publish(session: AsyncSession, target_id: str | None) ->
             "status_revision = nextval('resource_status_revision_seq') WHERE id = :id"
         ),
         {"id": skill["id"], "version_id": version_row["id"], "status": next_status},
+    )
+
+
+async def _effect_mcp_publish(session: AsyncSession, target_id: str | None) -> None:
+    """MCP 版本审批通过后的生效（与 Skill 同语义，见 design 6.5）。"""
+    if not target_id:
+        raise AppError(ErrorCode.INTERNAL, "审批缺少版本目标")
+    version_row = (
+        await session.execute(
+            text("SELECT id, mcp_server_id, version FROM mcp_server_versions WHERE id = :id FOR UPDATE"),
+            {"id": target_id},
+        )
+    ).mappings().first()
+    if version_row is None:
+        raise AppError(ErrorCode.NOT_FOUND, "版本不存在")
+    server = (
+        await session.execute(
+            text("SELECT id, status FROM mcp_servers WHERE id = :id FOR UPDATE"),
+            {"id": version_row["mcp_server_id"]},
+        )
+    ).mappings().one()
+    if server["status"] == "disabled":
+        raise AppError(ErrorCode.CONFLICT, "资源已停用，无法发布新版本")
+
+    await session.execute(
+        text(
+            "UPDATE mcp_server_versions SET status = 'superseded' WHERE mcp_server_id = :server_id "
+            "AND status = 'published' AND id <> :id"
+        ),
+        {"server_id": server["id"], "id": version_row["id"]},
+    )
+    await session.execute(
+        text("UPDATE mcp_server_versions SET status = 'published' WHERE id = :id"),
+        {"id": version_row["id"]},
+    )
+    next_status = "published" if server["status"] in {"draft", "published"} else server["status"]
+    await session.execute(
+        text(
+            "UPDATE mcp_servers SET status = :status, latest_published_version_id = :version_id, "
+            "status_revision = nextval('resource_status_revision_seq') WHERE id = :id"
+        ),
+        {"id": server["id"], "version_id": version_row["id"], "status": next_status},
     )
 
 

@@ -13,6 +13,7 @@ import Audit from './pages/Audit'
 import Dashboard from './pages/Dashboard'
 import IdentityProviders from './pages/IdentityProviders'
 import Login from './pages/Login'
+import McpServers from './pages/McpServers'
 import Notifications from './pages/Notifications'
 import Organizations from './pages/Organizations'
 import Settings from './pages/Settings'
@@ -29,6 +30,13 @@ function SkillsRoute() {
   void location
   // 服务端仍强制鉴权；这里只做展示控制
   return profile ? <Skills /> : <NoPermission />
+}
+
+function McpServersRoute() {
+  const { profile } = useSession()
+  const location = useLocation()
+  void location
+  return profile ? <McpServers /> : <NoPermission />
 }
 
 const router = createBrowserRouter([
@@ -51,6 +59,7 @@ const router = createBrowserRouter([
       { path: 'audit', element: <Audit /> },
       { path: 'settings', element: <Settings /> },
       { path: 'skills', element: <SkillsRoute /> },
+      { path: 'mcp-servers', element: <McpServersRoute /> },
       { path: 'members', element: <Members /> },
       { path: 'identity-providers', element: <IdentityProviders /> },
       { path: 'profile', element: <Profile /> },

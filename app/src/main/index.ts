@@ -13,13 +13,14 @@ import { CloudClient } from './cloud/client'
 import { UsageReporter } from './cloud/reporter'
 import { MarketClient } from './market/client'
 import { SkillInstaller } from './market/installer'
-import { ResourceStatusService } from './market/status'
+import { ResourceStatusService, isHardDisabled } from './market/status'
 import { SyncEngine } from './sync/engine'
 import { CloudSyncBackend } from './sync/backend'
 import { SyncScheduler, loadSyncSettings } from './sync/scheduler'
 import { StatsClient } from './stats/client'
 import { InteractionBroker } from './permissions/broker'
 import { McpManager } from './mcp/manager'
+import { globalMcpFile, loadMcpFile, workspaceMcpFile } from './mcp/config'
 import { SkillManager } from './skills/manager'
 import { FileLogger } from './logging'
 import { createDurableTurnRunner } from './agent/durable_runner'
@@ -108,6 +109,19 @@ async function bootstrap(): Promise<void> {
   const market = new MarketClient(cloud)
   const installer = new SkillInstaller(market)
   const statuses = new ResourceStatusService(market, installer, undefined, {
+    // 市场安装的 MCP 也参与状态检查（停用/撤回 → 硬停用，design 5.12）
+    listMarketMcp: async () => {
+      const ws = await workspaces.active()
+      const refs = new Map<string, { mcpId: string; name: string; version: number }>()
+      for (const file of [globalMcpFile(), workspaceMcpFile(ws)]) {
+        for (const [name, config] of Object.entries(await loadMcpFile(file))) {
+          const source = config.source
+          if (source?.type !== 'market' || !source.mcpId) continue
+          refs.set(source.mcpId, { mcpId: source.mcpId, name, version: source.version ?? 0 })
+        }
+      }
+      return [...refs.values()]
+    },
     // 硬停用写本地审计（design 5.12.4）
     onHardDisabled: async (entry) => {
       const file = join(globalDir(), 'logs', 'resource-status.jsonl')
@@ -119,6 +133,8 @@ async function bootstrap(): Promise<void> {
       )
     },
   })
+  // 先加载已有缓存：启动时（首次状态检查前）硬停用就已经生效
+  await statuses.load()
 
   // 定时同步（design 5.11.5）：每次 tick 现取当前工作空间与档位，冲突时自动暂停
   const syncScheduler = new SyncScheduler({
@@ -158,7 +174,14 @@ async function bootstrap(): Promise<void> {
     ledger,
     interactions,
     skills: new SkillManager(),
-    mcp: new McpManager(secrets, app.getVersion()),
+    mcp: new McpManager(secrets, app.getVersion(), {
+      // 市场来源被服务端硬停用时：不连接、不注入工具（design 5.12）
+      isBlocked: (entry) => {
+        const source = entry.config.source
+        if (source?.type !== 'market' || !source.mcpId) return false
+        return isHardDisabled(statuses.statusForMcp(source.mcpId)?.status)
+      },
+    }),
     market,
     installer,
     statuses,

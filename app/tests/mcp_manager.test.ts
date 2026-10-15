@@ -137,4 +137,21 @@ describe('McpManager（pi-mcp 客户端）', () => {
     const statuses = await mcp.list(workspace)
     expect(statuses[0]).toMatchObject({ status: 'disabled', enabled: false })
   })
+
+  it('市场来源被硬停用时（isBlocked）：不连接、不注入工具，列表中标记 disabled', async () => {
+    const marketServer = fakeServer(process.execPath, [FIXTURE], {
+      source: { type: 'market', mcpId: 'mcp_1', version: 1 },
+    })
+    const first = await start({ market: marketServer })
+    expect((await first.tools(workspace)).length).toBe(2) // 无门禁时正常
+    await first.closeAll()
+
+    manager = new McpManager(new FakeSecrets() as never, 'test', {
+      globalFile,
+      retryDelayMs: 10,
+      isBlocked: (entry) => entry.config.source?.type === 'market' && entry.config.source.mcpId === 'mcp_1',
+    })
+    expect(await manager.tools(workspace)).toEqual([])
+    expect((await manager.list(workspace))[0]).toMatchObject({ status: 'disabled', enabled: false })
+  })
 })

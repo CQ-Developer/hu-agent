@@ -16,6 +16,7 @@ import {
   formatMcpSummary,
   globalMcpFile,
   isEnabledFor,
+  isSecretRef,
   loadMcpFile,
   mergeCatalog,
   resolveSecretValue,
@@ -75,6 +76,8 @@ export interface McpManagerOptions {
   /** 测试可注入；默认为 ~/.hu-agent/mcp.json */
   globalFile?: string
   retryDelayMs?: number
+  /** 市场来源资源被服务端硬停用时返回 true：不连接、不注入工具（design 5.12） */
+  isBlocked?: (entry: McpCatalogEntry) => boolean
 }
 
 export class McpManager {
@@ -85,6 +88,7 @@ export class McpManager {
   private readonly idleMs: number
   private readonly globalFile: string
   private readonly retryDelayMs: number
+  private readonly isBlocked: ((entry: McpCatalogEntry) => boolean) | undefined
 
   constructor(
     private readonly secrets: SecretReader,
@@ -94,6 +98,7 @@ export class McpManager {
     this.idleMs = options.idleMs ?? DEFAULT_IDLE_MS
     this.globalFile = options.globalFile ?? globalMcpFile()
     this.retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS
+    this.isBlocked = options.isBlocked
     const interval = Math.min(60_000, Math.max(10_000, Math.floor(this.idleMs / 2)))
     this.idleTimer = setInterval(() => void this.reapIdle(), interval)
     this.idleTimer.unref?.()
@@ -105,7 +110,7 @@ export class McpManager {
     return catalog.map((entry) => {
       const key = keyOf(ws, entry.name)
       const live = this.live.get(key)
-      const enabled = isEnabledFor(entry.config, ws.id)
+      const enabled = isEnabledFor(entry.config, ws.id) && !this.isBlocked?.(entry)
       const status: McpStatus = !enabled
         ? 'disabled'
         : this.connecting.has(key)
@@ -146,6 +151,7 @@ export class McpManager {
     const results = await Promise.all(
       catalog
         .filter((entry) => isEnabledFor(entry.config, ws.id))
+        .filter((entry) => !this.isBlocked?.(entry))
         .map((entry) => this.toolsForEntry(ws, entry)),
     )
     return results.flat().sort((a, b) => a.name.localeCompare(b.name))
@@ -259,17 +265,28 @@ export class McpManager {
     }
     return new StreamableHttpTransport({
       url: entry.config.url ?? '',
-      ...(Object.keys(entry.config.headers ?? {}).length > 0 ? { headers: entry.config.headers } : {}),
+      ...(Object.keys(entry.config.headers ?? {}).length > 0
+        ? { headers: this.resolveHeaders(entry) }
+        : {}),
     })
   }
 
   private resolveEnv(entry: McpCatalogEntry): Record<string, string> {
     const env: Record<string, string> = {}
-    for (const [name, ref] of Object.entries(entry.config.env ?? {})) {
-      const value = resolveSecretValue(ref, this.secrets)
-      if (value !== null) env[name] = value
+    for (const [name, value] of Object.entries(entry.config.env ?? {})) {
+      const resolved = resolveMaybeSecret(value, this.secrets)
+      if (resolved !== null) env[name] = resolved
     }
     return env
+  }
+
+  private resolveHeaders(entry: McpCatalogEntry): Record<string, string> {
+    const headers: Record<string, string> = {}
+    for (const [name, value] of Object.entries(entry.config.headers ?? {})) {
+      const resolved = resolveMaybeSecret(value, this.secrets)
+      if (resolved !== null) headers[name] = resolved
+    }
+    return headers
   }
 
   private async dropEntry(ws: WorkspacePaths, name: string): Promise<void> {
@@ -285,6 +302,11 @@ export class McpManager {
 
 function keyOf(ws: WorkspacePaths, name: string): string {
   return `${ws.id}\u0000${name}`
+}
+
+/** 密钥引用解析为真实值；非引用（手工/市场安装的明文配置）原样通过。 */
+function resolveMaybeSecret(value: string, secrets: SecretReader): string | null {
+  return isSecretRef(value) ? resolveSecretValue(value, secrets) : value
 }
 
 function sleep(ms: number): Promise<void> {

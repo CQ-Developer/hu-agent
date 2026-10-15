@@ -845,10 +845,21 @@ Global：`~/.hu-agent/mcp.json`；Workspace：`<workspace>/.hu/mcp.json`。Works
   denied / timeout 与执行错误。
 - Windows：`npx`/`uvx` 等 `.cmd` 包装经 `cmd.exe /d /s /c` 拉起；回收时终止整个进程树（`taskkill /T`）。
 
-#### 5.8.3 市场交互（未实现，v1.x）
+#### 5.8.3 市场交互（已实现）
 
-MCP 市场（浏览/安装/更新）与市场来源的配置模板尚未实现；当前通过本地 `mcp.json` 手工配置。
-计划中的流程（浏览 → 生成模板 → 引导填密钥 → 启用/禁用/更新）见 `docs/plan.md` 的 5-08。
+服务端：`mcp_servers` / `mcp_server_versions`（V0001）+ `mcp_version_publish` 审批（与 Skill 同一审批流、
+同一状态机与硬停用机制）；接口 `/teams/{id}/mcp-servers`、`/mcp-servers/{id}`、
+`:publish/:delist/:disable/:enable`、`/mcp-servers/{id}/versions/{version}:revoke`、
+`/marketplace/mcp-servers`。版本是递增整数；`env_schema.secret = true` 的项服务端只声明、永不接收值。
+
+客户端：市场页「MCP 市场」Tab 列出可见 server（含本地已安装版本与更新提示），详情展示传输方式、
+配置模板、env_schema 与文档；安装（`market:mcpInstall`）把模板写成全局 `mcp.json` 条目
+（stdio → command/args + env，http/sse → url + headers），密钥写入密钥库并只保留 `secret://` 引用，
+`source` 记录 `{ type: 'market', mcpId, version }`。
+
+停用与 Skill 一致：状态检查（5.12）覆盖市场来源的 MCP，disabled/revoked/not_found 时 `McpManager`
+不连接、不注入工具；激活上报（5.10.3）包含 MCP 条目，驱动停用/撤回/删除的定向通知。
+管理台提供 MCP 管理页（列表 + 详情 + 上下架/停用/撤回/删除）。
 
 ### 5.9 本地大模型配置（Global）
 

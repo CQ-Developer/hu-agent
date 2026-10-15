@@ -567,3 +567,209 @@ async def _login_again(client: AsyncClient, email: str) -> dict[str, str]:
 
 def _uuid(value: object) -> str:
     return str(uuid.UUID(str(value)))
+
+
+async def test_mcp_marketplace_lifecycle(client: AsyncClient) -> None:
+    """MCP 市场：配置模板 + env_schema、审批发布、状态分级、撤回/停用/下架/删除。"""
+    ctx = await setup_org_and_team(client)
+    owner = {"Authorization": ctx["owner"]}
+    member = {"Authorization": ctx["member"]}
+    outsider = {"Authorization": ctx["outsider"]}
+    team_id = ctx["team_id"]
+
+    # 前置用例可能改过该账号语言（共享容器）：显式复位，保证通知断言确定
+    assert (await client.patch("/api/v1/me", json={"locale": "zh-CN"}, headers=member)).status_code == 200
+
+    version_payload: dict[str, object] = {
+        "transport": "stdio",
+        "configTemplate": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-github"],
+        },
+        "envSchema": [
+            {
+                "key": "GITHUB_TOKEN",
+                "label": "GitHub 个人访问令牌",
+                "secret": True,
+                "required": True,
+                "help": "需 repo 读权限",
+            }
+        ],
+        "docsMd": "# github MCP\n\n访问 GitHub 仓库与 PR。",
+        "changelog": "首个版本",
+    }
+
+    # 无关用户不可创建（不暴露团队存在性）
+    forbidden = await client.post(
+        f"/api/v1/teams/{team_id}/mcp-servers",
+        json={"name": "github", "description": "访问 GitHub 仓库与 PR", **version_payload},
+        headers=outsider,
+    )
+    assert forbidden.status_code == 404
+
+    # 校验：stdio 必须有 command；环境变量名必须合法
+    bad_template = await client.post(
+        f"/api/v1/teams/{team_id}/mcp-servers",
+        json={"name": "bad", "transport": "stdio", "configTemplate": {}, "envSchema": []},
+        headers=member,
+    )
+    assert bad_template.status_code == 422
+    bad_key = await client.post(
+        f"/api/v1/teams/{team_id}/mcp-servers",
+        json={
+            "name": "bad2",
+            **{**version_payload, "envSchema": [{"key": "bad key", "label": "x"}]},
+        },
+        headers=member,
+    )
+    assert bad_key.status_code == 422
+
+    # 成员创建（draft + pending v1）
+    created = await client.post(
+        f"/api/v1/teams/{team_id}/mcp-servers",
+        json={"name": "github", "description": "访问 GitHub 仓库与 PR", "tags": ["vcs"], **version_payload},
+        headers=member,
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    server_id = body["mcpServerId"]
+    assert body["status"] == "pending" and body["version"] == 1
+
+    duplicate = await client.post(
+        f"/api/v1/mcp-servers/{server_id}/versions", json=version_payload, headers=member
+    )
+    assert duplicate.status_code == 409
+
+    # 团队列表与审批 payload（envKeys 只声明，不含值）
+    listed = await client.get(f"/api/v1/teams/{team_id}/mcp-servers", headers=owner)
+    assert [item["id"] for item in listed.json()["items"]] == [server_id]
+    pending = await client.get(
+        "/api/v1/approvals", params={"scope": "team", "team_id": team_id, "status": "pending"}, headers=owner
+    )
+    approvals = pending.json()["items"]
+    assert len(approvals) == 1 and approvals[0]["type"] == "mcp_version_publish"
+    approval_detail = await client.get(f"/api/v1/approvals/{approvals[0]['id']}", headers=owner)
+    assert approval_detail.json()["payload"]["envKeys"] == ["GITHUB_TOKEN"]
+
+    approved = await client.post(
+        f"/api/v1/approvals/{approvals[0]['id']}:approve", json={"comment": "通过"}, headers=owner
+    )
+    assert approved.status_code == 200, approved.text
+
+    # 市场可见性与详情
+    market = await client.get("/api/v1/marketplace/mcp-servers", headers=member)
+    assert [item["id"] for item in market.json()["items"]] == [server_id]
+    assert (await client.get("/api/v1/marketplace/mcp-servers", headers=outsider)).json()["items"] == []
+    detail = await client.get(f"/api/v1/mcp-servers/{server_id}", headers=member)
+    assert detail.status_code == 200, detail.text
+    assert detail.json()["latestVersion"] == 1
+    assert detail.json()["configTemplate"]["command"] == "npx"
+    assert detail.json()["envSchema"][0]["secret"] is True
+    assert "访问 GitHub" in detail.json()["docsMd"]
+    assert (await client.get(f"/api/v1/mcp-servers/{server_id}", headers=outsider)).status_code == 404
+
+    # 资源状态：成员 active，无关用户 not_found
+    check = await client.post(
+        "/api/v1/resources/status:check",
+        json={"items": [{"type": "mcp", "refId": server_id, "version": "1"}]},
+        headers=member,
+    )
+    assert check.json()["items"][0]["status"] == "active"
+    check_outsider = await client.post(
+        "/api/v1/resources/status:check",
+        json={"items": [{"type": "mcp", "refId": server_id, "version": "1"}]},
+        headers=outsider,
+    )
+    assert check_outsider.json()["items"][0]["status"] == "not_found"
+
+    # 激活上报（用于停用时的定向通知）
+    reported = await client.post(
+        "/api/v1/me/activations:report",
+        json={
+            "deviceId": "device-stage5",
+            "scope": "global",
+            "items": [
+                {
+                    "type": "mcp",
+                    "source": "market",
+                    "refId": server_id,
+                    "name": "github",
+                    "version": "1",
+                    "enabled": True,
+                }
+            ],
+        },
+        headers=member,
+    )
+    assert reported.status_code == 200, reported.text
+
+    # 停用：必填原因；状态与定向通知（中文默认语言）
+    no_reason = await client.post(f"/api/v1/mcp-servers/{server_id}:disable", headers=owner)
+    assert no_reason.status_code == 422
+    disabled = await client.post(
+        f"/api/v1/mcp-servers/{server_id}:disable", params={"reason": "外部域名不可信"}, headers=owner
+    )
+    assert disabled.status_code == 200, disabled.text
+    assert disabled.json()["notified"] == 1
+    after_disable = await client.post(
+        "/api/v1/resources/status:check",
+        json={"items": [{"type": "mcp", "refId": server_id, "version": "1"}]},
+        headers=member,
+    )
+    disabled_item = after_disable.json()["items"][0]
+    assert disabled_item["status"] == "disabled"
+    assert disabled_item["reason"] == "外部域名不可信"
+    notifications = await client.get("/api/v1/me/notifications", headers=member)
+    note = next(item for item in notifications.json()["items"] if item["type"] == "mcp.disabled")
+    assert note["title"] == "MCP「github」已被停用"
+    assert note["body"] == "外部域名不可信"
+
+    # 重新启用 → 提交 v2 审批 → 撤回 v2（回退替代版本 1）
+    assert (await client.post(f"/api/v1/mcp-servers/{server_id}:enable", headers=owner)).status_code == 200
+    v2 = await client.post(
+        f"/api/v1/mcp-servers/{server_id}/versions",
+        json={**version_payload, "changelog": "新增项目列表工具"},
+        headers=member,
+    )
+    assert v2.status_code == 201, v2.text
+    assert v2.json()["version"] == 2
+    pending2 = await client.get(
+        "/api/v1/approvals", params={"scope": "team", "team_id": team_id, "status": "pending"}, headers=owner
+    )
+    await client.post(
+        f"/api/v1/approvals/{pending2.json()['items'][0]['id']}:approve", json={"comment": "ok"}, headers=owner
+    )
+    revoked = await client.post(
+        f"/api/v1/mcp-servers/{server_id}/versions/2:revoke", params={"reason": "上游有漏洞"}, headers=owner
+    )
+    assert revoked.status_code == 200, revoked.text
+    assert revoked.json()["replacementVersion"] == "1"
+    revoked_check = await client.post(
+        "/api/v1/resources/status:check",
+        json={"items": [{"type": "mcp", "refId": server_id, "version": "2"}]},
+        headers=member,
+    )
+    revoked_item = revoked_check.json()["items"][0]
+    assert revoked_item["status"] == "revoked"
+    assert revoked_item["replacementVersion"] == "1"
+
+    # 下架（软）→ delisted；重新上架恢复
+    assert (await client.post(f"/api/v1/mcp-servers/{server_id}:delist", headers=owner)).status_code == 200
+    delisted = await client.post(
+        "/api/v1/resources/status:check",
+        json={"items": [{"type": "mcp", "refId": server_id, "version": "1"}]},
+        headers=member,
+    )
+    assert delisted.json()["items"][0]["status"] == "delisted"
+    assert (await client.post(f"/api/v1/mcp-servers/{server_id}:publish", headers=owner)).status_code == 200
+    assert (await client.get("/api/v1/marketplace/mcp-servers", headers=member)).json()["items"]
+
+    # 删除（硬）→ not_found
+    deleted = await client.delete(f"/api/v1/mcp-servers/{server_id}", headers=owner)
+    assert deleted.status_code == 200
+    gone = await client.post(
+        "/api/v1/resources/status:check",
+        json={"items": [{"type": "mcp", "refId": server_id, "version": "1"}]},
+        headers=member,
+    )
+    assert gone.json()["items"][0]["status"] == "not_found"

@@ -16,6 +16,7 @@ from huagent.api.routes import (
     approvals,
     auth,
     invitations,
+    mcp,
     me,
     orgs,
     resources,
@@ -62,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(teams.router, prefix="/api/v1")
     app.include_router(approvals.router, prefix="/api/v1")
     app.include_router(skills.router, prefix="/api/v1")
+    app.include_router(mcp.router, prefix="/api/v1")
     app.include_router(resources.router, prefix="/api/v1")
     app.include_router(invitations.router, prefix="/api/v1")
     app.include_router(workspaces.router, prefix="/api/v1")

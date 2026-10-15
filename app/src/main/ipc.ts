@@ -30,7 +30,7 @@ import {
   toSessionUsage,
   type PiUsageLike,
 } from './session/durable_view'
-import { globalMcpFile, loadMcpFile, materializeSecrets, saveMcpServer, workspaceMcpFile, type McpServerConfig } from './mcp/config'
+import { globalMcpFile, loadMcpFile, materializeSecrets, mergeCatalog, saveMcpServer, workspaceMcpFile, type McpServerConfig } from './mcp/config'
 import type { McpManager } from './mcp/manager'
 import type { SkillManager } from './skills/manager'
 import { compareSemver } from './skills/parser'
@@ -38,6 +38,7 @@ import { MarketClient } from './market/client'
 import type { InstalledSkill, SkillInstaller } from './market/installer'
 import { isHardDisabled, type ResourceStatusService, type StatusCache } from './market/status'
 import { reportActivationSnapshot } from './market/activations'
+import { buildMarketMcpConfig } from './market/mcp_install'
 import { SyncEngine } from './sync/engine'
 import { CloudSyncBackend } from './sync/backend'
 import { SyncScheduler, loadSyncSettings, saveSyncSettings, type SyncSchedule } from './sync/scheduler'
@@ -455,6 +456,70 @@ export function registerIpc(context: AppContext): void {
     return context.statuses.check({ force: force ?? true })
   })
 
+  // ---------- 市场：MCP（design 6.5） ----------
+  ipcMain.handle('market:mcp-list', async (_event, params?: Record<string, string>) => {
+    const { ws } = await scoped(context)
+    const [result, installed, cache] = await Promise.all([
+      context.market.listMcpServers({
+        q: params?.q,
+        tag: params?.tag,
+        sort: params?.sort as 'updated' | 'name' | undefined,
+      }),
+      installedMcpServers(ws),
+      context.statuses.load(),
+    ])
+    return result.items.map((item) => toMarketMcpView(item, installed, cache))
+  })
+  ipcMain.handle('market:mcp-detail', async (_event, serverId: string) => {
+    const { ws } = await scoped(context)
+    const [detail, installed, cache] = await Promise.all([
+      context.market.mcpServerDetail(serverId),
+      installedMcpServers(ws),
+      context.statuses.load(),
+    ])
+    return {
+      ...toMarketMcpView(detail, installed, cache),
+      disabledReason: detail.disabledReason ?? null,
+      configTemplate: detail.configTemplate,
+      envSchema: detail.envSchema,
+      docsMd: detail.docsMd,
+      versions: detail.versions,
+    }
+  })
+  ipcMain.handle(
+    'market:mcp-install',
+    async (_event, serverId: string, version: number, values: Record<string, string>) => {
+      const { ws } = await scoped(context)
+      const detail = await context.market.mcpServerDetail(serverId)
+      const versionInfo = detail.versions.find((item) => item.version === version)
+      if (!versionInfo) throw new Error(t('MCP 版本不存在：{version}', { version }))
+      const config = await buildMarketMcpConfig({
+        id: detail.id,
+        name: detail.name,
+        transport: versionInfo.transport,
+        configTemplate: detail.configTemplate,
+        envSchema: detail.envSchema,
+        version,
+        values,
+        secrets: context.secrets,
+      })
+      await saveMcpServer(globalMcpFile(), detail.name, config)
+      await context.mcp.reload(ws)
+      await context.statuses.check({ force: true }).catch(() => undefined)
+      await reportScope(context, ws, 'global')
+      return context.mcp.list(ws)
+    },
+  )
+  ipcMain.handle('market:mcp-uninstall', async (_event, serverId: string) => {
+    const { ws } = await scoped(context)
+    const installed = await installedMcpServers(ws)
+    const mine = installed.get(serverId)
+    if (mine) await saveMcpServer(globalMcpFile(), mine.name, null)
+    await context.mcp.reload(ws)
+    await reportScope(context, ws, 'global')
+    return context.mcp.list(ws)
+  })
+
   // ---------- 云同步（design 5.11 / 6.6） ----------
   const syncEngine = async (): Promise<SyncEngine> => {
     const { ws } = await scoped(context)
@@ -853,10 +918,12 @@ async function reportScope(
 ): Promise<void> {
   try {
     if (!(await context.cloud.isLoggedIn())) return
-    const [config, skills, installed] = await Promise.all([
+    const [config, skills, installed, globalServers, workspaceServers] = await Promise.all([
       context.cloud.config(),
       context.skills.list(ws),
       context.installer.list(),
+      loadMcpFile(globalMcpFile()),
+      loadMcpFile(workspaceMcpFile(ws)),
     ])
     await reportActivationSnapshot({
       market: context.market,
@@ -865,8 +932,51 @@ async function reportScope(
       workspaceId: scope === 'workspace' ? ws.id : null,
       skills,
       installed,
+      mcp: mergeCatalog(globalServers, workspaceServers),
     })
   } catch (error) {
     console.warn(t('[market] 激活上报失败：'), error)
+  }
+}
+
+/** 本地 mcp.json 里的市场安装记录：mcpId → { name, version } */
+async function installedMcpServers(ws: WorkspacePaths): Promise<Map<string, { name: string; version: number }>> {
+  const map = new Map<string, { name: string; version: number }>()
+  for (const file of [globalMcpFile(), workspaceMcpFile(ws)]) {
+    for (const [name, config] of Object.entries(await loadMcpFile(file))) {
+      const source = config.source
+      if (source?.type !== 'market' || !source.mcpId) continue
+      map.set(source.mcpId, { name, version: source.version ?? 0 })
+    }
+  }
+  return map
+}
+
+function toMarketMcpView(
+  item: {
+    id: string
+    name: string
+    description: string
+    tags: string[]
+    latestVersion: number | null
+    updatedAt: string
+  },
+  installed: Map<string, { name: string; version: number }>,
+  cache: StatusCache,
+): import('../shared/ipc').MarketMcpServerView {
+  const mine = installed.get(item.id)
+  const entry = cache.mcp[item.id]
+  return {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    tags: item.tags,
+    latestVersion: item.latestVersion,
+    updatedAt: item.updatedAt,
+    installedVersion: mine?.version ?? null,
+    updateAvailable: Boolean(mine && item.latestVersion !== null && item.latestVersion > mine.version),
+    state: entry?.status,
+    stateReason: entry?.reason,
+    replacementVersion: entry?.replacementVersion,
   }
 }

@@ -63,6 +63,13 @@ NOTIFICATION_MESSAGES: dict[str, dict[str, MessageTemplate]] = {
             "body": "{actor} submitted a new version — review and publish it.",
         },
     },
+    "approval.mcp_version_publish": {
+        "zh-CN": {"title": "待审批：MCP {name} v{version}", "body": "{actor} 提交了新版本，请审核后发布。"},
+        "en-US": {
+            "title": "Pending review: MCP {name} v{version}",
+            "body": "{actor} submitted a new version — review and publish it.",
+        },
+    },
     "approval.reminder": {
         "zh-CN": {
             "title": "有待审批事项超过 48 小时",
@@ -134,6 +141,35 @@ NOTIFICATION_MESSAGES: dict[str, dict[str, MessageTemplate]] = {
             "title": "Version {version} of Skill “{name}” was revoked",
             "body": "{reason|This version was revoked.}{upgrade}",
             "fragments": {"upgrade": "; please upgrade to {replacement}"},
+        },
+    },
+    "mcp.disabled": {
+        "zh-CN": {
+            "title": "MCP「{name}」已被停用",
+            "body": "{reason|管理员停用了该资源。}",
+        },
+        "en-US": {
+            "title": "MCP “{name}” was disabled",
+            "body": "{reason|An administrator disabled this resource.}",
+        },
+    },
+    "mcp.deleted": {
+        "zh-CN": {"title": "MCP「{name}」已被删除", "body": "该资源已从市场删除，客户端将停止使用。"},
+        "en-US": {
+            "title": "MCP “{name}” was deleted",
+            "body": "The resource was removed from the marketplace; clients stop using it.",
+        },
+    },
+    "mcp.version_revoked": {
+        "zh-CN": {
+            "title": "MCP「{name}」的版本 {version} 已被撤回",
+            "body": "{reason|该版本已被撤回。}{upgrade}",
+            "fragments": {"upgrade": "；请升级到 v{replacement}"},
+        },
+        "en-US": {
+            "title": "Version {version} of MCP “{name}” was revoked",
+            "body": "{reason|This version was revoked.}{upgrade}",
+            "fragments": {"upgrade": "; please upgrade to v{replacement}"},
         },
     },
 }

@@ -310,6 +310,29 @@ const enUS: Record<string, Message> = {
   'SKILL.md 预览': 'SKILL.md preview',
   '文档': 'Docs',
 
+  // ---- MCP 市场（design 5.8.3 / 6.5） ----
+  'Skill 市场': 'Skill marketplace',
+  'MCP 市场': 'MCP marketplace',
+  'MCP 资源是连接描述（配置模板 + 环境变量声明）；安装会写入本机 mcp.json，密钥值只保存在本机密钥库（服务端不接触）。下架为软状态，停用/撤回/删除为硬停用。':
+    'MCP resources are connection descriptors (config template + env declarations); installing writes to the local mcp.json and keeps secret values only in the local secret store (the server never sees them). Delisting is a soft state; disable/revoke/delete are hard-disabled.',
+  '暂无 MCP 资源（需要团队管理员审批发布后才会出现在这里）。':
+    'No MCP resources available yet (they appear once a team admin approves publication).',
+  '安装 MCP：{name}': 'Install MCP: {name}',
+  '已安装 MCP {name}（可在 MCP 配置中启停）': 'Installed MCP {name} (enable or disable it in MCP settings)',
+  '已卸载 MCP {name}': 'Uninstalled MCP {name}',
+  '传输方式': 'Transport',
+  '配置模板': 'Config template',
+  '环境变量声明': 'Environment declarations',
+  '密钥': 'Secret',
+  '必填': 'Required',
+  '该 MCP 不需要额外配置，点击安装即可。': 'This MCP needs no extra configuration — just install.',
+  '该字段为密钥：值只写入本机密钥库，服务端不接触':
+    'Secret field: the value is stored only in the local secret store; the server never sees it',
+  'MCP 配置模板缺少 command': 'The MCP config template is missing "command"',
+  'MCP 配置模板缺少 url': 'The MCP config template is missing "url"',
+  '缺少必填的环境变量：{key}': 'Missing required environment variable: {key}',
+  'MCP 版本不存在：{version}': 'MCP version not found: {version}',
+
   // ---- MCP 配置 ----
   '新增 / 编辑 MCP server': 'Add / edit MCP server',
   'server 名称（如 filesystem）': 'Server name (e.g. filesystem)',

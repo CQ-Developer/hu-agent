@@ -2,17 +2,11 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { InstalledSkillView, MarketDetailView, MarketSkillView } from '@shared/ipc'
 import { t } from '../../i18n'
-
-const STATE_LABEL: Record<string, string> = {
-  active: t('正常'),
-  delisted: t('已下架'),
-  disabled: t('已停用'),
-  revoked: t('版本已撤回'),
-  not_found: t('已删除'),
-  unknown: t('状态未知'),
-}
+import McpMarketSection from './McpMarketSection'
+import { MARKET_STATE_LABEL } from './market_labels'
 
 export default function MarketSection({ onChanged }: { onChanged: () => void }) {
+  const [tab, setTab] = useState<'skill' | 'mcp'>('skill')
   const [items, setItems] = useState<MarketSkillView[]>([])
   const [installed, setInstalled] = useState<InstalledSkillView[]>([])
   const [query, setQuery] = useState('')
@@ -62,6 +56,25 @@ export default function MarketSection({ onChanged }: { onChanged: () => void }) 
 
   return (
     <div className="space-y-4">
+      <div className="flex gap-1 border-b border-neutral-200 text-xs">
+        <button
+          type="button"
+          onClick={() => setTab('skill')}
+          className={`-mb-px border-b-2 px-3 py-1.5 ${tab === 'skill' ? 'border-neutral-900 font-medium text-neutral-900' : 'border-transparent text-neutral-400 hover:text-neutral-700'}`}
+        >
+          {t('Skill 市场')}
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('mcp')}
+          className={`-mb-px border-b-2 px-3 py-1.5 ${tab === 'mcp' ? 'border-neutral-900 font-medium text-neutral-900' : 'border-transparent text-neutral-400 hover:text-neutral-700'}`}
+        >
+          {t('MCP 市场')}
+        </button>
+      </div>
+      {tab === 'mcp' ? <McpMarketSection onChanged={onChanged} /> : null}
+      {tab === 'mcp' ? null : (
+      <>
       <p className="text-[11px] leading-relaxed text-neutral-400">
         {t('市场资源按团队可见；安装 = 下载 → sha256 校验 → 安全解压到')}{' '}
         <code>~/.hu-agent/skills/&lt;name&gt;/&lt;version&gt;/</code>{t('（不自动启用）。下架为软状态（可用但不再更新）， 停用/撤回/删除为硬停用，实际生效 = 用户意图 ∧ 服务端状态，恢复后按原意图自动恢复。')}
@@ -127,7 +140,7 @@ export default function MarketSection({ onChanged }: { onChanged: () => void }) 
                   )}
                   {item.state && item.state !== 'active' && (
                     <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">
-                      {STATE_LABEL[item.state] ?? item.state}
+                      {MARKET_STATE_LABEL[item.state] ?? item.state}
                     </span>
                   )}
                 </div>
@@ -221,7 +234,7 @@ export default function MarketSection({ onChanged }: { onChanged: () => void }) 
                           : 'bg-emerald-100 text-emerald-700'
                     }`}
                   >
-                    {item.state ? (STATE_LABEL[item.state] ?? item.state) : t('未同步')}
+                    {item.state ? (MARKET_STATE_LABEL[item.state] ?? item.state) : t('未同步')}
                   </span>
                 </div>
               </li>
@@ -229,6 +242,8 @@ export default function MarketSection({ onChanged }: { onChanged: () => void }) 
           </ul>
         )}
       </section>
+      </>
+      )}
 
       {detail && (
         <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40" onClick={() => setDetail(null)}>

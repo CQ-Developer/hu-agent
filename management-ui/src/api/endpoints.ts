@@ -13,6 +13,10 @@ export type Approval = Schema['ApprovalOut']
 export type Skill = Schema['SkillOut']
 export type SkillDetail = Schema['SkillDetailOut']
 export type SkillVersion = Schema['SkillVersionOut']
+export type McpServer = Schema['McpServerOut']
+export type McpServerDetail = Schema['McpServerDetailOut']
+export type McpVersion = Schema['McpVersionOut']
+export type McpEnvField = Schema['McpEnvField']
 export type Org = Schema['OrgOut']
 export type Team = Schema['TeamOut']
 export type OrgMember = Schema['OrgMemberOut']
@@ -167,6 +171,26 @@ export const skillApi = {
     }),
   downloadUrl: (skillId: string, version: string) =>
     api.get<{ url: string; expiresIn: number }>(`/api/v1/skills/${skillId}/versions/${version}/download-url`),
+}
+
+// ---------- MCP（团队资源） ----------
+export const mcpApi = {
+  listTeam: (teamId: string, params: { status?: string; q?: string; limit?: number; offset?: number } = {}) =>
+    api.get<{ items: McpServer[]; total: number }>(`/api/v1/teams/${teamId}/mcp-servers`, {
+      query: { status: params.status, q: params.q, limit: params.limit ?? 50, offset: params.offset ?? 0 },
+    }),
+  detail: (serverId: string) => api.get<McpServerDetail>(`/api/v1/mcp-servers/${serverId}`),
+  publish: (serverId: string) => api.post<Record<string, unknown>>(`/api/v1/mcp-servers/${serverId}:publish`),
+  delist: (serverId: string) => api.post<Record<string, unknown>>(`/api/v1/mcp-servers/${serverId}:delist`),
+  enable: (serverId: string) => api.post<Record<string, unknown>>(`/api/v1/mcp-servers/${serverId}:enable`),
+  disable: (serverId: string, reason: string) =>
+    api.post<Record<string, unknown>>(`/api/v1/mcp-servers/${serverId}:disable`, undefined, { query: { reason } }),
+  remove: (serverId: string) => api.del<Record<string, unknown>>(`/api/v1/mcp-servers/${serverId}`),
+  // 替代版本由服务端自动推导（最新已发布/曾发布版本）
+  revokeVersion: (serverId: string, version: number, reason: string) =>
+    api.post<Record<string, unknown>>(`/api/v1/mcp-servers/${serverId}/versions/${version}:revoke`, undefined, {
+      query: { reason },
+    }),
 }
 
 // ---------- 身份源（系统管理员） ----------

@@ -48,6 +48,47 @@ export interface MarketSkillDetail extends MarketSkill {
   versions: MarketVersion[]
 }
 
+export interface MarketMcpServer {
+  id: string
+  orgId: string
+  teamId: string
+  name: string
+  description: string
+  tags: string[]
+  status: string
+  statusRevision: number
+  latestVersion: number | null
+  updatedAt: string
+}
+
+export type McpTransportKind = 'stdio' | 'sse' | 'http'
+
+/** env_schema 项：`secret` 只声明，值永远由客户端写入密钥库（design 6.5）。 */
+export interface MarketMcpEnvField {
+  key: string
+  label: string
+  secret: boolean
+  required: boolean
+  help: string | null
+}
+
+export interface MarketMcpVersion {
+  id: string
+  version: number
+  status: string
+  transport: McpTransportKind
+  changelog: string | null
+  createdAt: string
+}
+
+export interface MarketMcpDetail extends MarketMcpServer {
+  disabledReason: string | null
+  configTemplate: Record<string, unknown>
+  envSchema: MarketMcpEnvField[]
+  docsMd: string
+  versions: MarketMcpVersion[]
+}
+
 export interface DownloadInfo {
   url: string
   expiresIn: number
@@ -102,6 +143,25 @@ export class MarketClient {
 
   async skillDetail(skillId: string): Promise<MarketSkillDetail> {
     return (await this.cloud.request(`/api/v1/skills/${skillId}`)) as MarketSkillDetail
+  }
+
+  async listMcpServers(params: { q?: string; tag?: string; sort?: 'updated' | 'name' } = {}): Promise<{
+    items: MarketMcpServer[]
+    total: number
+  }> {
+    const query = new URLSearchParams()
+    if (params.q) query.set('q', params.q)
+    if (params.tag) query.set('tag', params.tag)
+    if (params.sort) query.set('sort', params.sort)
+    const suffix = query.size > 0 ? `?${query.toString()}` : ''
+    return (await this.cloud.request(`/api/v1/marketplace/mcp-servers${suffix}`)) as {
+      items: MarketMcpServer[]
+      total: number
+    }
+  }
+
+  async mcpServerDetail(serverId: string): Promise<MarketMcpDetail> {
+    return (await this.cloud.request(`/api/v1/mcp-servers/${serverId}`)) as MarketMcpDetail
   }
 
   async downloadUrl(skillId: string, version: string): Promise<DownloadInfo> {
