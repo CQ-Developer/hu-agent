@@ -14,9 +14,15 @@
 - 新指标 `huagent_job_staleness_budget_seconds{job_id}`：worker 任务「多久未成功完成即异常」的预算，
   由任务周期推导（心跳/每小时任务 = 3 倍周期且不低于 15 分钟；每日 cron 任务 = 26 小时）。
 - 定时任务表收敛到 `worker/schedule.py`（唯一的调度与预算来源），worker 启动改用它注册。
+- 客户端支持**删除会话**（右键可见的删除入口）：同时清理 pi-durable 的提交/条目/任务/文档与视图索引；运行中的会话禁止删除。
 
 ### 修复
 
+- 客户端聊天「没有任何反应」：pi-durable 的提交终态只有 `done`/`unanswered`，旧代码检查不存在的
+  `failed`，模型报错被当成成功且界面无提示；现在 `unanswered` 一律以 `turn.end(error)` 展示（含网关错误原文）。
+- 客户端改过 provider 后历史会话打不通：会话存着旧模型目标（如 `deepseek/deepseek-flash`），
+  pi 注册表找不到 → `no_model`；现在读取/发送前自愈为当前默认模型并持久化。
+- 客户端助手回复在回合结束后不显示：`pi.live` 在 settle 后为空，改为按 durable 条目回读。
 - `HuAgentWorkerJobStale` 告警阈值写死 2 小时，导致每日 cron 任务（分区维护、快照清理、PII 清理、
   日聚合清理）在两次执行之间必然持续误报；改为与各任务预算比较。
 - `prometheus.yml` 缺少 `alerting.alertmanagers` 配置：规则会 fire 但不会发出任何通知（实测发现）。

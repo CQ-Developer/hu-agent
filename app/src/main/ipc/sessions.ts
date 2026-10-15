@@ -6,7 +6,8 @@ import type { SessionOptionsView } from '../../shared/ipc'
 import { t } from '../i18n'
 import type { ModelSettings } from '../model/types'
 import type { ApprovalChoice } from '../permissions/types'
-import { type SessionView } from '../session/durable'
+import { type DurableSessions, type SessionView } from '../session/durable'
+import { healModelTarget, parseModelTarget } from '../session/model_target'
 import {
   countAssistantEntries,
   fromSessionOptions,
@@ -22,6 +23,28 @@ import { buildEngine, scoped, type AppContext } from './context'
 
 /** sessionId -> 运行中的回合（同一会话同一时刻只允许一个） */
 const activeTurns = new Map<string, AbortController>()
+
+/**
+ * 读取会话选项，并自愈已失效的模型目标：
+ * 改过 provider/模型后，历史会话里存的旧目标（如 `deepseek/deepseek-flash`）会回退到当前默认模型并持久化。
+ */
+async function resolveSessionOptions(
+  context: AppContext,
+  sessions: DurableSessions,
+  sessionId: string,
+): Promise<SessionOptionsView> {
+  const settings = await context.settings.load()
+  const available = settings.providers.flatMap((provider) =>
+    provider.models.map((model) => `${provider.id}/${model.name}`),
+  )
+  const options = toSessionOptions(await sessions.agentConfig(sessionId))
+  const healed = healModelTarget(options.model, available, settings.defaults.primary)
+  if (!healed.healed || !healed.target) return options
+  const target = parseModelTarget(healed.target)
+  if (!target) return options
+  await sessions.configure(sessionId, { model: target })
+  return toSessionOptions(await sessions.agentConfig(sessionId))
+}
 
 export function registerSessionsIpc(context: AppContext): void {
   ipcMain.handle('sessions:list', async () => {
@@ -42,9 +65,14 @@ export function registerSessionsIpc(context: AppContext): void {
     const { sessions } = await scoped(context)
     await sessions.rename(sessionId, title)
   })
+  ipcMain.handle('sessions:delete', async (_event, sessionId: string) => {
+    if (activeTurns.has(sessionId)) throw new Error(t('该会话正在运行：请先停止再删除'))
+    const { sessions } = await scoped(context)
+    await sessions.delete(sessionId)
+  })
   ipcMain.handle('sessions:options', async (_event, sessionId: string) => {
     const { sessions } = await scoped(context)
-    return toSessionOptions(await sessions.agentConfig(sessionId))
+    return resolveSessionOptions(context, sessions, sessionId)
   })
   ipcMain.handle('sessions:set-options', async (_event, sessionId: string, options: SessionOptionsView) => {
     const { sessions } = await scoped(context)
@@ -69,6 +97,8 @@ export function registerSessionsIpc(context: AppContext): void {
   ipcMain.handle('agent:send', async (_event, sessionId: string, text: string) => {
     if (activeTurns.has(sessionId)) throw new Error(t('该会话已有运行中的任务'))
     const { ws, sessions, artifacts } = await scoped(context)
+    // 自愈过期模型（否则历史会话会以 no_model 失败，界面却看不到任何输出）
+    await resolveSessionOptions(context, sessions, sessionId)
     const permissions = await buildEngine(context, ws)
     const controller = new AbortController()
     activeTurns.set(sessionId, controller)

@@ -14,7 +14,7 @@ import { createModels } from '@earendil-works/pi-ai/models'
 import { fauxAssistantMessage, fauxProvider, fauxText } from '@earendil-works/pi-ai/providers/faux'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { runDurableTurn, type DurableTurnDeps } from '../src/main/agent/durable_loop'
+import { runDurableTurn, describeUnanswered, type DurableTurnDeps } from '../src/main/agent/durable_loop'
 import { DurableSessions } from '../src/main/session/durable'
 import type { AgentEvent } from '../src/shared/events'
 
@@ -107,5 +107,29 @@ describe('durable 回环（回合由 harness 跑）', () => {
 
     // 幂等提交：第二次不新增排队输入
     expect(JSON.stringify(after)).toBe(JSON.stringify(before))
+  }, 60_000)
+
+  it('describeUnanswered 映射失败原因到用户可读文案', () => {
+    expect(describeUnanswered('model_error', '401 Unauthorized')).toBe('模型调用失败：401 Unauthorized')
+    expect(describeUnanswered('model_error', undefined)).toContain('请检查模型配置')
+    expect(describeUnanswered('no_model', undefined, 'token-hub/deepseek-v4.1-flash')).toContain(
+      'token-hub/deepseek-v4.1-flash',
+    )
+    expect(describeUnanswered('aborted')).toBe('回合已中止')
+    expect(describeUnanswered('something_else', { code: 1 })).toBe('{"code":1}')
+  })
+
+  it('未配置模型的会话：turn.end 带可见错误（回归：失败提示曾被当成成功吞掉）', async () => {
+    const { deps, instance } = await setup()
+    // 新会话不配模型：pi-durable 以 unanswered(no_model) 结束
+    const bare = await instance.create({ title: '未配模型' })
+    const events: AgentEvent[] = []
+    await runDurableTurn(
+      { ...deps, conversationId: bare.id, emit: (event) => void events.push(event) },
+      { userText: '你好', turnId: 'turn-no-model', signal: new AbortController().signal },
+    )
+    const end = events.find((event) => event.type === 'turn.end')
+    expect(end).toMatchObject({ type: 'turn.end', stopReason: 'error' })
+    expect(end && 'error' in end ? end.error : '').toContain('未找到会话配置的模型')
   }, 60_000)
 })

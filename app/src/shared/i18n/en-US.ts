@@ -583,6 +583,17 @@ const enUS: Record<string, Message> = {
   '[sync] 自动同步失败：': '[sync] automatic sync failed: ',
   '会话服务未打开：请先调用 open()': 'Session service is not open: call open() first',
   '会话不存在：{id}': 'Session not found: {id}',
+  '模型调用失败：{detail}': 'Model call failed: {detail}',
+  '请检查模型配置（Base URL / 密钥 / 网络）': 'check the model configuration (base URL / API key / network)',
+  '未找到会话配置的模型（{target}）：请在「模型配置」检查 provider 与模型名':
+    'The model configured for this session was not found ({target}); check the provider and model name in Model settings',
+  '回合已中止': 'The turn was aborted',
+  '回合未执行（会话状态已变化），请重试': 'The turn was not executed because the session state changed; retry',
+  '会话已重置': 'The session was reset',
+  '回合未完成（原因：{reason}）': 'The turn did not complete (reason: {reason})',
+  '删除会话': 'Delete session',
+  '确认删除会话「{title}」？该操作不可恢复。': 'Delete session “{title}”? This cannot be undone.',
+  '该会话正在运行：请先停止再删除': 'This session is running; stop it before deleting',
   '[market] 激活上报失败：': '[market] activation report failed: ',
   '未配置模型：请在设置中填写 provider 的 baseUrl、模型与密钥': 'No model configured: set the provider baseUrl, model and API key in Settings',
 }
