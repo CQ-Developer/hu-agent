@@ -6,7 +6,7 @@
 import { lookup, type Locale } from './index'
 
 /** 业务码 → 中文消息键（中文即键，英文见 en-US 词典） */
-export const ERROR_CODE_MESSAGES: Record<string, string> = {
+const ERROR_CODE_MESSAGES: Record<string, string> = {
   UNAUTHENTICATED: '登录状态已失效，请重新登录',
   REFRESH_REVOKED: '会话已被服务端撤销，请重新登录',
   FORBIDDEN: '没有权限执行该操作',

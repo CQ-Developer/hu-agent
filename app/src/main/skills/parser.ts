@@ -83,7 +83,7 @@ export function parseSkillFile(content: string): ParsedSkill {
 }
 
 /** 仅支持 Skill front matter 所需的 YAML 子集：一层嵌套、块列表、内联列表、布尔/字符串。 */
-export function parseYamlSubset(text: string): Record<string, unknown> {
+function parseYamlSubset(text: string): Record<string, unknown> {
   const lines = text
     .split('\n')
     .map((line) => ({ indent: line.length - line.trimStart().length, text: line.trim() }))

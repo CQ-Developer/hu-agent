@@ -13,7 +13,7 @@ import type { MarketClient } from './client'
 import { extractZip, type ZipLimits } from './zip'
 import { t } from '../i18n'
 
-export const DEFAULT_ZIP_LIMITS: ZipLimits = {
+const DEFAULT_ZIP_LIMITS: ZipLimits = {
   maxFiles: 500,
   maxTotalUncompressed: 100 * 1024 * 1024,
   maxCompressionRatio: 200,

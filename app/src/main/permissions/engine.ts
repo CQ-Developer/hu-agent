@@ -3,7 +3,7 @@
 import type { AuditLog } from './audit'
 import type { InteractionBroker } from './broker'
 import { canonicalizePath, isProtectedWritePath, isSensitivePath, matchesAnyPattern } from './paths'
-import type { PermissionCheck, PermissionDecision, PolicyRule, ToolCategory } from './types'
+import type { PermissionCheck, PermissionDecision, PolicyRule } from './types'
 import { t } from '../i18n'
 
 export interface EngineDeps {
@@ -193,13 +193,4 @@ export class PermissionEngine {
       args: check.input,
     })
   }
-}
-
-export const CATEGORY_OF_TOOL: Record<string, ToolCategory> = {
-  read_file: 'read',
-  write_file: 'write',
-  edit_file: 'write',
-  bash: 'exec',
-  powershell: 'exec',
-  ask_guide: 'interact',
 }

@@ -17,7 +17,7 @@ export interface AuditEntry {
   argsDigest: string
 }
 
-export function digestArgs(value: unknown): string {
+function digestArgs(value: unknown): string {
   return `sha256:${createHash('sha256').update(JSON.stringify(value ?? null)).digest('hex').slice(0, 32)}`
 }
 

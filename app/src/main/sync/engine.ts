@@ -68,7 +68,7 @@ interface SyncState {
 }
 
 /** v1 在内存中解压：超过该上限提示使用排除规则（流式解压留待 v1.x）。 */
-export const APPLY_MEMORY_LIMIT_BYTES = 256 * 1024 * 1024
+const APPLY_MEMORY_LIMIT_BYTES = 256 * 1024 * 1024
 
 const EXTRACT_LIMITS = {
   maxFiles: 50_000,

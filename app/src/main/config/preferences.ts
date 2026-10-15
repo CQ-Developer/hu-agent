@@ -14,10 +14,6 @@ export interface UIConfig {
   locale: LocalePreference
 }
 
-export function defaultUIConfig(): UIConfig {
-  return { locale: 'system' }
-}
-
 /** 读取 config.json 原始内容（保留未知字段） */
 export async function readRawConfig(file: string): Promise<Record<string, unknown>> {
   try {
@@ -30,7 +26,7 @@ export async function readRawConfig(file: string): Promise<Record<string, unknow
 }
 
 /** 原子写回 config.json（先写临时文件再 rename） */
-export async function writeRawConfig(file: string, value: Record<string, unknown>): Promise<void> {
+async function writeRawConfig(file: string, value: Record<string, unknown>): Promise<void> {
   await mkdir(dirname(file), { recursive: true })
   const temp = `${file}.tmp`
   await writeFile(temp, JSON.stringify(value, null, 2), 'utf8')

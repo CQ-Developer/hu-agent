@@ -27,11 +27,11 @@ interface SkillStateFile {
 
 const SEMVER = /^\d+\.\d+\.\d+/
 
-export function globalSkillsDir(): string {
+function globalSkillsDir(): string {
   return join(globalDir(), 'skills')
 }
 
-export function globalSkillsStateFile(): string {
+function globalSkillsStateFile(): string {
   return join(globalDir(), 'skills.json')
 }
 

@@ -26,7 +26,7 @@ export interface StatusCache {
   lastCheckAt?: string
 }
 
-export const HARD_DISABLED_STATES: readonly ResourceState[] = ['disabled', 'revoked', 'not_found']
+const HARD_DISABLED_STATES: readonly ResourceState[] = ['disabled', 'revoked', 'not_found']
 
 export function isHardDisabled(status: ResourceState | undefined): boolean {
   return status !== undefined && HARD_DISABLED_STATES.includes(status)

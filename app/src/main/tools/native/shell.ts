@@ -28,7 +28,7 @@ interface ShellInput {
   description?: string
 }
 
-export function terminateTree(child: ChildProcess): void {
+function terminateTree(child: ChildProcess): void {
   if (!child.pid) return
   if (process.platform === 'win32') {
     spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true })

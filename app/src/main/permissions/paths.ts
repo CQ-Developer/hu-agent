@@ -45,7 +45,7 @@ export function expandUser(input: string): string {
   return input
 }
 
-export function assertPathShape(input: string): void {
+function assertPathShape(input: string): void {
   if (!input || input.trim().length === 0) throw new PermissionPathError(t('路径不能为空'))
   if (process.platform === 'win32') {
     if (UNC_OR_DEVICE.test(input)) {
@@ -60,7 +60,7 @@ export function assertPathShape(input: string): void {
 }
 
 /** 取 realpath；目标不存在时回溯到最近存在的祖先再拼接（防创建时的符号链接逃逸）。 */
-export async function realpathBestEffort(target: string): Promise<string> {
+async function realpathBestEffort(target: string): Promise<string> {
   let current = target
   const suffix: string[] = []
   for (;;) {
@@ -82,7 +82,7 @@ function comparable(path: string): string {
   return process.platform === 'win32' ? value.toLowerCase() : value
 }
 
-export function isInside(root: string, target: string): boolean {
+function isInside(root: string, target: string): boolean {
   const rootC = comparable(root)
   const targetC = comparable(target)
   if (targetC === rootC) return true
@@ -98,7 +98,7 @@ export async function canonicalizePath(input: string, workspaceRoot: string): Pr
 }
 
 /** glob 匹配：支持 ** 与 *（不跨路径分隔符）。 */
-export function globToRegExp(pattern: string): RegExp {
+function globToRegExp(pattern: string): RegExp {
   const escaped = pattern
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*\*/g, '\u0000')
@@ -107,7 +107,7 @@ export function globToRegExp(pattern: string): RegExp {
   return new RegExp(`^${escaped}$`, process.platform === 'win32' ? 'i' : '')
 }
 
-export function matchesPattern(target: string, pattern: string, workspaceRoot: string): boolean {
+function matchesPattern(target: string, pattern: string, workspaceRoot: string): boolean {
   const expanded = expandUser(pattern).replace('<workspace>', workspaceRoot)
   const targetC = comparable(target)
   const patternC = process.platform === 'win32' ? normalize(expanded).toLowerCase() : normalize(expanded)

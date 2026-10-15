@@ -11,7 +11,7 @@
 import { mkdir, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
-import { listProviders, modelsFilePath, readModelsFile, writeProviders } from '../model/pi_config'
+import { listProviders, modelsFilePath, writeProviders } from '../model/pi_config'
 import type { ModelSettings, ProviderConfig } from '../model/types'
 import { readRawConfig } from './preferences'
 
@@ -29,7 +29,7 @@ function modelsPath(options: ModelSettingsBridgeOptions): string {
 }
 
 /** 没有 defaults 时按第一个可用 provider 推导，避免界面出现空目标 */
-export function deriveDefaults(providers: ProviderConfig[]): ModelSettings['defaults'] {
+function deriveDefaults(providers: ProviderConfig[]): ModelSettings['defaults'] {
   const first = providers[0]
   const model = first?.models[0]?.name
   if (!first || !model) return { primary: '' }
@@ -59,17 +59,6 @@ export async function saveModelSettings(
   const temp = `${options.configPath}.tmp`
   await writeFile(temp, `${JSON.stringify(merged, null, 2)}\n`, 'utf8')
   await rename(temp, options.configPath)
-}
-
-/** 供设置页展示/诊断：当前 models.json 里的 provider 数量与文件是否存在 */
-export async function inspectModelConfig(options: ModelSettingsBridgeOptions): Promise<{
-  providers: number
-  modelsFile: string
-  hasModelsFile: boolean
-}> {
-  const file = await readModelsFile(modelsPath(options))
-  const providers = Object.keys(file.providers).length
-  return { providers, modelsFile: modelsPath(options), hasModelsFile: providers > 0 }
 }
 
 /**

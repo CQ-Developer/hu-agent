@@ -18,7 +18,7 @@ import { t } from './i18n'
 
 const SENSITIVE_KEY = /(token|secret|password|api[-_]?key|authorization)/i
 
-export function redactValue(key: string, value: unknown): unknown {
+function redactValue(key: string, value: unknown): unknown {
   if (SENSITIVE_KEY.test(key)) return '***'
   if (typeof value === 'string') return truncatePaths(value)
   if (Array.isArray(value)) return value.map((item, index) => redactValue(`${key}[${index}]`, item))

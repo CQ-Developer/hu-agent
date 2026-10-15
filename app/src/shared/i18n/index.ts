@@ -13,7 +13,6 @@ export type Locale = 'zh-CN' | 'en-US'
 /** 语言偏好：`system` 表示跟随操作系统 */
 export type LocalePreference = Locale | 'system'
 
-export const LOCALES: Locale[] = ['zh-CN', 'en-US']
 export const DEFAULT_LOCALE: Locale = 'zh-CN'
 
 /** 位置参数：`{0}`；具名参数：`{count}`（undefined/null 渲染为空串） */
@@ -68,11 +67,6 @@ export function lookup(locale: Locale, key: string, params?: MessageParams): str
   return interpolate(template, params)
 }
 
-export function translate(locale: Locale, key: string, params?: MessageParams): string {
-  return lookup(locale, key, params)
-}
-
-/** 便于测试与漏翻检查：某语言词典的全部键 */
 export function dictionaryKeys(locale: Locale): string[] {
   return Object.keys(dictionaries[locale] ?? {})
 }

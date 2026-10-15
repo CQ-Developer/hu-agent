@@ -14,7 +14,7 @@ import { t } from '../i18n'
 
 export type SyncSchedule = 'off' | '15m' | '30m' | '1h' | '6h' | '24h'
 
-export const SYNC_SCHEDULES: { value: SyncSchedule; label: string; minutes: number }[] = [
+const SYNC_SCHEDULES: { value: SyncSchedule; label: string; minutes: number }[] = [
   { value: 'off', label: t('关闭'), minutes: 0 },
   { value: '15m', label: t('每 15 分钟'), minutes: 15 },
   { value: '30m', label: t('每 30 分钟'), minutes: 30 },

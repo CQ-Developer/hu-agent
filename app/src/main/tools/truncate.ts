@@ -1,6 +1,6 @@
 /** 工具输出截断（design 5.4：头 60% + 尾 40%，全文落 artifact）。 */
 
-export const OUTPUT_LIMIT = 30_000
+const OUTPUT_LIMIT = 30_000
 
 export interface TruncateResult {
   output: string

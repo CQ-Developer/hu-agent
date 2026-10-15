@@ -19,7 +19,7 @@ export function logDir(): string {
   return join(globalDir(), 'logs')
 }
 
-export function logFile(): string {
+function logFile(): string {
   return join(logDir(), 'app.log')
 }
 

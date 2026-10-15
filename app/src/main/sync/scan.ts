@@ -22,7 +22,7 @@ export interface ScanResult {
   manifestDigest: string
 }
 
-export const DEFAULT_EXCLUDES = [
+const DEFAULT_EXCLUDES = [
   '.hu/sync',
   '.hu/logs',
   '.hu/backups',
@@ -84,7 +84,7 @@ export async function scanWorkspace(root: string, options: ScanOptions = {}): Pr
   return { files, totalBytes, manifestDigest: manifestDigestOf(files) }
 }
 
-export function manifestDigestOf(files: ScannedFile[]): string {
+function manifestDigestOf(files: ScannedFile[]): string {
   const hasher = createHash('sha256')
   for (const file of files) hasher.update(`${file.path}\0${file.size}\n`)
   return `sha256:${hasher.digest('hex')}`

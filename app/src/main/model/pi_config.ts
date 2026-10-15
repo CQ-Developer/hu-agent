@@ -22,7 +22,7 @@ import { createProvider } from '@earendil-works/pi-ai/models'
 import type { ApiType, ModelEntry, ProviderConfig } from './types'
 
 /** 本应用自己的 agent 目录（不碰 pi CLI 的 ~/.pi/agent，除非用户显式指向它） */
-export const AGENT_DIR_ENV = 'HUAGENT_AGENT_DIR'
+const AGENT_DIR_ENV = 'HUAGENT_AGENT_DIR'
 
 /** 我们的 API 类型标签 ↔ pi 的 api id */
 const TO_PI_API: Record<ApiType, string> = {
