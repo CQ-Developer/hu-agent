@@ -271,7 +271,7 @@ hu-agent/                      # 一个仓库
 >
 > 验证：服务端单测 22 + 真实 PG18 集成 12；客户端单测 135（含 ZIP 安全 10、安装器 6、状态 4）；端到端 `MARKET_E2E=1`（真实服务端 + MinIO）跑通 浏览→安装→启用→管理员停用→客户端硬停用→恢复→卸载；`scripts/stage5-demo.ps1` 17 步全绿。
 >
-> 补丁（2026-10-15）：**5-09 闭环**——管理台新增「用户管理」（列表/检索/状态筛选、禁用与启用、强制下线、注销宽限期恢复、签发一次性重置链接）、公共「重置密码」页，以及成员页的「待处理邀请 + 撤销」服务端新增 `/admin/users*`、`POST /auth/password/reset`、`GET /orgs|teams/{id}/invitations`、`POST /invitations:revoke`（DDL V0006 `password_reset_tokens`，集成用例 `tests/integration/test_admin_users.py`）。
+> 补丁（2026-10-15）：**5-09 闭环**——管理台新增「用户管理」（列表/检索/状态筛选、禁用与启用、强制下线、注销宽限期恢复、签发一次性重置链接）、公共「重置密码」页，以及成员页的「待处理邀请 + 撤销」服务端新增 `/admin/users*`、`POST /auth/password/reset`、`GET /orgs|teams/{id}/invitations`、`POST /invitations:revoke`（DDL V0006 `password_reset_tokens`，集成用例 `tests/integration/test_admin_users.py` 5 项）；Playwright 实机走查全流程通过（禁用→登录被拒→启用；重置链接→公开页改密→旧密码失效；注销→恢复；组织/团队邀请撤销；0 控制台错误），并修复成员页整页加载时团队 Tab 空表与 antd Drawer `width` 弃用告警。
 
 ### 4.7 阶段 6：云同步与统计（对应 M4）
 

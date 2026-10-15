@@ -82,9 +82,12 @@ uv run --project management python -c "import asyncio; from huagent.common.runti
 | 3.4 | 「Skill 管理」→ 选择团队 → 打开详情 | 显示 SKILL.md、版本列表、状态版本号 |
 | 3.5 | 对已上架 Skill 执行「停用」并填写原因 | 客户端资源状态检查立即硬停用并显示原因；已启用用户收到通知 |
 | 3.6 | 停用后「启用」，再对某版本「撤回版本」 | 撤回后服务端指向替代版本（若有），客户端按状态检查处理 |
-| 3.7 | 「成员与邀请」→ 邀请成员（填写邮箱） | 展示一次性邀请码；成员在客户端输入后加入 |
+| 3.7 | 「成员与邀请」→ 邀请成员（填写邮箱） | 展示一次性邀请码；成员在客户端输入后加入；「待处理邀请」列出现该记录，可「撤销」且邀请码立即失效 |
 | 3.8 | 用 `sysadmin@example.com` 登录 → 「身份源（SSO）」 | 可见已配置的 Keycloak；编辑时 Client Secret 留空表示不改（只写不读） |
 | 3.9 | 顶部语言切 English | 管理台界面即时英文；偏好写入 `users.locale`（重新登录仍生效） |
+| 3.10 | 用 `sysadmin@example.com` 登录 → 「用户管理」→ 检索成员 → 「禁用」并填写原因 | 状态变「已禁用」；该账号登录返回 403（ACCOUNT_DISABLED），已有会话全部失效；本人收到含原因的站内通知；再次点击「启用」恢复登录 |
+| 3.11 | 「用户管理」→「重置密码」 | 展示一次性重置链接（仅此一次）；在浏览器打开链接设置新密码后，旧密码失效、新密码可登录，旧会话被撤销；同一链接再次使用报错 |
+| 3.12 | 客户端申请注销（或调用 `POST /me:delete`） → 管理台「用户管理」筛选「注销宽限期内」→「恢复账号」 | 状态回到「正常」，注销标记清除，账号可重新登录（宽限期后不可恢复） |
 
 ## 4. 服务端：安全与合规（约 10 分钟）
 
@@ -101,7 +104,7 @@ uv run --project management python -c "import asyncio; from huagent.common.runti
 
 ```bash
 bash scripts/check-all.sh                                   # 服务端 + 客户端 + 管理台
-HUAGENT_TESTCONTAINERS=1 uv run --project management pytest -m integration -q   # 25 项集成（真实 PG）
+HUAGENT_TESTCONTAINERS=1 uv run --project management pytest -m integration -q   # 42 项集成（真实 PG）
 cd app && CLOUD_E2E=1 MARKET_E2E=1 SYNC_E2E=1 STATS_E2E=1 npx vitest run tests/integration   # 4 条真实链路
 ```
 
@@ -117,7 +120,7 @@ CI（`.github/workflows/ci.yml`）在每次推送时执行上述内容 + 真实 
 | 市场治理 | 安装/启停/上下架/撤回/删除全链路生效 | |
 | 云同步 | 手动+定时同步、冲突不自动覆盖、可恢复 | |
 | 统计 | 用量对账（客户端上报 vs 服务端聚合）、CSV 导出 | |
-| 管理台 | 审批、Skill 治理、成员与邀请、身份源可用 | |
+| 管理台 | 审批、Skill 治理、成员与邀请（含撤销）、身份源、用户管理（禁用/恢复/重置）可用 | |
 | 合规 | 数据导出、注销与 30 天清理、审计保留、日志脱敏 | |
 | 国际化 | 客户端/管理台/通知中英双语，语言偏好持久化 | |
 | 可观测 | 健康检查、指标、告警规则、诊断包 | |
@@ -128,7 +131,8 @@ CI（`.github/workflows/ci.yml`）在每次推送时执行上述内容 + 真实 
 
 1. **必须登录**：企业身份管控要求，服务端不可用时应用不可进入（发布说明已注明）。
 2. **管理台已覆盖阶段 A + B**（审批、Skill 治理、成员与邀请、身份源、统计、组织治理、通知、审计、设置）；
-   尚未提供「系统区用户管理页面」，该场景请用 `huagent-admin` CLI（`list-users` / `disable-user` / `reset-password`）。
+   并已交付系统区「用户管理」（检索/禁用/启用/强制下线/恢复/签发一次性重置链接）与邀请撤销；
+   `huagent-admin` CLI（`list-users` / `disable-user` / `reset-password`）仍可用于无管理台时的运维。
 3. **安装包未签名**：Windows SmartScreen 会提示未知发布者；请核对 Release 附带的 SHA256SUMS，企业分发按 `docs/delivery/signing.md` 自行重签。
 4. **性能结论为单机基线**（`docs/delivery/performance.md`），生产容量需在 staging 按目标拓扑复测。
 5. **监控需自行接入**：指标端点与 12 条告警规则已就绪（`docs/delivery/monitoring.md`），Prometheus/Grafana 与值班按自身环境配置。

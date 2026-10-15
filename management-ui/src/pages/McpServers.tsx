@@ -217,7 +217,7 @@ export default function McpServers() {
       </ResourceAdminCard>
 
       <Drawer
-        width={720}
+        size={720}
         open={Boolean(detail)}
         loading={detailLoading}
         title={detail ? `${detail.name} · ${detail.latestVersion === null ? '-' : `v${detail.latestVersion}`}` : ''}

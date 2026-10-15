@@ -22,7 +22,9 @@ import Stats from './pages/Stats'
 import Members from './pages/Members'
 import NotFound from './pages/NotFound'
 import Profile from './pages/Profile'
+import ResetPassword from './pages/ResetPassword'
 import Skills from './pages/Skills'
+import Users from './pages/Users'
 
 function SkillsRoute() {
   const { profile } = useSession()
@@ -39,8 +41,17 @@ function McpServersRoute() {
   return profile ? <McpServers /> : <NoPermission />
 }
 
+function UsersRoute() {
+  const { profile } = useSession()
+  const location = useLocation()
+  void location
+  // 服务端仍强制鉴权；这里只做展示控制
+  return profile?.isSystemAdmin ? <Users /> : <NoPermission />
+}
+
 const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
+  { path: '/reset-password', element: <ResetPassword /> },
   { path: '/sso/callback', element: <SsoCallback /> },
   {
     path: '/',
@@ -58,6 +69,7 @@ const router = createBrowserRouter([
       { path: 'notifications', element: <Notifications /> },
       { path: 'audit', element: <Audit /> },
       { path: 'settings', element: <Settings /> },
+      { path: 'users', element: <UsersRoute /> },
       { path: 'skills', element: <SkillsRoute /> },
       { path: 'mcp-servers', element: <McpServersRoute /> },
       { path: 'members', element: <Members /> },

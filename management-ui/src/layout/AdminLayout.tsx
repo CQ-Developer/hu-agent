@@ -62,6 +62,7 @@ export default function AdminLayout() {
     entries.push({ key: '/notifications', icon: <BellIcon />, label: t('menu.notifications') })
     if (scope.isSystemAdmin) {
       entries.push({ key: '/identity-providers', icon: <GlobalOutlined />, label: t('menu.identityProviders') })
+      entries.push({ key: '/users', icon: <UserOutlined />, label: t('menu.users') })
       entries.push({ key: '/audit', icon: <AuditOutlined />, label: t('menu.audit') })
       entries.push({ key: '/settings', icon: <SettingOutlined />, label: t('menu.settings') })
     }

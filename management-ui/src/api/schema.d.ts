@@ -123,6 +123,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/password/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password
+         * @description 一次性重置令牌兑换（design 6.10.1）：设置新密码并撤销该账号全部会话（公开接口）。
+         *
+         *     令牌由系统管理员在管理台签发（`POST /admin/users/{id}:reset-password`）；
+         *     自助「忘记密码」的邮件投递待邮件通道批次接入。
+         */
+        post: operations["reset_password_api_v1_auth_password_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -384,7 +407,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Org Invitations
+         * @description 待处理邀请（design 6.3.4）：仅组织管理员可见，用于撤销。
+         */
+        get: operations["list_org_invitations_api_v1_orgs__org_id__invitations_get"];
         put?: never;
         /** Invite To Org */
         post: operations["invite_to_org_api_v1_orgs__org_id__invitations_post"];
@@ -490,7 +517,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Team Invitations
+         * @description 待处理邀请（design 6.3.4）：仅团队管理员可见，用于撤销。
+         */
+        get: operations["list_team_invitations_api_v1_teams__team_id__invitations_get"];
         put?: never;
         /** Invite To Team */
         post: operations["invite_to_team_api_v1_teams__team_id__invitations_post"];
@@ -964,6 +995,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/invitations:revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke Invitation
+         * @description 撤销待处理邀请（design 6.3.4）：组织/团队管理员只能撤销本范围的邀请。
+         */
+        post: operations["revoke_invitation_api_v1_invitations_revoke_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invitations/{token}": {
         parameters: {
             query?: never;
@@ -1384,6 +1435,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Users */
+        get: operations["list_users_api_v1_admin_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}:disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable User
+         * @description 禁用账号：撤销全部会话；已是禁用状态时幂等返回（不重复通知/审计）。
+         */
+        post: operations["disable_user_api_v1_admin_users__user_id__disable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}:enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable User
+         * @description 启用被禁用的账号；注销宽限期内的账号必须走 `:restore`，避免误清注销意图。
+         */
+        post: operations["enable_user_api_v1_admin_users__user_id__enable_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}:force-logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Force Logout
+         * @description 撤销该账号全部 refresh token（access token 到期即失效，design 6.10.1）。
+         */
+        post: operations["force_logout_api_v1_admin_users__user_id__force_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}:restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore User
+         * @description 注销宽限期内恢复账号（design 6.10.5 的运维操作入口）。
+         */
+        post: operations["restore_user_api_v1_admin_users__user_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}:reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset User Password
+         * @description 签发一次性重置令牌（明文只返回本次）；旧令牌立即作废，会话在用户改密后撤销。
+         */
+        post: operations["reset_user_password_api_v1_admin_users__user_id__reset_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1468,6 +1636,44 @@ export interface components {
             items: components["schemas"]["ActivationItemIn"][];
             /** Reportedat */
             reportedAt?: string | null;
+        };
+        /** AdminUserListOut */
+        AdminUserListOut: {
+            /** Items */
+            items: components["schemas"]["AdminUserOut"][];
+            /** Total */
+            total: number;
+        };
+        /** AdminUserOut */
+        AdminUserOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string;
+            /** Displayname */
+            displayName: string;
+            /** Status */
+            status: string;
+            /** Issystemadmin */
+            isSystemAdmin: boolean;
+            /** Locale */
+            locale: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Deletionrequestedat */
+            deletionRequestedAt: string | null;
+            /** Purgeat */
+            purgeAt: string | null;
+            /** Purgedat */
+            purgedAt: string | null;
+            /** Haspassword */
+            hasPassword: boolean;
         };
         /** ApprovalListOut */
         ApprovalListOut: {
@@ -1705,6 +1911,16 @@ export interface components {
              * Format: date-time
              */
             expiresAt: string;
+        };
+        /** InvitationRevokedOut */
+        InvitationRevokedOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
         };
         /** LoginIn */
         LoginIn: {
@@ -2058,6 +2274,39 @@ export interface components {
             /** Items */
             items: components["schemas"]["TeamBriefOut"][];
         };
+        /** PasswordResetIn */
+        PasswordResetIn: {
+            /** Token */
+            token: string;
+            /** Password */
+            password: string;
+        };
+        /** PendingInvitationOut */
+        PendingInvitationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Email */
+            email: string;
+            /** Role */
+            role: string;
+            /** Status */
+            status: string;
+            /**
+             * Expiresat
+             * Format: date-time
+             */
+            expiresAt: string;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Invitedbyemail */
+            invitedByEmail: string | null;
+        };
         /** PriceIn */
         PriceIn: {
             /** Provider */
@@ -2296,6 +2545,24 @@ export interface components {
             password: string;
             /** Displayname */
             displayName: string;
+        };
+        /** ResetPasswordOut */
+        ResetPasswordOut: {
+            /** Token */
+            token: string;
+            /**
+             * Expiresat
+             * Format: date-time
+             */
+            expiresAt: string;
+        };
+        /** RevokeInvitationIn */
+        RevokeInvitationIn: {
+            /**
+             * Invitationid
+             * Format: uuid
+             */
+            invitationId: string;
         };
         /** SchemaResponse */
         SchemaResponse: {
@@ -2871,6 +3138,21 @@ export interface components {
             /** Estimatedcost */
             estimatedCost: number;
         };
+        /** UserActionOut */
+        UserActionOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Status */
+            status: string;
+        };
+        /** UserDisableIn */
+        UserDisableIn: {
+            /** Reason */
+            reason?: string | null;
+        };
         /** UserOut */
         UserOut: {
             /**
@@ -3165,6 +3447,41 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: number;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_api_v1_auth_password_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: string;
                     };
                 };
             };
@@ -3723,6 +4040,37 @@ export interface operations {
             };
         };
     };
+    list_org_invitations_api_v1_orgs__org_id__invitations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                org_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingInvitationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     invite_to_org_api_v1_orgs__org_id__invitations_post: {
         parameters: {
             query?: never;
@@ -3932,6 +4280,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TeamMembersOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_team_invitations_api_v1_teams__team_id__invitations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                team_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PendingInvitationOut"][];
                 };
             };
             /** @description Validation Error */
@@ -5074,6 +5453,39 @@ export interface operations {
             };
         };
     };
+    revoke_invitation_api_v1_invitations_revoke_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeInvitationIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationRevokedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     preview_invitation_api_v1_invitations__token__get: {
         parameters: {
             query?: never;
@@ -6030,6 +6442,201 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrgAdminOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_users_api_v1_admin_users_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                status?: ("active" | "disabled" | "pending_deletion") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disable_user_api_v1_admin_users__user_id__disable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserDisableIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserActionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enable_user_api_v1_admin_users__user_id__enable_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserActionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    force_logout_api_v1_admin_users__user_id__force_logout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: number;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_user_api_v1_admin_users__user_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserActionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_user_password_api_v1_admin_users__user_id__reset_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetPasswordOut"];
                 };
             };
             /** @description Validation Error */
