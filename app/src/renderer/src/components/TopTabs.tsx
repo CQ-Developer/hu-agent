@@ -1,45 +1,50 @@
 import { t } from '../i18n'
-
-export type AppTab = 'chat' | 'market'
+export type AppTab =
+  | 'chat'
+  | 'market'
+  | 'models'
+  | 'skills'
+  | 'mcp'
+  | 'workspace'
+  | 'sync'
+  | 'stats'
+  | 'permissions'
+  | 'about'
 
 export const APP_TABS: { id: AppTab; label: string }[] = [
   { id: 'chat', label: t('对话') },
   { id: 'market', label: t('市场') },
+  { id: 'models', label: t('模型配置') },
+  { id: 'skills', label: t('Skill 配置') },
+  { id: 'mcp', label: t('MCP 配置') },
+  { id: 'workspace', label: t('工作空间') },
+  { id: 'sync', label: t('云同步') },
+  { id: 'stats', label: t('用量统计') },
+  { id: 'permissions', label: t('权限与审计') },
+  { id: 'about', label: t('关于') },
 ]
 
 interface Props {
   active: AppTab
   onChange: (tab: AppTab) => void
-  onOpenSettings: () => void
 }
 
-/**
- * 顶部导航（导航重构 2026-10-15）：只保留「对话 / 市场」，其余入口收进「设置」面。
- */
-export default function TopTabs({ active, onChange, onOpenSettings }: Props) {
+export default function TopTabs({ active, onChange }: Props) {
   return (
-    <nav className="glass flex shrink-0 items-center gap-1 overflow-x-auto rounded-none px-3 shadow-none">
+    <nav className="flex shrink-0 items-center gap-0.5 overflow-x-auto border-b border-neutral-200 bg-white px-3">
       {APP_TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
           onClick={() => onChange(tab.id)}
-          className={`whitespace-nowrap rounded-chip px-3 py-2 text-small transition duration-200 ease-standard ${
-            tab.id === active ? 'bg-surface-3 font-medium text-fg' : 'text-fg-muted hover:bg-surface-2 hover:text-fg'
+          className={`relative whitespace-nowrap px-3 py-2.5 text-sm ${
+            tab.id === active ? 'font-medium text-neutral-900' : 'text-neutral-500 hover:text-neutral-900'
           }`}
         >
           {tab.label}
+          {tab.id === active && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-neutral-900" />}
         </button>
       ))}
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        title={t('设置')}
-        aria-label={t('设置')}
-        className="ui-icon-btn ml-auto !h-8 !w-8 text-caption"
-      >
-        ⚙
-      </button>
     </nav>
   )
 }

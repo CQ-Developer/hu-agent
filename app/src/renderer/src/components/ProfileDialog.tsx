@@ -13,14 +13,14 @@ interface Props {
 
 export default function ProfileDialog({ usage, workspaces, activeWorkspace, onClose, onChanged }: Props) {
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="glass flex max-h-[560px] w-[520px] flex-col overflow-hidden rounded-panel"
+        className="flex max-h-[560px] w-[520px] flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-line px-5 py-3">
+        <div className="flex items-center justify-between border-b border-neutral-200 px-5 py-3">
           <span className="text-sm font-semibold">{t('个人中心')}</span>
-          <button type="button" onClick={onClose} className="text-xs text-fg-muted hover:text-fg">
+          <button type="button" onClick={onClose} className="text-xs text-neutral-500 hover:text-neutral-900">
             {t('关闭')}
           </button>
         </div>

@@ -1,8 +1,4 @@
 @import 'tailwindcss';
-/* 设计令牌（方向 B / 双主题）：定义 @theme 与深色变量，仅新增命名空间，不影响旧页面 */
-@import './styles/tokens.css';
-/* 画廊是 dev-only 评审页，类名不进入生产 CSS（画廊用独立的 gallery.css 入口） */
-@source not './gallery';
 
 html,
 body,
@@ -12,19 +8,7 @@ body,
 
 body {
   margin: 0;
-  font-family: var(--ui-font-ui);
-  background-color: var(--ui-canvas);
-  background-image: var(--ui-canvas-image);
-  background-attachment: fixed;
-  color: var(--ui-fg);
-}
-
-/* 迁移期：旧页面用 bg-surface* 表达表面；统一补上玻璃模糊（新页面直接用 .glass） */
-.bg-surface,
-.bg-surface-2,
-.bg-surface-3 {
-  -webkit-backdrop-filter: blur(18px) saturate(180%);
-  backdrop-filter: blur(18px) saturate(180%);
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
 }
 
 /* 助手消息的 Markdown 渲染样式（react-markdown + rehype-sanitize） */
@@ -76,13 +60,13 @@ body {
 }
 
 .markdown a {
-  color: var(--ui-accent);
+  color: #2563eb;
   text-decoration: underline;
 }
 
 .markdown blockquote {
-  border-left: 3px solid var(--ui-line-strong);
+  border-left: 3px solid #d4d4d8;
   margin: 0.5em 0;
   padding-left: 0.75em;
-  color: var(--ui-fg-muted);
+  color: #52525b;
 }

@@ -27,7 +27,6 @@ import { meApi } from '../api/endpoints'
 import { useScope } from '../app/ScopeProvider'
 import { useSession } from '../auth/SessionProvider'
 import i18n from '../i18n'
-import { useTheme } from '../app/theme'
 import { useAsync } from '../lib/useAsync'
 import { formatDateTime } from '../lib/format'
 
@@ -39,7 +38,6 @@ export default function AdminLayout() {
   const location = useLocation()
   const { profile, logout, patchProfile } = useSession()
   const scope = useScope()
-  const { preference: themePreference, setPreference: setThemePreference } = useTheme()
   const [bellOpen, setBellOpen] = useState(false)
 
   const notifications = useAsync(() => meApi.notifications(), [bellOpen])
@@ -116,10 +114,10 @@ export default function AdminLayout() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider theme="light" breakpoint="lg" collapsedWidth={64}>
-        <div style={{ padding: 16, fontWeight: 600 }}>hu-agent</div>
+      <Sider theme="dark" breakpoint="lg" collapsedWidth={64}>
+        <div style={{ color: '#fff', padding: 16, fontWeight: 600 }}>hu-agent</div>
         <Menu
-          theme="light"
+          theme="dark"
           mode="inline"
           selectedKeys={[location.pathname]}
           onClick={({ key }) => void navigate(key)}
@@ -129,6 +127,7 @@ export default function AdminLayout() {
       <Layout>
         <Header
           style={{
+            background: '#fff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -175,16 +174,6 @@ export default function AdminLayout() {
               options={[
                 { label: '中文', value: 'zh-CN' },
                 { label: 'EN', value: 'en-US' },
-              ]}
-            />
-            <Segmented
-              size="small"
-              value={themePreference}
-              onChange={(value) => setThemePreference(value as 'system' | 'light' | 'dark')}
-              options={[
-                { label: t('theme.system'), value: 'system' },
-                { label: t('theme.light'), value: 'light' },
-                { label: t('theme.dark'), value: 'dark' },
               ]}
             />
             <Dropdown menu={accountMenu} placement="bottomRight">

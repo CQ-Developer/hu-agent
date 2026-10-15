@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { McpSaveInput, McpServerView, McpTestResultView } from '@shared/ipc'
 import { t } from '../../i18n'
-import GlassSelect from '../ui/GlassSelect'
 
 interface FormState {
   name: string
@@ -113,50 +112,50 @@ export default function McpSection({ onChanged }: { onChanged: () => void }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-[11px] leading-relaxed text-fg-subtle">
+      <p className="text-[11px] leading-relaxed text-neutral-400">
         {t('配置位置：全局')} <code>~/.hu-agent/mcp.json</code>{t('，工作空间')} <code>&lt;workspace&gt;/.hu/mcp.json</code>
         {t('（同名按字段覆盖）。工具以')} <code>mcp__&lt;server&gt;__&lt;tool&gt;</code> {t('注入模型，调用默认本会话首次询问； 空闲 10 分钟回收子进程，崩溃自动重连。env/headers 中的密钥写入 safeStorage 密钥库，配置文件只保留')}{' '}
         <code>secret://</code> {t('引用。')}
       </p>
 
       {servers.length === 0 && (
-        <div className="rounded-lg border border-dashed border-line-strong p-4 text-xs text-fg-subtle">
+        <div className="rounded-lg border border-dashed border-neutral-300 p-4 text-xs text-neutral-400">
           {t('尚未配置 MCP server。可在下方添加，例如 filesystem：')}
           <code className="ml-1">{t('npx -y @modelcontextprotocol/server-filesystem &lt;目录&gt;')}</code>
         </div>
       )}
 
       {servers.map((server) => (
-        <div key={`${server.scope}/${server.name}`} className="rounded-lg border border-line p-3">
+        <div key={`${server.scope}/${server.name}`} className="rounded-lg border border-neutral-200 p-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium">{server.name}</span>
-                <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-fg-muted">{server.transport}</span>
-                <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-fg-muted">
+                <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">{server.transport}</span>
+                <span className="rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">
                   {server.scope === 'both' ? t('全局+工作空间') : server.scope === 'global' ? t('全局') : t('工作空间')}
                 </span>
                 <span
                   className={`rounded px-1.5 py-0.5 text-[10px] ${
                     server.status === 'connected'
-                      ? 'bg-success-soft text-success'
+                      ? 'bg-emerald-100 text-emerald-700'
                       : server.status === 'error'
-                        ? 'bg-danger-soft text-danger'
+                        ? 'bg-rose-100 text-rose-700'
                         : server.status === 'disabled'
-                          ? 'bg-surface-2 text-fg-muted'
-                          : 'bg-warning-soft text-warning'
+                          ? 'bg-neutral-100 text-neutral-500'
+                          : 'bg-amber-100 text-amber-700'
                   }`}
                 >
                   {STATUS_TEXT[server.status]}
                   {server.status === 'connected' ? t(' · {toolCount} 个工具', { toolCount: server.toolCount }) : ''}
                 </span>
               </div>
-              <div className="mt-1 truncate text-xs text-fg-muted" title={server.summary}>
+              <div className="mt-1 truncate text-xs text-neutral-500" title={server.summary}>
                 {server.summary || t('（无 command/url）')}
               </div>
-              {server.lastError && <div className="mt-1 text-[11px] text-danger">{server.lastError}</div>}
+              {server.lastError && <div className="mt-1 text-[11px] text-rose-600">{server.lastError}</div>}
               {(server.envKeys.length > 0 || server.headerKeys.length > 0) && (
-                <div className="mt-1 text-[11px] text-fg-subtle">
+                <div className="mt-1 text-[11px] text-neutral-400">
                   {t('密钥项：')}{[...server.envKeys, ...server.headerKeys].join(', ')}
                 </div>
               )}
@@ -190,20 +189,20 @@ export default function McpSection({ onChanged }: { onChanged: () => void }) {
                 {t('本工作空间启用')}
               </label>
               <div className="flex gap-2 pt-1">
-                <button type="button" className="text-accent hover:underline" onClick={() => edit(server)}>
+                <button type="button" className="text-blue-600 hover:underline" onClick={() => edit(server)}>
                   {t('编辑')}
                 </button>
                 <button
                   type="button"
                   disabled={busy}
-                  className="text-accent hover:underline disabled:opacity-40"
+                  className="text-blue-600 hover:underline disabled:opacity-40"
                   onClick={() => void test(server.name)}
                 >
                   {t('测试连接')}
                 </button>
                 <button
                   type="button"
-                  className="text-danger hover:underline"
+                  className="text-rose-600 hover:underline"
                   onClick={() =>
                     void window.huAgent.mcp
                       .remove(server.name, server.scope === 'workspace' ? 'workspace' : 'global')
@@ -220,7 +219,7 @@ export default function McpSection({ onChanged }: { onChanged: () => void }) {
           {testResult?.name === server.name && (
             <div
               className={`mt-2 rounded-md px-3 py-2 text-xs ${
-                testResult.result.ok ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'
+                testResult.result.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'
               }`}
             >
               {testResult.result.ok
@@ -231,38 +230,36 @@ export default function McpSection({ onChanged }: { onChanged: () => void }) {
         </div>
       ))}
 
-      <section className="space-y-2 rounded-lg border border-line p-3">
-        <h3 className="text-xs font-semibold text-fg-muted">{t('新增 / 编辑 MCP server')}</h3>
+      <section className="space-y-2 rounded-lg border border-neutral-200 p-3">
+        <h3 className="text-xs font-semibold text-neutral-500">{t('新增 / 编辑 MCP server')}</h3>
         <div className="flex gap-2">
           <input
-            className="flex-1 rounded border border-line-strong px-2 py-1.5 text-sm"
+            className="flex-1 rounded border border-neutral-300 px-2 py-1.5 text-sm"
             placeholder={t("server 名称（如 filesystem）")}
             value={form.name}
             onChange={(event) => setForm({ ...form, name: event.target.value })}
           />
-          <GlassSelect
-            small
-            className="w-40"
+          <select
+            className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
             value={form.transport}
-            onChange={(value) => setForm({ ...form, transport: value as FormState['transport'] })}
-            options={[
-              { value: 'stdio', label: 'stdio' },
-              { value: 'http', label: t('http（阶段 3-05）') },
-              { value: 'sse', label: t('sse（阶段 3-05）') },
-            ]}
-          />
+            onChange={(event) => setForm({ ...form, transport: event.target.value as FormState['transport'] })}
+          >
+            <option value="stdio">stdio</option>
+            <option value="http">{t('http（阶段 3-05）')}</option>
+            <option value="sse">{t('sse（阶段 3-05）')}</option>
+          </select>
         </div>
 
         {form.transport === 'stdio' ? (
           <>
             <input
-              className="w-full rounded border border-line-strong px-2 py-1.5 text-sm"
+              className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
               placeholder={t("command（如 npx）")}
               value={form.command}
               onChange={(event) => setForm({ ...form, command: event.target.value })}
             />
             <textarea
-              className="h-16 w-full rounded border border-line-strong px-2 py-1.5 font-mono text-xs"
+              className="h-16 w-full rounded border border-neutral-300 px-2 py-1.5 font-mono text-xs"
               placeholder={t("参数，每行一个（如 -y）")}
               value={form.argsText}
               onChange={(event) => setForm({ ...form, argsText: event.target.value })}
@@ -270,7 +267,7 @@ export default function McpSection({ onChanged }: { onChanged: () => void }) {
           </>
         ) : (
           <input
-            className="w-full rounded border border-line-strong px-2 py-1.5 text-sm"
+            className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
             placeholder={t("URL（如 https://mcp.example.com/mcp）")}
             value={form.url}
             onChange={(event) => setForm({ ...form, url: event.target.value })}
@@ -278,45 +275,41 @@ export default function McpSection({ onChanged }: { onChanged: () => void }) {
         )}
 
         <textarea
-          className="h-16 w-full rounded border border-line-strong px-2 py-1.5 font-mono text-xs"
+          className="h-16 w-full rounded border border-neutral-300 px-2 py-1.5 font-mono text-xs"
           placeholder={t('环境变量，每行 KEY=value\n明文将写入 safeStorage 密钥库，配置里只保留 secret:// 引用')}
           value={form.envText}
           onChange={(event) => setForm({ ...form, envText: event.target.value })}
         />
         <textarea
-          className="h-16 w-full rounded border border-line-strong px-2 py-1.5 font-mono text-xs"
+          className="h-16 w-full rounded border border-neutral-300 px-2 py-1.5 font-mono text-xs"
           placeholder={t('HTTP 头，每行 KEY=value（可选）')}
           value={form.headersText}
           onChange={(event) => setForm({ ...form, headersText: event.target.value })}
         />
 
-        <div className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-600">
           <label className="flex items-center gap-1">
             {t('保存到')}
-            <GlassSelect
-              small
-              className="w-36"
+            <select
+              className="rounded border border-neutral-300 px-2 py-1"
               value={form.scope}
-              onChange={(value) => setForm({ ...form, scope: value as FormState['scope'] })}
-              options={[
-                { value: 'global', label: t('全局配置') },
-                { value: 'workspace', label: t('当前工作空间') },
-              ]}
-            />
+              onChange={(event) => setForm({ ...form, scope: event.target.value as FormState['scope'] })}
+            >
+              <option value="global">{t('全局配置')}</option>
+              <option value="workspace">{t('当前工作空间')}</option>
+            </select>
           </label>
           <label className="flex items-center gap-1">
             {t('审批')}
-            <GlassSelect
-              small
-              className="w-40"
+            <select
+              className="rounded border border-neutral-300 px-2 py-1"
               value={form.approval}
-              onChange={(value) => setForm({ ...form, approval: value as FormState['approval'] })}
-              options={[
-                { value: 'ask', label: t('每次会话首次询问') },
-                { value: 'session', label: t('本会话放行') },
-                { value: 'always', label: t('始终放行') },
-              ]}
-            />
+              onChange={(event) => setForm({ ...form, approval: event.target.value as FormState['approval'] })}
+            >
+              <option value="ask">{t('每次会话首次询问')}</option>
+              <option value="session">{t('本会话放行')}</option>
+              <option value="always">{t('始终放行')}</option>
+            </select>
           </label>
         </div>
 
@@ -325,7 +318,7 @@ export default function McpSection({ onChanged }: { onChanged: () => void }) {
             type="button"
             disabled={busy}
             onClick={() => void save()}
-            className="rounded-md bg-accent px-3 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
+            className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-40"
           >
             {busy ? t('处理中…') : t('保存')}
           </button>
@@ -335,18 +328,18 @@ export default function McpSection({ onChanged }: { onChanged: () => void }) {
               setForm(EMPTY_FORM)
               setMessage(null)
             }}
-            className="rounded-md border border-line-strong px-3 py-1.5 text-xs hover:bg-surface-2"
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100"
           >
             {t('清空')}
           </button>
-          {message && <span className="text-xs text-fg-muted">{message}</span>}
+          {message && <span className="text-xs text-neutral-500">{message}</span>}
         </div>
-        <p className="text-[11px] text-fg-subtle">
+        <p className="text-[11px] text-neutral-400">
           {t('审批模式当前由权限引擎统一按「本会话首次调用询问」执行；session/always 的差异化策略随阶段 5 的企业策略下发实现。')}
         </p>
       </section>
 
-      <button type="button" onClick={() => void refresh()} className="rounded-md border border-line-strong px-3 py-1.5 text-xs hover:bg-surface-2">
+      <button type="button" onClick={() => void refresh()} className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100">
         {t('刷新')}
       </button>
     </div>

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { ApiTypeView, ModelEntryView, SettingsView } from '@shared/ipc'
 import { t } from '../../i18n'
-import GlassSelect from '../ui/GlassSelect'
 
 interface FormState {
   id: string
@@ -103,31 +102,31 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
   return (
     <div className="space-y-4">
       <section>
-        <h3 className="mb-2 text-xs font-semibold text-fg-muted">{t('已配置供应商')}</h3>
+        <h3 className="mb-2 text-xs font-semibold text-neutral-500">{t('已配置供应商')}</h3>
         {settings?.providers.length ? (
           <ul className="space-y-2">
             {settings.providers.map((provider) => (
-              <li key={provider.id} className="flex items-center justify-between rounded-md border border-line px-3 py-2 text-xs">
+              <li key={provider.id} className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2 text-xs">
                 <div>
                   <div className="font-medium">
                     {provider.id}
-                    <span className="ml-2 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] text-fg-muted">{provider.apiType}</span>
+                    <span className="ml-2 rounded bg-neutral-100 px-1.5 py-0.5 text-[10px] text-neutral-500">{provider.apiType}</span>
                     {settings.defaults.primary.startsWith(`${provider.id}/`) && (
-                      <span className="ml-2 rounded bg-success-soft px-1.5 py-0.5 text-[10px] text-success">primary</span>
+                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">primary</span>
                     )}
                   </div>
-                  <div className="text-fg-subtle">
+                  <div className="text-neutral-400">
                     {provider.baseUrl} · {provider.models.map((model) => model.name).join(', ')}
                     {provider.apiKeyRef && settings.secretsConfigured[provider.apiKeyRef] ? t(' · 已配置密钥') : ''}
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" className="text-accent hover:underline" onClick={() => edit(provider.id)}>
+                  <button type="button" className="text-blue-600 hover:underline" onClick={() => edit(provider.id)}>
                     {t('编辑')}
                   </button>
                   <button
                     type="button"
-                    className="text-danger hover:underline"
+                    className="text-rose-600 hover:underline"
                     onClick={() => void window.huAgent.settings.removeProvider(provider.id).then(setSettings)}
                   >
                     {t('删除')}
@@ -137,52 +136,51 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
             ))}
           </ul>
         ) : (
-          <p className="text-xs text-fg-subtle">{t('尚未配置模型供应商')}</p>
+          <p className="text-xs text-neutral-400">{t('尚未配置模型供应商')}</p>
         )}
       </section>
 
-      <section className="space-y-2 rounded-lg border border-line p-3">
-        <h3 className="text-xs font-semibold text-fg-muted">{t('新增 / 编辑供应商')}</h3>
+      <section className="space-y-2 rounded-lg border border-neutral-200 p-3">
+        <h3 className="text-xs font-semibold text-neutral-500">{t('新增 / 编辑供应商')}</h3>
         <input
-          className="w-full rounded border border-line-strong px-2 py-1.5 text-sm"
+          className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
           placeholder={t("供应商 ID（如 openai、deepseek-anthropic）")}
           value={form.id}
           onChange={(event) => setForm({ ...form, id: event.target.value })}
         />
-        <GlassSelect
-          className="w-full"
+        <select
+          className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
           value={form.apiType}
-          onChange={(value) => setForm({ ...form, apiType: value as ApiTypeView })}
-          options={[
-            { value: 'openai-chat', label: 'OpenAI Chat Completions' },
-            { value: 'openai-responses', label: 'OpenAI Responses' },
-            { value: 'anthropic-messages', label: 'Anthropic Messages' },
-          ]}
-        />
+          onChange={(event) => setForm({ ...form, apiType: event.target.value as ApiTypeView })}
+        >
+          <option value="openai-chat">OpenAI Chat Completions</option>
+          <option value="openai-responses">OpenAI Responses</option>
+          <option value="anthropic-messages">Anthropic Messages</option>
+        </select>
         <input
-          className="w-full rounded border border-line-strong px-2 py-1.5 text-sm"
+          className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
           placeholder={t("Base URL（如 https://api.deepseek.com）")}
           value={form.baseUrl}
           onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
         />
         <input
-          className="w-full rounded border border-line-strong px-2 py-1.5 text-sm"
+          className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
           type="password"
           placeholder={t("API Key（留空保留原密钥；本地服务可留空）")}
           value={form.apiKey}
           onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
         />
         <input
-          className="w-full rounded border border-line-strong px-2 py-1.5 text-sm"
+          className="w-full rounded border border-neutral-300 px-2 py-1.5 text-sm"
           placeholder={t("模型名称（如 deepseek-flash）")}
           value={form.modelName}
           onChange={(event) => setForm({ ...form, modelName: event.target.value })}
         />
-        <div className="flex flex-wrap items-center gap-3 text-xs text-fg-muted">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-neutral-600">
           <label className="flex items-center gap-1">
             {t('上下文窗口')}
             <input
-              className="w-24 rounded border border-line-strong px-2 py-1"
+              className="w-24 rounded border border-neutral-300 px-2 py-1"
               value={form.contextWindow}
               onChange={(event) => setForm({ ...form, contextWindow: event.target.value })}
             />
@@ -204,14 +202,14 @@ export default function ModelSection({ onChanged }: { onChanged: () => void }) {
           type="button"
           disabled={saving}
           onClick={() => void save()}
-          className="rounded-md bg-accent px-3 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
+          className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-40"
         >
           {saving ? t('保存中…') : t('保存供应商')}
         </button>
-        {message && <p className="text-xs text-fg-muted">{message}</p>}
+        {message && <p className="text-xs text-neutral-500">{message}</p>}
       </section>
 
-      <p className="text-[11px] leading-relaxed text-fg-subtle">
+      <p className="text-[11px] leading-relaxed text-neutral-400">
         {t('密钥经 Electron safeStorage 加密后存于 ~/.hu-agent/secrets.enc.json，不会写入配置文件或日志。')}
       </p>
     </div>

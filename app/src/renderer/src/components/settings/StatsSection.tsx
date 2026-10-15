@@ -11,7 +11,6 @@ import type {
 
 import { csvBlob, toCsv } from '../../lib/csv'
 import { t } from '../../i18n'
-import GlassSelect from '../ui/GlassSelect'
 
 const GROUP_BY_OPTIONS: Record<StatsScope, { value: UsageGroupBy; label: string }[]> = {
   self: [
@@ -169,44 +168,55 @@ export default function StatsSection() {
       <div className="flex flex-wrap items-end gap-2 text-xs">
         <label className="flex flex-col gap-1">
           {t('范围')}
-          <GlassSelect
-            className="w-28"
+          <select
+            className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
             value={scope}
-            onChange={(next) => {
-              const target = next as StatsScope
-              setScope(target)
-              setGroupBy(GROUP_BY_OPTIONS[target][0]!.value)
+            onChange={(event) => {
+              const next = event.target.value as StatsScope
+              setScope(next)
+              setGroupBy(GROUP_BY_OPTIONS[next][0]!.value)
             }}
-            options={scopeOptions}
-          />
+          >
+            {scopeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
 
         {scope === 'team' && (
           <label className="flex flex-col gap-1">
             {t('团队')}
-            <GlassSelect
-              className="w-44"
+            <select
+              className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
               value={teamId}
-              onChange={setTeamId}
-              options={[
-                { value: '', label: t('（选择团队）') },
-                ...teams.map((team) => ({ value: team.id, label: team.name })),
-              ]}
-            />
+              onChange={(event) => setTeamId(event.target.value)}
+            >
+              <option value="">{t('（选择团队）')}</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
           </label>
         )}
         {scope === 'org' && (
           <label className="flex flex-col gap-1">
             {t('组织')}
-            <GlassSelect
-              className="w-44"
+            <select
+              className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
               value={orgId}
-              onChange={setOrgId}
-              options={[
-                { value: '', label: t('（选择组织）') },
-                ...orgs.map((org) => ({ value: org.id, label: org.name })),
-              ]}
-            />
+              onChange={(event) => setOrgId(event.target.value)}
+            >
+              <option value="">{t('（选择组织）')}</option>
+              {orgs.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name}
+                </option>
+              ))}
+            </select>
           </label>
         )}
 
@@ -214,7 +224,7 @@ export default function StatsSection() {
           {t('起始')}
           <input
             type="date"
-            className="rounded border border-line-strong px-2 py-1.5 text-sm"
+            className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
             value={from}
             onChange={(event) => setFrom(event.target.value)}
           />
@@ -223,26 +233,31 @@ export default function StatsSection() {
           {t('截止')}
           <input
             type="date"
-            className="rounded border border-line-strong px-2 py-1.5 text-sm"
+            className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
             value={to}
             onChange={(event) => setTo(event.target.value)}
           />
         </label>
         <label className="flex flex-col gap-1">
           {t('维度')}
-          <GlassSelect
-            className="w-28"
+          <select
+            className="rounded border border-neutral-300 px-2 py-1.5 text-sm"
             value={groupBy}
-            onChange={(value) => setGroupBy(value as UsageGroupBy)}
-            options={GROUP_BY_OPTIONS[scope]}
-          />
+            onChange={(event) => setGroupBy(event.target.value as UsageGroupBy)}
+          >
+            {GROUP_BY_OPTIONS[scope].map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
 
         <button
           type="button"
           disabled={busy || (scope === 'team' && !teamId) || (scope === 'org' && !orgId)}
           onClick={() => void load()}
-          className="rounded-md bg-accent px-3 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
+          className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-40"
         >
           {busy ? t('查询中…') : t('查询')}
         </button>
@@ -250,13 +265,13 @@ export default function StatsSection() {
           type="button"
           disabled={!usage || usage.rows.length === 0}
           onClick={exportCsv}
-          className="rounded-md border border-line-strong px-3 py-1.5 text-xs hover:bg-surface-2 disabled:opacity-40"
+          className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100 disabled:opacity-40"
         >
           {t('导出 CSV')}
         </button>
       </div>
 
-      {error && <div className="rounded-md bg-danger-soft px-3 py-2 text-xs text-danger">{error}</div>}
+      {error && <div className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>}
 
       {usage && (
         <>
@@ -270,26 +285,26 @@ export default function StatsSection() {
                 value: `${usage.totals.estimatedCost.toFixed(4)} ${usage.currency}`,
               },
             ].map((card) => (
-              <div key={card.label} className="rounded-lg border border-line p-3">
-                <div className="text-[11px] text-fg-subtle">{card.label}</div>
+              <div key={card.label} className="rounded-lg border border-neutral-200 p-3">
+                <div className="text-[11px] text-neutral-400">{card.label}</div>
                 <div className="text-lg">{card.value}</div>
               </div>
             ))}
           </div>
 
           {usage.groupBy === 'day' && usage.rows.length > 0 && (
-            <div className="rounded-lg border border-line p-3">
-              <div className="mb-2 text-xs font-semibold text-fg-muted">{t('每日 token（输入+输出）')}</div>
+            <div className="rounded-lg border border-neutral-200 p-3">
+              <div className="mb-2 text-xs font-semibold text-neutral-500">{t('每日 token（输入+输出）')}</div>
               <div className="flex h-28 items-end gap-1">
                 {usage.rows.map((row) => {
                   const total = row.inputTokens + row.outputTokens
                   return (
                     <div key={row.key} className="flex min-w-[10px] flex-1 flex-col items-center gap-1" title={`${row.key}: ${total}`}>
                       <div
-                        className="w-full rounded-t bg-surface-3"
+                        className="w-full rounded-t bg-neutral-800"
                         style={{ height: `${Math.max(2, (total / maxDayTokens) * 96)}px` }}
                       />
-                      <span className="rotate-45 whitespace-nowrap text-[9px] text-fg-subtle">{row.day?.slice(5) ?? row.key}</span>
+                      <span className="rotate-45 whitespace-nowrap text-[9px] text-neutral-400">{row.day?.slice(5) ?? row.key}</span>
                     </div>
                   )
                 })}
@@ -297,9 +312,9 @@ export default function StatsSection() {
             </div>
           )}
 
-          <div className="overflow-x-auto rounded-lg border border-line">
+          <div className="overflow-x-auto rounded-lg border border-neutral-200">
             <table className="w-full text-xs">
-              <thead className="bg-surface text-left text-fg-muted">
+              <thead className="bg-neutral-50 text-left text-neutral-500">
                 <tr>
                   <th className="px-3 py-2">{usage.groupBy === 'day' ? t('日期') : t('分组')}</th>
                   <th className="px-3 py-2">{t('输入')}</th>
@@ -313,19 +328,19 @@ export default function StatsSection() {
               <tbody>
                 {usage.rows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-3 py-3 text-fg-subtle">
+                    <td colSpan={7} className="px-3 py-3 text-neutral-400">
                       {t('该区间没有用量记录（客户端产生用量后会自动上报并聚合）')}
                     </td>
                   </tr>
                 )}
                 {usage.rows.map((row) => (
-                  <tr key={row.key} className="border-t border-line">
+                  <tr key={row.key} className="border-t border-neutral-100">
                     <td className="px-3 py-1.5">{row.day ?? row.key}</td>
                     <td className="px-3 py-1.5">{row.inputTokens}</td>
                     <td className="px-3 py-1.5">{row.outputTokens}</td>
                     <td className="px-3 py-1.5">{row.cacheReadTokens}</td>
                     <td className="px-3 py-1.5">{row.requests}</td>
-                    <td className={`px-3 py-1.5 ${row.errors > 0 ? 'text-danger' : ''}`}>{row.errors}</td>
+                    <td className={`px-3 py-1.5 ${row.errors > 0 ? 'text-rose-600' : ''}`}>{row.errors}</td>
                     <td className="px-3 py-1.5">
                       {row.estimatedCost.toFixed(4)} {usage.currency}
                     </td>
@@ -338,13 +353,13 @@ export default function StatsSection() {
       )}
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold text-fg-muted">{t('资源激活明细')}</h3>
+        <h3 className="mb-2 text-xs font-semibold text-neutral-500">{t('资源激活明细')}</h3>
         {activations.length === 0 ? (
-          <p className="text-xs text-fg-subtle">{t('暂无激活记录（启用 Skill / MCP 后会自动上报）')}</p>
+          <p className="text-xs text-neutral-400">{t('暂无激活记录（启用 Skill / MCP 后会自动上报）')}</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border border-line">
+          <div className="overflow-x-auto rounded-lg border border-neutral-200">
             <table className="w-full text-xs">
-              <thead className="bg-surface text-left text-fg-muted">
+              <thead className="bg-neutral-50 text-left text-neutral-500">
                 <tr>
                   <th className="px-3 py-2">{t('用户')}</th>
                   <th className="px-3 py-2">{t('类型')}</th>
@@ -358,7 +373,7 @@ export default function StatsSection() {
               </thead>
               <tbody>
                 {activations.map((item) => (
-                  <tr key={`${item.userId}-${item.resourceType}-${item.refId ?? item.name}-${item.version ?? ''}`} className="border-t border-line">
+                  <tr key={`${item.userId}-${item.resourceType}-${item.refId ?? item.name}-${item.version ?? ''}`} className="border-t border-neutral-100">
                     <td className="px-3 py-1.5">{item.email}</td>
                     <td className="px-3 py-1.5">{item.resourceType}</td>
                     <td className="px-3 py-1.5">{item.name}</td>
@@ -375,7 +390,7 @@ export default function StatsSection() {
         )}
       </section>
 
-      <p className="text-[11px] leading-relaxed text-fg-subtle">
+      <p className="text-[11px] leading-relaxed text-neutral-400">
         {t('数据来源：客户端上报的 token 事件按小时聚合到日表，价格表按调用当日生效价估算；上报不含提示词、回复与文件路径。 团队/组织范围需要对应管理员权限。')}
       </p>
     </div>

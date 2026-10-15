@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 
 import type { SyncSettingsView, SyncStatusView, SyncVersionView } from '@shared/ipc'
 import { t } from '../../i18n'
-import GlassSelect from '../ui/GlassSelect'
 
 const STATUS_LABEL: Record<string, string> = {
   unlinked: t('未关联服务端工作空间'),
@@ -76,25 +75,25 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-[11px] leading-relaxed text-fg-subtle">
+      <p className="text-[11px] leading-relaxed text-neutral-400">
         {t('快照为整体 zip（不做文件级合并）：上传走预签名直传对象存储，服务端校验 sha256； 排除')} <code>.hu/sync</code>{t('、')}<code>.hu/logs</code>{t('、')}<code>.hu/backups</code>{t('、')}<code>node_modules</code>{t('、')}
         <code>.git</code>{t('、')}<code>dist</code>{t('、')}<code>.venv</code>{t('（可在')} <code>.hu/workspace.json</code> {t('的')}{' '}
         <code>syncExclude</code> {t('追加）。只有工作空间所有者可以读写快照。')}
       </p>
 
-      <section className="rounded-lg border border-line p-4">
+      <section className="rounded-lg border border-neutral-200 p-4">
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <span className="rounded bg-surface-2 px-2 py-1">{status ? STATUS_LABEL[status.status] : t('读取中…')}</span>
+          <span className="rounded bg-neutral-100 px-2 py-1">{status ? STATUS_LABEL[status.status] : t('读取中…')}</span>
           {status?.lastVersion !== undefined && <span>{t('版本 v')}{status.lastVersion}</span>}
-          {status?.lastSyncedAt && <span className="text-fg-subtle">{t('上次同步')} {new Date(status.lastSyncedAt).toLocaleString()}</span>}
-          <span className="text-fg-subtle">
+          {status?.lastSyncedAt && <span className="text-neutral-400">{t('上次同步')} {new Date(status.lastSyncedAt).toLocaleString()}</span>}
+          <span className="text-neutral-400">
             {t('本地')} {status?.localFiles ?? 0} {t('个文件 /')} {formatBytes(status?.localBytes ?? 0)}
           </span>
-          {status?.remoteVersion !== undefined && <span className="text-fg-subtle">{t('服务端 v')}{status.remoteVersion}</span>}
+          {status?.remoteVersion !== undefined && <span className="text-neutral-400">{t('服务端 v')}{status.remoteVersion}</span>}
         </div>
 
         {status?.lastError && (
-          <div className="mt-2 rounded-md bg-danger-soft px-3 py-2 text-xs text-danger">
+          <div className="mt-2 rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-700">
             {status.lastError}
             {(settings?.consecutiveFailures ?? 0) >= 3 && (
               <span className="ml-1 font-medium">{t('（已连续失败')} {settings?.consecutiveFailures} {t('次，请检查网络或服务端）')}</span>
@@ -104,14 +103,14 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
 
         {quota && (
           <div className="mt-3">
-            <div className="flex justify-between text-[11px] text-fg-muted">
+            <div className="flex justify-between text-[11px] text-neutral-500">
               <span>{t('存储用量')}</span>
               <span>
                 {formatBytes(quota.usedBytes)} / {formatBytes(quota.limitBytes)}
               </span>
             </div>
-            <div className="mt-1 h-1.5 w-full rounded-full bg-surface-3">
-              <div className="h-1.5 rounded-full bg-accent" style={{ width: `${quotaPercent}%` }} />
+            <div className="mt-1 h-1.5 w-full rounded-full bg-neutral-200">
+              <div className="h-1.5 rounded-full bg-neutral-900" style={{ width: `${quotaPercent}%` }} />
             </div>
           </div>
         )}
@@ -126,7 +125,7 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
                 setMessage(t('同步完成：{status}', { status: STATUS_LABEL[result.status] ?? result.status }))
               })
             }
-            className="rounded-md bg-accent px-3 py-1.5 text-sm text-white hover:bg-accent-hover disabled:opacity-40"
+            className="rounded-md bg-neutral-900 px-3 py-1.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-40"
           >
             {busy ? t('同步中…') : t('立即同步')}
           </button>
@@ -134,42 +133,46 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
             type="button"
             disabled={busy}
             onClick={() => void run(async () => setStatus(await window.huAgent.sync.status()))}
-            className="rounded-md border border-line-strong px-3 py-1.5 text-xs hover:bg-surface-2 disabled:opacity-40"
+            className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-100 disabled:opacity-40"
           >
             {t('刷新状态')}
           </button>
-          <label className="flex items-center gap-2 text-xs text-fg-muted">
+          <label className="flex items-center gap-2 text-xs text-neutral-600">
             {t('定时同步')}
-            <GlassSelect
-              small
-              className="w-28"
+            <select
+              className="rounded border border-neutral-300 px-2 py-1"
               value={settings?.schedule ?? 'off'}
-              onChange={(value) =>
+              onChange={(event) =>
                 void run(async () => {
                   setSettings(
                     await window.huAgent.sync.setSettings({
-                      schedule: value as SyncSettingsView['schedule'],
+                      schedule: event.target.value as SyncSettingsView['schedule'],
                       includeSessions: settings?.includeSessions !== false,
                     }),
                   )
                 })
               }
-              options={SCHEDULE_OPTIONS}
-            />
+            >
+              {SCHEDULE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
         </div>
-        {message && <p className="mt-2 text-xs text-fg-muted">{message}</p>}
+        {message && <p className="mt-2 text-xs text-neutral-500">{message}</p>}
       </section>
 
       {status?.conflict && (
-        <section className="rounded-lg border border-warning bg-warning-soft p-4">
-          <div className="text-sm font-medium text-warning">{t('本地与服务端都有改动，已暂停自动处理')}</div>
-          <div className="mt-1 text-xs text-warning">
+        <section className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+          <div className="text-sm font-medium text-amber-900">{t('本地与服务端都有改动，已暂停自动处理')}</div>
+          <div className="mt-1 text-xs text-amber-800">
             {t('服务端 v')}{status.conflict.remoteVersion}{t('；本地')} {status.conflict.localFiles} {t('个文件。 新增')} {status.conflict.diff.added.length}{t('、修改')} {status.conflict.diff.modified.length}{t('、删除')}{' '}
             {status.conflict.diff.removed.length} {t('个文件。')}
           </div>
           {status.conflict.diffPath && (
-            <div className="mt-1 break-all text-[11px] text-warning">{t('差异清单：')}{status.conflict.diffPath}</div>
+            <div className="mt-1 break-all text-[11px] text-amber-700">{t('差异清单：')}{status.conflict.diffPath}</div>
           )}
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
             <button
@@ -181,7 +184,7 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
                   setMessage(t('已将本地改动存入 .hu/sync/conflicts，并用服务端版本覆盖'))
                 })
               }
-              className="rounded-md bg-warning px-3 py-1.5 text-white hover:bg-warning disabled:opacity-40"
+              className="rounded-md bg-amber-700 px-3 py-1.5 text-white hover:bg-amber-600 disabled:opacity-40"
             >
               {t('保留本地副本后覆盖')}
             </button>
@@ -189,7 +192,7 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
               type="button"
               disabled={busy}
               onClick={() => void run(async () => setStatus(await window.huAgent.sync.resolve('export-diff')))}
-              className="rounded-md border border-warning px-3 py-1.5 disabled:opacity-40"
+              className="rounded-md border border-amber-400 px-3 py-1.5 disabled:opacity-40"
             >
               {t('导出差异清单')}
             </button>
@@ -197,7 +200,7 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
               type="button"
               disabled={busy}
               onClick={() => void run(async () => setStatus(await window.huAgent.sync.resolve('cancel')))}
-              className="rounded-md border border-warning px-3 py-1.5 disabled:opacity-40"
+              className="rounded-md border border-amber-400 px-3 py-1.5 disabled:opacity-40"
             >
               {t('取消')}
             </button>
@@ -206,27 +209,27 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
       )}
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold text-fg-muted">{t('云端版本（保留最近 20 个，pinned 不计入）')}</h3>
+        <h3 className="mb-2 text-xs font-semibold text-neutral-500">{t('云端版本（保留最近 20 个，pinned 不计入）')}</h3>
         {versions.length === 0 ? (
-          <p className="text-xs text-fg-subtle">{t('暂无快照（点击「立即同步」创建第一个版本）')}</p>
+          <p className="text-xs text-neutral-400">{t('暂无快照（点击「立即同步」创建第一个版本）')}</p>
         ) : (
           <ul className="space-y-1">
             {versions.map((version) => (
               <li
                 key={version.id}
-                className="flex items-center justify-between rounded-md border border-line px-3 py-2 text-xs"
+                className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2 text-xs"
               >
                 <div className="min-w-0">
                   <div className="font-medium">
                     v{version.version}
                     {version.latest && (
-                      <span className="ml-2 rounded bg-success-soft px-1.5 py-0.5 text-[10px] text-success">{t('最新')}</span>
+                      <span className="ml-2 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] text-emerald-700">{t('最新')}</span>
                     )}
                     {version.pinned && (
-                      <span className="ml-2 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] text-accent">{t('永久保留')}</span>
+                      <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-700">{t('永久保留')}</span>
                     )}
                   </div>
-                  <div className="truncate text-fg-subtle">
+                  <div className="truncate text-neutral-400">
                     {version.fileCount} {t('个文件 ·')} {formatBytes(version.sizeBytes)} ·{' '}
                     {new Date(version.createdAt).toLocaleString()}
                   </div>
@@ -242,7 +245,7 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
                           setMessage(t('已恢复到 v{version}（覆盖前已备份到 .hu/backups）', { version: version.version }))
                         })
                       }
-                      className="text-accent hover:underline disabled:opacity-40"
+                      className="text-blue-600 hover:underline disabled:opacity-40"
                     >
                       {t('恢复')}
                     </button>
@@ -252,7 +255,7 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
                       type="button"
                       disabled={busy}
                       onClick={() => void run(async () => window.huAgent.sync.pin(version.id))}
-                      className="text-fg-muted hover:underline disabled:opacity-40"
+                      className="text-neutral-600 hover:underline disabled:opacity-40"
                     >
                       {t('永久保留')}
                     </button>
@@ -262,7 +265,7 @@ export default function SyncSection({ onChanged }: { onChanged: () => void }) {
                       type="button"
                       disabled={busy}
                       onClick={() => void run(async () => window.huAgent.sync.remove(version.id))}
-                      className="text-danger hover:underline disabled:opacity-40"
+                      className="text-rose-600 hover:underline disabled:opacity-40"
                     >
                       {t('删除')}
                     </button>
