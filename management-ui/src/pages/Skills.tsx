@@ -1,62 +1,40 @@
 /**
  * Skill 管理页（design 7.2 / 6.4.3）：团队资源列表 + 审核抽屉 + 上下架/停用/撤回/删除。
  * 高风险操作（停用、撤回、删除）一律要求填写原因并与服务端一致地二次确认。
+ * 页壳/状态色/原因弹窗与 MCP 管理页共用（components/resource_admin）。
  */
 
-import { DeleteOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons'
-import { App as AntApp, Alert, Button, Card, Descriptions, Drawer, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { DeleteOutlined } from '@ant-design/icons'
+import { App as AntApp, Button, Descriptions, Drawer, Popconfirm, Space, Table, Tag, Typography } from 'antd'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { skillApi, type Skill, type SkillDetail, type SkillVersion } from '../api/endpoints'
-import { useScope } from '../app/ScopeProvider'
+import ReasonModal from '../components/resource_admin/ReasonModal'
+import ResourceAdminCard from '../components/resource_admin/ResourceAdminCard'
+import { RESOURCE_STATUS_COLOR } from '../components/resource_admin/statusColors'
+import { useAdminTeam } from '../components/resource_admin/useAdminTeam'
 import { useAsync } from '../lib/useAsync'
 import { formatBytes, formatDateTime } from '../lib/format'
 import { errorText } from '../lib/errorText'
 
-const STATUS_COLOR: Record<string, string> = {
-  draft: 'default',
-  pending: 'processing',
-  published: 'success',
-  rejected: 'error',
-  superseded: 'default',
-  delisted: 'warning',
-  disabled: 'error',
-  deleted: 'default',
-  revoked: 'error',
-}
-
 export default function Skills() {
   const { message } = AntApp.useApp()
   const { t, i18n } = useTranslation()
-  const scope = useScope()
-  const [teamId, setTeamId] = useState<string | undefined>(scope.team?.id)
+  const { teamId, setTeamId, teams } = useAdminTeam()
   const [status, setStatus] = useState('')
   const [query, setQuery] = useState('')
   const [detail, setDetail] = useState<SkillDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [reason, setReason] = useState('')
   const [action, setAction] = useState<'disable' | 'revoke' | null>(null)
   const [revokeVersion, setRevokeVersion] = useState<string | null>(null)
   const [disableTarget, setDisableTarget] = useState<Skill | null>(null)
   const [busy, setBusy] = useState(false)
 
-  // 默认跟随顶部团队选择（若我是其管理员）；否则回退到第一个可管理团队
-  useEffect(() => {
-    const selected = scope.team?.id
-    if (selected && scope.adminTeams.some((team) => team.id === selected)) {
-      setTeamId((current) => (current === selected ? current : selected))
-      return
-    }
-    if (!teamId && scope.adminTeams.length) setTeamId(scope.adminTeams[0].id)
-  }, [scope.team?.id, scope.adminTeams, teamId])
-
   const list = useAsync(
     () => (teamId ? skillApi.listTeam(teamId, { status, q: query }) : Promise.resolve({ items: [], total: 0 })),
     [teamId, status, query],
   )
-
-  const teams = useMemo(() => scope.adminTeams, [scope.adminTeams])
 
   const openDetail = async (skillId: string): Promise<void> => {
     setDetailLoading(true)
@@ -81,7 +59,6 @@ export default function Skills() {
     } finally {
       setBusy(false)
       setAction(null)
-      setReason('')
       setRevokeVersion(null)
       setDisableTarget(null)
     }
@@ -143,7 +120,9 @@ export default function Skills() {
     {
       title: t('common.status'),
       dataIndex: 'status',
-      render: (value: string) => <Tag color={STATUS_COLOR[value] ?? 'default'}>{t(`status.${value}`, value)}</Tag>,
+      render: (value: string) => (
+        <Tag color={RESOURCE_STATUS_COLOR[value] ?? 'default'}>{t(`status.${value}`, value)}</Tag>
+      ),
     },
     { title: t('skills.size'), dataIndex: 'sizeBytes', render: (value: number) => formatBytes(value) },
     { title: t('skills.downloads'), dataIndex: 'downloadCount' },
@@ -174,74 +153,49 @@ export default function Skills() {
   ]
 
   return (
-    <Card
-      title={t('menu.skills')}
-      extra={
-        <Space>
-          <Tag>{`${t('common.total')}: ${list.data?.total ?? 0}`}</Tag>
-          <Button icon={<ReloadOutlined />} loading={list.loading} onClick={() => void list.reload()}>
-            {t('common.refresh')}
-          </Button>
-        </Space>
-      }
-    >
-      {teams.length === 0 ? (
-        <Alert type="info" showIcon title={t('skills.noAdminTeam')} />
-      ) : (
-        <>
-          <Space wrap style={{ marginBottom: 12 }}>
-            <Select
-              style={{ minWidth: 200 }}
-              value={teamId}
-              onChange={setTeamId}
-              options={teams.map((team) => ({ value: team.id, label: team.name }))}
-            />
-            <Select
-              style={{ minWidth: 140 }}
-              value={status}
-              onChange={setStatus}
-              options={[
-                { value: '', label: t('common.all') },
-                { value: 'published', label: t('status.published') },
-                { value: 'draft', label: t('status.draft') },
-                { value: 'delisted', label: t('status.delisted') },
-                { value: 'disabled', label: t('status.disabled') },
-              ]}
-            />
-            <Input
-              allowClear
-              style={{ width: 240 }}
-              prefix={<SearchOutlined />}
-              placeholder={t('skills.searchPlaceholder')}
-              onChange={(event) => setQuery(event.target.value)}
-            />
-          </Space>
-          {list.error && <Alert type="error" showIcon title={list.error} style={{ marginBottom: 12 }} />}
-          <Table<Skill>
-            size="small"
-            rowKey="id"
-            loading={list.loading}
-            dataSource={list.data?.items ?? []}
-            pagination={false}
-            columns={[
-              { title: t('skills.name'), dataIndex: 'name' },
-              {
-                title: t('common.status'),
-                dataIndex: 'status',
-                render: (value: string) => <Tag color={STATUS_COLOR[value] ?? 'default'}>{t(`status.${value}`, value)}</Tag>,
-              },
-              { title: t('skills.latestVersion'), dataIndex: 'latestVersion', render: (value: string | null) => value ?? '-' },
-              { title: t('skills.downloads'), dataIndex: 'downloadCount' },
-              {
-                title: t('skills.updatedAt'),
-                dataIndex: 'updatedAt',
-                render: (value: string) => formatDateTime(value, i18n.language),
-              },
-              { title: t('common.actions'), render: (_, row) => skillActions(row) },
-            ]}
-          />
-        </>
-      )}
+    <>
+      <ResourceAdminCard
+        title={t('menu.skills')}
+        total={list.data?.total ?? 0}
+        loading={list.loading}
+        onRefresh={() => void list.reload()}
+        emptyTeamsNotice={t('skills.noAdminTeam')}
+        teams={teams}
+        teamId={teamId}
+        onTeamChange={setTeamId}
+        status={status}
+        onStatusChange={setStatus}
+        query={query}
+        onQueryChange={setQuery}
+        searchPlaceholder={t('skills.searchPlaceholder')}
+        error={list.error ?? undefined}
+      >
+        <Table<Skill>
+          size="small"
+          rowKey="id"
+          loading={list.loading}
+          dataSource={list.data?.items ?? []}
+          pagination={false}
+          columns={[
+            { title: t('skills.name'), dataIndex: 'name' },
+            {
+              title: t('common.status'),
+              dataIndex: 'status',
+              render: (value: string) => (
+                <Tag color={RESOURCE_STATUS_COLOR[value] ?? 'default'}>{t(`status.${value}`, value)}</Tag>
+              ),
+            },
+            { title: t('skills.latestVersion'), dataIndex: 'latestVersion', render: (value: string | null) => value ?? '-' },
+            { title: t('skills.downloads'), dataIndex: 'downloadCount' },
+            {
+              title: t('skills.updatedAt'),
+              dataIndex: 'updatedAt',
+              render: (value: string) => formatDateTime(value, i18n.language),
+            },
+            { title: t('common.actions'), render: (_, row) => skillActions(row) },
+          ]}
+        />
+      </ResourceAdminCard>
 
       <Drawer
         width={680}
@@ -254,7 +208,9 @@ export default function Skills() {
           <>
             <Descriptions column={2} size="small" bordered>
               <Descriptions.Item label={t('common.status')}>
-                <Tag color={STATUS_COLOR[detail.status] ?? 'default'}>{t(`status.${detail.status}`, detail.status)}</Tag>
+                <Tag color={RESOURCE_STATUS_COLOR[detail.status] ?? 'default'}>
+                  {t(`status.${detail.status}`, detail.status)}
+                </Tag>
               </Descriptions.Item>
               <Descriptions.Item label={t('skills.revision')}>{detail.statusRevision}</Descriptions.Item>
               <Descriptions.Item label={t('skills.downloads')}>{detail.downloadCount}</Descriptions.Item>
@@ -297,45 +253,33 @@ export default function Skills() {
         )}
       </Drawer>
 
-      <Modal
+      <ReasonModal
         open={action === 'disable'}
         title={t('skills.disable')}
-        okText={t('common.confirm')}
-        cancelText={t('common.cancel')}
-        okButtonProps={{ danger: true, loading: busy }}
+        hint={t('skills.disableHint')}
+        placeholder={t('skills.reasonPlaceholder')}
+        requiredMessage={t('skills.reasonRequired')}
+        busy={busy}
         onCancel={() => setAction(null)}
-        onOk={() => {
-          if (!reason.trim()) {
-            void message.warning(t('skills.reasonRequired'))
-            return
-          }
+        onConfirm={(reason) => {
           if (!disableTarget) return
           void runAction(() => skillApi.disable(disableTarget.id, reason), t('skills.disabled'))
         }}
-      >
-        <Alert type="warning" showIcon title={t('skills.disableHint')} style={{ marginBottom: 12 }} />
-        <Input.TextArea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder={t('skills.reasonPlaceholder')} />
-      </Modal>
+      />
 
-      <Modal
+      <ReasonModal
         open={action === 'revoke'}
         title={`${t('skills.revoke')} ${revokeVersion ?? ''}`}
-        okText={t('common.confirm')}
-        cancelText={t('common.cancel')}
-        okButtonProps={{ danger: true, loading: busy }}
+        hint={t('skills.revokeHint')}
+        placeholder={t('skills.reasonPlaceholder')}
+        requiredMessage={t('skills.reasonRequired')}
+        busy={busy}
         onCancel={() => setAction(null)}
-        onOk={() => {
-          if (!reason.trim()) {
-            void message.warning(t('skills.reasonRequired'))
-            return
-          }
+        onConfirm={(reason) => {
           if (!detail || !revokeVersion) return
           void runAction(() => skillApi.revokeVersion(detail.id, revokeVersion, reason), t('skills.revoked'))
         }}
-      >
-        <Alert type="warning" showIcon title={t('skills.revokeHint')} style={{ marginBottom: 12 }} />
-        <Input.TextArea rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder={t('skills.reasonPlaceholder')} />
-      </Modal>
-    </Card>
+      />
+    </>
   )
 }
