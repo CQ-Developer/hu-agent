@@ -27,6 +27,17 @@ import StatsSection from './components/settings/StatsSection'
 import SyncSection from './components/settings/SyncSection'
 import WorkspaceSection from './components/settings/WorkspaceSection'
 import { applyResolved, t, useI18n } from './i18n'
+import {
+  accumulateUsage,
+  appendStreamDelta,
+  appendToolCall,
+  contextWindowFor,
+  EMPTY_STREAM,
+  patchToolResult,
+  streamMessageItem,
+  userMessageItem,
+  type StreamBuffer,
+} from './state/agent_stream'
 
 export default function App() {
   // 订阅语言：切换语言时由根组件带动整树重渲染（design 5.13）
@@ -53,8 +64,7 @@ export default function App() {
   const [stats, setStats] = useState<SessionUsageView | null>(null)
   const [approval, setApproval] = useState<ApprovalRequestView | null>(null)
   const [guide, setGuide] = useState<GuideRequestView | null>(null)
-  const streamingRef = useRef('')
-  const reasoningRef = useRef('')
+  const streamRef = useRef<StreamBuffer>(EMPTY_STREAM)
 
   const refreshSessions = useCallback(async (): Promise<SessionMetaView[]> => {
     const list = await window.huAgent.sessions.list()
@@ -64,8 +74,7 @@ export default function App() {
 
   const openSession = useCallback(async (sessionId: string): Promise<void> => {
     setCurrentId(sessionId)
-    streamingRef.current = ''
-    reasoningRef.current = ''
+    streamRef.current = EMPTY_STREAM
     setStreamingText('')
     setStreamingReasoning('')
     setError(null)
@@ -165,92 +174,49 @@ export default function App() {
         case 'turn.start':
           setRunning(true)
           setError(null)
-          streamingRef.current = ''
-          reasoningRef.current = ''
+          streamRef.current = EMPTY_STREAM
           setStreamingText('')
           setStreamingReasoning('')
           break
         case 'assistant.delta':
-          streamingRef.current += event.text
-          setStreamingText(streamingRef.current)
+          streamRef.current = appendStreamDelta(streamRef.current, 'text', event.text)
+          setStreamingText(streamRef.current.text)
           break
         case 'reasoning.delta':
-          reasoningRef.current += event.text
-          setStreamingReasoning(reasoningRef.current)
+          streamRef.current = appendStreamDelta(streamRef.current, 'reasoning', event.text)
+          setStreamingReasoning(streamRef.current.reasoning)
           break
         case 'tool.call': {
-          const text = streamingRef.current
-          const reasoning = reasoningRef.current
-          streamingRef.current = ''
-          reasoningRef.current = ''
+          const buffer = streamRef.current
+          streamRef.current = EMPTY_STREAM
           setStreamingText('')
           setStreamingReasoning('')
-          setItems((prev) => [
-            ...prev,
-            ...(text || reasoning
-              ? [
-                  {
-                    kind: 'message' as const,
-                    id: `stream_${event.turnId}`,
-                    role: 'assistant' as const,
-                    text,
-                    reasoning: reasoning || undefined,
-                    createdAt: new Date().toISOString(),
-                  },
-                ]
-              : []),
-            {
-              kind: 'tool' as const,
-              id: event.call.id,
-              name: event.call.name,
-              input: event.call.input,
+          setItems((prev) =>
+            appendToolCall(prev, buffer, event.call, {
+              messageId: `stream_${event.turnId}`,
               createdAt: new Date().toISOString(),
-            },
-          ])
+            }),
+          )
           break
         }
         case 'tool.result':
-          setItems((prev) =>
-            prev.map((item) =>
-              item.kind === 'tool' && item.id === event.result.id
-                ? {
-                    ...item,
-                    status: event.result.status,
-                    output: event.result.output,
-                    durationMs: event.result.durationMs,
-                    truncated: event.result.truncated,
-                    artifactPath: event.result.artifactPath,
-                  }
-                : item,
-            ),
-          )
+          setItems((prev) => patchToolResult(prev, event.result))
           break
         case 'usage.update':
-          setStats((prev) => applyUsage(prev, event.usage, models, options))
+          setStats((prev) =>
+            accumulateUsage(prev, event.usage, contextWindowFor(models, options, prev?.contextWindow ?? 0)),
+          )
           break
         case 'turn.end': {
-          const text = streamingRef.current
-          const reasoning = reasoningRef.current
-          streamingRef.current = ''
-          reasoningRef.current = ''
+          const buffer = streamRef.current
+          streamRef.current = EMPTY_STREAM
           setStreamingText('')
           setStreamingReasoning('')
           setRunning(false)
           setApproval((prev) => (prev && prev.sessionId === event.sessionId ? null : prev))
           setGuide((prev) => (prev && prev.sessionId === event.sessionId ? null : prev))
-          if (text || reasoning) {
-            setItems((prev) => [
-              ...prev,
-              {
-                kind: 'message',
-                id: `stream_end_${event.turnId}`,
-                role: 'assistant',
-                text,
-                reasoning: reasoning || undefined,
-                createdAt: new Date().toISOString(),
-              },
-            ])
-          }
+          const message = streamMessageItem(buffer, `stream_end_${event.turnId}`, new Date().toISOString())
+          if (message) setItems((prev) => [...prev, message])
           if (event.stopReason === 'error' && event.error) setError(event.error)
           void refreshSessions()
           void window.huAgent.usage.stats().then(setUsage)
@@ -273,10 +239,7 @@ export default function App() {
   const send = useCallback(
     async (text: string): Promise<void> => {
       if (!currentId || !text.trim() || running) return
-      setItems((prev) => [
-        ...prev,
-        { kind: 'message', id: `user_${Date.now()}`, role: 'user', text, createdAt: new Date().toISOString() },
-      ])
+      setItems((prev) => [...prev, userMessageItem(text, `user_${Date.now()}`, new Date().toISOString())])
       setRunning(true)
       setError(null)
       try {
@@ -447,30 +410,4 @@ export default function App() {
       )}
     </div>
   )
-}
-
-/** 用 usage.update 事件实时累加会话统计（turn.end 时再用 IPC 校准）。 */
-function applyUsage(
-  prev: SessionUsageView | null,
-  incoming: { inputTokens: number; outputTokens: number; cacheReadTokens?: number },
-  models: ModelOptionView[],
-  options: SessionOptionsView | null,
-): SessionUsageView {
-  const contextWindow =
-    models.find((model) => model.target === options?.model)?.contextWindow ?? prev?.contextWindow ?? 0
-  const calls = (prev?.calls ?? 0) + 1
-  const inputTokens = (prev?.inputTokens ?? 0) + incoming.inputTokens
-  const outputTokens = (prev?.outputTokens ?? 0) + incoming.outputTokens
-  const cacheReadTokens = (prev?.cacheReadTokens ?? 0) + (incoming.cacheReadTokens ?? 0)
-  const used = incoming.inputTokens + incoming.outputTokens
-  return {
-    calls,
-    inputTokens,
-    outputTokens,
-    cacheReadTokens,
-    cacheHitRate: inputTokens > 0 ? cacheReadTokens / inputTokens : 0,
-    contextWindow,
-    contextRemainingPercent:
-      contextWindow > 0 ? Math.max(0, Math.min(1, 1 - used / contextWindow)) * 100 : 100,
-  }
 }
