@@ -6,12 +6,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import text
+from sqlalchemy import TextClause, text
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from huagent.api.deps import Actor, get_actor
@@ -211,9 +213,57 @@ async def report_activations(
 async def _check_skill(
     session: AsyncSession, visible_teams: set[UUID], item: StatusItemIn
 ) -> StatusItemOut:
-    row = (await session.execute(SELECT_SKILL_STATUS, {"ref_id": item.ref_id})).mappings().first()
+    return await _check_resource(
+        visible_teams,
+        item,
+        resource_type="skill",
+        fetch_state=lambda: _first(session, SELECT_SKILL_STATUS, {"ref_id": item.ref_id}),
+        fetch_version=lambda: _first(
+            session, SELECT_SKILL_VERSION_STATUS, {"skill_id": item.ref_id, "version": item.version}
+        ),
+        fetch_replacement=lambda: _scalar(
+            session, SELECT_LATEST_SKILL_VERSION, {"skill_id": item.ref_id, "excluded": item.version}
+        ),
+    )
+
+
+async def _check_mcp(
+    session: AsyncSession, visible_teams: set[UUID], item: StatusItemIn
+) -> StatusItemOut:
+    async def fetch_version() -> RowMapping | None:
+        try:
+            version_number = int(item.version or "")
+        except ValueError:
+            return None
+        return await _first(
+            session, SELECT_MCP_VERSION_STATUS, {"server_id": item.ref_id, "version": version_number}
+        )
+
+    return await _check_resource(
+        visible_teams,
+        item,
+        resource_type="mcp",
+        fetch_state=lambda: _first(session, SELECT_MCP_STATUS, {"ref_id": item.ref_id}),
+        fetch_version=fetch_version,
+        fetch_replacement=lambda: _scalar(
+            session, SELECT_LATEST_MCP_VERSION, {"server_id": item.ref_id, "excluded": item.version}
+        ),
+    )
+
+
+async def _check_resource(
+    visible_teams: set[UUID],
+    item: StatusItemIn,
+    *,
+    resource_type: Literal["skill", "mcp"],
+    fetch_state: Callable[[], Awaitable[RowMapping | None]],
+    fetch_version: Callable[[], Awaitable[RowMapping | None]],
+    fetch_replacement: Callable[[], Awaitable[str | None]],
+) -> StatusItemOut:
+    """Skill / MCP 共用的状态分级（design 6.4.5）：可见性 → 组织/团队/停用 → 版本撤回 → 下架/正常。"""
+    row = await fetch_state()
     if row is None or row["team_id"] not in visible_teams or row["status"] == "deleted":
-        return StatusItemOut(type="skill", ref_id=item.ref_id, version=item.version, status="not_found")
+        return StatusItemOut(type=resource_type, ref_id=item.ref_id, version=item.version, status="not_found")
 
     base_reason: str | None = None
     if row["org_status"] != "active":
@@ -225,7 +275,7 @@ async def _check_skill(
 
     if base_reason is not None:
         return StatusItemOut(
-            type="skill",
+            type=resource_type,
             ref_id=item.ref_id,
             version=item.version,
             status="disabled",
@@ -234,20 +284,11 @@ async def _check_skill(
         )
 
     if item.version:
-        version_row = (
-            await session.execute(
-                SELECT_SKILL_VERSION_STATUS, {"skill_id": item.ref_id, "version": item.version}
-            )
-        ).mappings().first()
+        version_row = await fetch_version()
         if version_row is not None and version_row["status"] == "revoked":
-            replacement = (
-                await session.execute(
-                    SELECT_LATEST_SKILL_VERSION,
-                    {"skill_id": item.ref_id, "excluded": item.version},
-                )
-            ).scalar_one_or_none()
+            replacement = await fetch_replacement()
             return StatusItemOut(
-                type="skill",
+                type=resource_type,
                 ref_id=item.ref_id,
                 version=item.version,
                 status="revoked",
@@ -258,7 +299,7 @@ async def _check_skill(
 
     if row["status"] == "delisted":
         return StatusItemOut(
-            type="skill",
+            type=resource_type,
             ref_id=item.ref_id,
             version=item.version,
             status="delisted",
@@ -266,7 +307,7 @@ async def _check_skill(
             revision=int(row["status_revision"]),
         )
     return StatusItemOut(
-        type="skill",
+        type=resource_type,
         ref_id=item.ref_id,
         version=item.version,
         status="active",
@@ -274,72 +315,9 @@ async def _check_skill(
     )
 
 
-async def _check_mcp(
-    session: AsyncSession, visible_teams: set[UUID], item: StatusItemIn
-) -> StatusItemOut:
-    row = (await session.execute(SELECT_MCP_STATUS, {"ref_id": item.ref_id})).mappings().first()
-    if row is None or row["team_id"] not in visible_teams or row["status"] == "deleted":
-        return StatusItemOut(type="mcp", ref_id=item.ref_id, version=item.version, status="not_found")
+async def _first(session: AsyncSession, statement: TextClause, params: dict[str, Any]) -> RowMapping | None:
+    return (await session.execute(statement, params)).mappings().first()
 
-    base_reason: str | None = None
-    if row["org_status"] != "active":
-        base_reason = "所属组织已被冻结"
-    elif row["team_status"] != "active":
-        base_reason = "所属团队已归档"
-    elif row["status"] == "disabled":
-        base_reason = str(row["disabled_reason"] or "管理员已停用")
 
-    if base_reason is not None:
-        return StatusItemOut(
-            type="mcp",
-            ref_id=item.ref_id,
-            version=item.version,
-            status="disabled",
-            reason=base_reason,
-            revision=int(row["status_revision"]),
-        )
-
-    if item.version:
-        try:
-            version_number = int(item.version)
-        except ValueError:
-            version_number = None
-        if version_number is not None:
-            version_row = (
-                await session.execute(
-                    SELECT_MCP_VERSION_STATUS, {"server_id": item.ref_id, "version": version_number}
-                )
-            ).mappings().first()
-            if version_row is not None and version_row["status"] == "revoked":
-                replacement = (
-                    await session.execute(
-                        SELECT_LATEST_MCP_VERSION,
-                        {"server_id": item.ref_id, "excluded": item.version},
-                    )
-                ).scalar_one_or_none()
-                return StatusItemOut(
-                    type="mcp",
-                    ref_id=item.ref_id,
-                    version=item.version,
-                    status="revoked",
-                    reason=str(version_row["revoked_reason"] or "该版本已被撤回"),
-                    replacement_version=str(replacement) if replacement and replacement != item.version else None,
-                    revision=int(row["status_revision"]),
-                )
-
-    if row["status"] == "delisted":
-        return StatusItemOut(
-            type="mcp",
-            ref_id=item.ref_id,
-            version=item.version,
-            status="delisted",
-            reason="资源已下架，不再接收更新",
-            revision=int(row["status_revision"]),
-        )
-    return StatusItemOut(
-        type="mcp",
-        ref_id=item.ref_id,
-        version=item.version,
-        status="active",
-        revision=int(row["status_revision"]),
-    )
+async def _scalar(session: AsyncSession, statement: TextClause, params: dict[str, Any]) -> Any:
+    return (await session.execute(statement, params)).scalar_one_or_none()
