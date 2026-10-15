@@ -20,7 +20,7 @@ import { SyncScheduler, loadSyncSettings } from './sync/scheduler'
 import { StatsClient } from './stats/client'
 import { InteractionBroker } from './permissions/broker'
 import { McpManager } from './mcp/manager'
-import { globalMcpFile, loadMcpFile, workspaceMcpFile } from './mcp/config'
+import { globalMcpFile, listMarketMcpRefs, marketMcpSource, workspaceMcpFile } from './mcp/config'
 import { SkillManager } from './skills/manager'
 import { FileLogger } from './logging'
 import { createDurableTurnRunner } from './agent/durable_runner'
@@ -110,18 +110,8 @@ async function bootstrap(): Promise<void> {
   const installer = new SkillInstaller(market)
   const statuses = new ResourceStatusService(market, installer, undefined, {
     // 市场安装的 MCP 也参与状态检查（停用/撤回 → 硬停用，design 5.12）
-    listMarketMcp: async () => {
-      const ws = await workspaces.active()
-      const refs = new Map<string, { mcpId: string; name: string; version: number }>()
-      for (const file of [globalMcpFile(), workspaceMcpFile(ws)]) {
-        for (const [name, config] of Object.entries(await loadMcpFile(file))) {
-          const source = config.source
-          if (source?.type !== 'market' || !source.mcpId) continue
-          refs.set(source.mcpId, { mcpId: source.mcpId, name, version: source.version ?? 0 })
-        }
-      }
-      return [...refs.values()]
-    },
+    listMarketMcp: async () =>
+      listMarketMcpRefs([globalMcpFile(), workspaceMcpFile(await workspaces.active())]),
     // 硬停用写本地审计（design 5.12.4）
     onHardDisabled: async (entry) => {
       const file = join(globalDir(), 'logs', 'resource-status.jsonl')
@@ -177,9 +167,8 @@ async function bootstrap(): Promise<void> {
     mcp: new McpManager(secrets, app.getVersion(), {
       // 市场来源被服务端硬停用时：不连接、不注入工具（design 5.12）
       isBlocked: (entry) => {
-        const source = entry.config.source
-        if (source?.type !== 'market' || !source.mcpId) return false
-        return isHardDisabled(statuses.statusForMcp(source.mcpId)?.status)
+        const source = marketMcpSource(entry.config)
+        return source !== null && isHardDisabled(statuses.statusForMcp(source.mcpId)?.status)
       },
     }),
     market,

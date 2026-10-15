@@ -20,6 +20,7 @@ import {
   loadMcpFile,
   mergeCatalog,
   resolveSecretValue,
+  sanitizeName,
   workspaceMcpFile,
   type McpApproval,
   type McpCatalogEntry,
@@ -320,7 +321,7 @@ function buildMcpTool(server: string, definition: McpToolDefinition, client: Mcp
   const description = definition.description?.trim() ?? ''
   const schema = definition.inputSchema ?? {}
   return {
-    name: `mcp__${sanitize(server)}__${sanitize(definition.name)}`,
+    name: `mcp__${sanitizeName(server)}__${sanitizeName(definition.name)}`,
     label: definition.title ?? definition.name,
     category: 'mcp',
     description: `${description ? `${description} · ` : ''}MCP server：${server}`.slice(0, DESCRIPTION_LIMIT),
@@ -342,10 +343,6 @@ function buildMcpTool(server: string, definition: McpToolDefinition, client: Mcp
       }
     },
   }
-}
-
-function sanitize(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_-]/g, '_')
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

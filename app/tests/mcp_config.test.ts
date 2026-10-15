@@ -8,10 +8,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
   isEnabledFor,
+  listMarketMcpRefs,
+  marketMcpSource,
   materializeSecrets,
   mergeCatalog,
   mergeConfig,
   resolveSecretValue,
+  sanitizeName,
   saveMcpServer,
   type McpServerConfig,
 } from '../src/main/mcp/config'
@@ -107,5 +110,44 @@ describe('MCP 配置', () => {
     expect(resolveSecretValue('secret://keychain/hu-agent/mcp/github/TOKEN', secrets)).toBe('plain-123')
     expect(resolveSecretValue('hu-agent/mcp/github/TOKEN', secrets)).toBe('plain-123')
     expect(resolveSecretValue('keychain/hu-agent/other', secrets)).toBeNull()
+  })
+
+  it('marketMcpSource 只认市场来源；本地配置与缺 mcpId 返回 null', () => {
+    expect(marketMcpSource({ command: 'x' })).toBeNull()
+    expect(marketMcpSource({ source: { type: 'market' } })).toBeNull()
+    expect(marketMcpSource({ source: { type: 'local', mcpId: 'm1' } })).toBeNull()
+    expect(marketMcpSource({ source: { type: 'market', mcpId: 'm1' } })).toEqual({ mcpId: 'm1', version: 0 })
+    expect(marketMcpSource({ source: { type: 'market', mcpId: 'm1', version: 3 } })).toEqual({
+      mcpId: 'm1',
+      version: 3,
+    })
+  })
+
+  it('listMarketMcpRefs：跨文件收集，同一 mcpId 后读覆盖先读，忽略本地条目', async () => {
+    const globalFile = join(dir, 'global.json')
+    const workspaceFile = join(dir, 'workspace.json')
+    await saveMcpServer(globalFile, 'github', {
+      transport: 'stdio',
+      command: 'npx',
+      source: { type: 'market', mcpId: 'mcp-1', version: 1 },
+      enabled: { global: true },
+    })
+    await saveMcpServer(globalFile, 'local-only', { command: 'x', enabled: { global: true } })
+    await saveMcpServer(workspaceFile, 'github-v2', {
+      transport: 'stdio',
+      command: 'npx',
+      source: { type: 'market', mcpId: 'mcp-1', version: 2 },
+      enabled: { workspaces: ['w'] },
+    })
+
+    expect(await listMarketMcpRefs([globalFile, workspaceFile])).toEqual([
+      { mcpId: 'mcp-1', name: 'github-v2', version: 2 },
+    ])
+    expect(await listMarketMcpRefs([join(dir, 'missing.json')])).toEqual([])
+  })
+
+  it('sanitizeName：非 [A-Za-z0-9_-] 字符替换为下划线', () => {
+    expect(sanitizeName('github server/1')).toBe('github_server_1')
+    expect(sanitizeName('mcp__filesystem__read_file')).toBe('mcp__filesystem__read_file')
   })
 })

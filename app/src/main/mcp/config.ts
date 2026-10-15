@@ -52,6 +52,45 @@ export async function loadMcpFile(file: string): Promise<Record<string, McpServe
   }
 }
 
+/** 市场来源（`source.type === 'market'`）：mcpId + 安装版本；本地手工配置没有。 */
+export interface MarketMcpSource {
+  mcpId: string
+  version: number
+}
+
+/** 读取配置里的市场来源；非市场条目返回 null。 */
+export function marketMcpSource(config: McpServerConfig): MarketMcpSource | null {
+  const source = config.source
+  if (source?.type !== 'market' || !source.mcpId) return null
+  return { mcpId: source.mcpId, version: source.version ?? 0 }
+}
+
+/** 市场安装记录（带本地 mcp.json 条目名，供界面展示）。 */
+export interface MarketMcpRef extends MarketMcpSource {
+  name: string
+}
+
+/**
+ * 从若干 mcp.json 中收集市场来源条目（如全局 + 工作空间；同名条目后读取者覆盖先读取者）。
+ * 状态检查、激活上报与硬停用门禁共用这一份判定，避免规则漂移。
+ */
+export async function listMarketMcpRefs(files: string[]): Promise<MarketMcpRef[]> {
+  const refs = new Map<string, MarketMcpRef>()
+  for (const file of files) {
+    for (const [name, config] of Object.entries(await loadMcpFile(file))) {
+      const source = marketMcpSource(config)
+      if (!source) continue
+      refs.set(source.mcpId, { ...source, name })
+    }
+  }
+  return [...refs.values()]
+}
+
+/** 由外部名称派生安全标识符（工具名、密钥引用键）：非 `[A-Za-z0-9_-]` 一律替换为 `_`。 */
+export function sanitizeName(value: string): string {
+  return value.replace(/[^A-Za-z0-9_-]/g, '_')
+}
+
 /** 按字段合并全局与工作空间配置，enabled.workspaces 取并集。 */
 export function mergeCatalog(
   globalServers: Record<string, McpServerConfig>,

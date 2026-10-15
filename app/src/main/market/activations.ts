@@ -1,6 +1,6 @@
 /** 激活快照上报（design 5.10.3）：启用/禁用资源或安装/卸载后全量覆盖当前设备状态。 */
 
-import type { McpCatalogEntry } from '../mcp/config'
+import { marketMcpSource, type McpCatalogEntry } from '../mcp/config'
 import type { SkillInfo } from '../skills/manager'
 import type { ActivationItem, MarketClient } from './client'
 import type { InstalledSkill } from './installer'
@@ -60,8 +60,7 @@ export function buildMcpActivationItems(
   workspaceId: string,
 ): ActivationItem[] {
   return catalog.map((entry) => {
-    const source = entry.config.source
-    const market = source?.type === 'market' && source.mcpId ? source : null
+    const market = marketMcpSource(entry.config)
     const enabled =
       scope === 'global'
         ? Boolean(entry.config.enabled?.global)
@@ -71,7 +70,7 @@ export function buildMcpActivationItems(
       source: market ? ('market' as const) : ('local' as const),
       refId: market?.mcpId ?? null,
       name: entry.name,
-      version: market?.version !== undefined ? String(market.version) : null,
+      version: market !== null ? String(market.version) : null,
       enabled,
     }
   })

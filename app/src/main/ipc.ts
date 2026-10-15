@@ -30,13 +30,13 @@ import {
   toSessionUsage,
   type PiUsageLike,
 } from './session/durable_view'
-import { globalMcpFile, loadMcpFile, materializeSecrets, mergeCatalog, saveMcpServer, workspaceMcpFile, type McpServerConfig } from './mcp/config'
+import { globalMcpFile, listMarketMcpRefs, loadMcpFile, materializeSecrets, mergeCatalog, saveMcpServer, workspaceMcpFile, type MarketMcpRef, type McpServerConfig } from './mcp/config'
 import type { McpManager } from './mcp/manager'
 import type { SkillManager } from './skills/manager'
 import { compareSemver } from './skills/parser'
 import { MarketClient } from './market/client'
 import type { InstalledSkill, SkillInstaller } from './market/installer'
-import { isHardDisabled, type ResourceStatusService, type StatusCache } from './market/status'
+import { isHardDisabled, type ResourceStatusService, type StatusCache, type StatusEntry } from './market/status'
 import { reportActivationSnapshot } from './market/activations'
 import { buildMarketMcpConfig } from './market/mcp_install'
 import { SyncEngine } from './sync/engine'
@@ -465,7 +465,7 @@ export function registerIpc(context: AppContext): void {
         tag: params?.tag,
         sort: params?.sort as 'updated' | 'name' | undefined,
       }),
-      installedMcpServers(ws),
+      listMarketMcpRefs([globalMcpFile(), workspaceMcpFile(ws)]),
       context.statuses.load(),
     ])
     return result.items.map((item) => toMarketMcpView(item, installed, cache))
@@ -474,7 +474,7 @@ export function registerIpc(context: AppContext): void {
     const { ws } = await scoped(context)
     const [detail, installed, cache] = await Promise.all([
       context.market.mcpServerDetail(serverId),
-      installedMcpServers(ws),
+      listMarketMcpRefs([globalMcpFile(), workspaceMcpFile(ws)]),
       context.statuses.load(),
     ])
     return {
@@ -512,8 +512,8 @@ export function registerIpc(context: AppContext): void {
   )
   ipcMain.handle('market:mcp-uninstall', async (_event, serverId: string) => {
     const { ws } = await scoped(context)
-    const installed = await installedMcpServers(ws)
-    const mine = installed.get(serverId)
+    const installed = await listMarketMcpRefs([globalMcpFile(), workspaceMcpFile(ws)])
+    const mine = installed.find((ref) => ref.mcpId === serverId)
     if (mine) await saveMcpServer(globalMcpFile(), mine.name, null)
     await context.mcp.reload(ws)
     await reportScope(context, ws, 'global')
@@ -861,17 +861,15 @@ async function buildSkillViews(context: AppContext, ws: WorkspacePaths): Promise
   return skills.map((skill) => {
     const market = byName.get(skill.name)
     const entry = market ? cache.skills[market.skillId] : undefined
-    const hard = entry ? isHardDisabled(entry.status) : false
+    const isHardDisabledEntry = entry ? isHardDisabled(entry.status) : false
     return {
       ...skill,
       intentEnabled: skill.enabled,
-      enabled: skill.enabled && !hard,
+      enabled: skill.enabled && !isHardDisabledEntry,
       market: market
         ? { skillId: market.skillId, installedVersion: market.version, updateAvailable: false }
         : undefined,
-      state: entry?.status,
-      stateReason: entry?.reason,
-      replacementVersion: entry?.replacementVersion,
+      ...marketStateFields(entry),
     }
   })
 }
@@ -904,9 +902,7 @@ function toMarketView(
     updatedAt: item.updatedAt,
     installedVersion: mine?.version ?? null,
     updateAvailable: Boolean(mine && item.latestVersion && compareSemver(item.latestVersion, mine.version) > 0),
-    state: entry?.status,
-    stateReason: entry?.reason,
-    replacementVersion: entry?.replacementVersion,
+    ...marketStateFields(entry),
   }
 }
 
@@ -940,18 +936,6 @@ async function reportScope(
 }
 
 /** 本地 mcp.json 里的市场安装记录：mcpId → { name, version } */
-async function installedMcpServers(ws: WorkspacePaths): Promise<Map<string, { name: string; version: number }>> {
-  const map = new Map<string, { name: string; version: number }>()
-  for (const file of [globalMcpFile(), workspaceMcpFile(ws)]) {
-    for (const [name, config] of Object.entries(await loadMcpFile(file))) {
-      const source = config.source
-      if (source?.type !== 'market' || !source.mcpId) continue
-      map.set(source.mcpId, { name, version: source.version ?? 0 })
-    }
-  }
-  return map
-}
-
 function toMarketMcpView(
   item: {
     id: string
@@ -961,10 +945,10 @@ function toMarketMcpView(
     latestVersion: number | null
     updatedAt: string
   },
-  installed: Map<string, { name: string; version: number }>,
+  installed: MarketMcpRef[],
   cache: StatusCache,
 ): import('../shared/ipc').MarketMcpServerView {
-  const mine = installed.get(item.id)
+  const mine = installed.find((ref) => ref.mcpId === item.id)
   const entry = cache.mcp[item.id]
   return {
     id: item.id,
@@ -975,8 +959,15 @@ function toMarketMcpView(
     updatedAt: item.updatedAt,
     installedVersion: mine?.version ?? null,
     updateAvailable: Boolean(mine && item.latestVersion !== null && item.latestVersion > mine.version),
-    state: entry?.status,
-    stateReason: entry?.reason,
-    replacementVersion: entry?.replacementVersion,
+    ...marketStateFields(entry),
   }
+}
+
+/** 服务端资源状态 → 市场视图的公共字段（Skill / MCP 共用）。 */
+function marketStateFields(entry: StatusEntry | undefined): {
+  state: import('../shared/ipc').MarketSkillView['state']
+  stateReason: string | undefined
+  replacementVersion: string | undefined
+} {
+  return { state: entry?.status, stateReason: entry?.reason, replacementVersion: entry?.replacementVersion }
 }

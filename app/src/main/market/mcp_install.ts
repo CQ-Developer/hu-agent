@@ -8,7 +8,7 @@
  */
 
 import { t } from '../i18n'
-import type { McpServerConfig, SecretWriter } from '../mcp/config'
+import { sanitizeName, type McpServerConfig, type SecretWriter } from '../mcp/config'
 import type { MarketMcpEnvField, McpTransportKind } from './client'
 
 export interface BuildMarketMcpConfigOptions {
@@ -51,7 +51,7 @@ export async function buildMarketMcpConfig(options: BuildMarketMcpConfigOptions)
       continue
     }
     if (field.secret) {
-      const storeKey = `hu-agent/mcp/${sanitize(name)}/${field.key}`
+      const storeKey = `hu-agent/mcp/${sanitizeName(name)}/${field.key}`
       await secrets.set(storeKey, value)
       target[field.key] = `secret://keychain/${storeKey}`
     } else {
@@ -63,8 +63,4 @@ export async function buildMarketMcpConfig(options: BuildMarketMcpConfigOptions)
     else config.headers = target
   }
   return config
-}
-
-function sanitize(value: string): string {
-  return value.replace(/[^A-Za-z0-9_-]/g, '_')
 }
