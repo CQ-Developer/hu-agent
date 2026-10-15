@@ -27,5 +27,9 @@ export default defineConfig({
       },
     },
     plugins: [react(), tailwindcss()],
+    server: {
+      // 允许通过 HUAGENT_RENDERER_PORT 换端口（默认 5173，与管理台同端口；两者同时跑或端口被占时用）
+      port: Number(process.env.HUAGENT_RENDERER_PORT ?? 5173),
+    },
   },
 })

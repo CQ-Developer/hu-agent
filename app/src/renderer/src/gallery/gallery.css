@@ -1,0 +1,9 @@
+/**
+ * dev-only 设计画廊的样式入口：与主应用分开编译。
+ *
+ * 主应用 `index.css` 用 `@source not "./gallery"` 排除了画廊，避免只用于评审的
+ * 类名进入生产 CSS；画廊自身需要完整的 Tailwind 扫描，因此单独一个入口。
+ */
+
+@import 'tailwindcss';
+@import '../styles/tokens.css';

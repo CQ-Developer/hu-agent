@@ -172,7 +172,26 @@ interface HistorySummarizer {
 **P1.1 已完成**（配置层，独立可验证）：`app/src/main/model/pi-config.ts` + `app/tests/pi-config.test.ts`
 6 条测试（字段映射、密钥优先级与"密钥不落盘"、缺文件容错、与 pi CLI 配置互通），`npm run typecheck` 全绿。
 
-式与动效体系，且**不引入第三方 UI 库**（保持零依赖与包体）。
+## 2. 轨道 B：客户端 UI 体系（设计令牌 + 动效 + 原语）
+
+目标：为客户端建立一套可演进的设计语言（表面层级、字阶、动效），且**不引入第三方 UI 库**（保持零依赖与包体）。
+
+### 2.0 决策记录（2026-10-15，用户确认）
+
+| 决策点 | 结论 |
+| --- | --- |
+| 视觉方向 | **B 暖中性纸感**（off-white 画布 + 白卡 + 细边框，更大圆角，正文 14px / 行高 1.7） |
+| D-5 主题 | **做**：浅色 + 深色，跟随系统 + 手动切换；`class="dark"` 策略 + `prefers-color-scheme` |
+| D-6 动效 | **更活泼**：允许一次过冲/回弹（spring / bounce），单次 ≤ 600ms；`prefers-reduced-motion` 全量降级 |
+| D-7 依赖 | **零依赖**手写原语（不引 radix / shadcn / antd） |
+| 导航结构 | 顶部只保留「市场」；对话为默认主视图，其余入口收进「设置」面（分组：工作区 / 团队与云 / 系统） |
+| 平台 | Windows 与 macOS 同等 |
+| 强调色 | 默认 **陶土（clay）**，预设苔绿（moss）/ 墨蓝（ink），评审后定稿 |
+
+**落地状态（2026-10-15）**：`app/src/renderer/src/styles/tokens.css`（令牌 + 双主题 + 动效）与 dev-only
+设计画廊 `app/src/renderer/gallery.html` 已交付评审；画廊入口：
+`HUAGENT_RENDERER_PORT=5179 npx electron-vite dev --rendererOnly` 后访问 `/gallery.html`。
+主应用用 `@source not './gallery'` 排除画廊类名，画廊用独立的 `gallery.css` 入口。
 
 ### 2.1 B1 设计令牌层（Tailwind v4 `@theme`，零依赖）
 
@@ -180,7 +199,7 @@ interface HistorySummarizer {
 
 - 色板：品牌主色（含 50–900 梯度）、中性灰阶、语义色（success / warning / danger / info）、表面与边框层级（surface-1/2/3、border-subtle/strong）
 - 尺度：间距（4 基准，0–16 阶）、圆角（sm/md/lg/full）、字号与行高（含中英混排基线：`system-ui` + `Microsoft YaHei`/`PingFang SC`，数字用等宽变体）、阴影（3 级）、z-index 分层
-- 动效令牌：时长（`instant 100ms` / `fast 160ms` / `base 240ms` / `slow 400ms`）、缓动（`standard` / `decelerate`(进场) / `accelerate`(退场) / `emphasized`）
+- 动效令牌：时长（`instant 90ms` / `fast 170ms` / `base 260ms` / `slow 420ms` / `lazy 600ms`）、缓动（`standard` / `decelerate`(进场) / `accelerate`(退场) / `spring`(过冲) / `bounce`(回弹)）
 - 主题：浅色/深色双套（`class="dark"` 策略 + `prefers-color-scheme` 默认），令牌是唯一色值来源；「跟随系统 / 浅色 / 深色」进设置
 - 纪律：**禁止组件内出现硬编码色值/时长**，由 `app/scripts/ui-check.mjs` 校验并纳入 `npm run check`
 
@@ -211,11 +230,10 @@ dev-only 路由 `/gallery`（生产构建剔除）：令牌可视化（色板/�
 
 先立令牌与动效基建 → 新建页面按新体系写 → 旧组件**按页面逐个迁移**（登录门禁 → 对话页 → 设置页 5 个 section → 其余），每页迁移后跑一次客户端测试与截图自查。
 
-### 2.6 决策点（需你确认）
+### 2.6 评审入口与剩余待定
 
-- **D-5 主题**：是否需要深色主题（工作量 +30%，令牌层已预留）？建议要（开发者群体刚需）。
-- **D-6 动效风格**：**克制**（企业工具，推荐：信息密度优先，动效只用于状态变化与空间关系）还是更活泼（更多弹性/装饰性动画）？
-- **D-7 依赖**：坚持零依赖手写原语（推荐，包体与可控性最好），还是引入现成 UI 库（antd/radix，开发快但与现有 524 处工具类风格割裂、包体 +数百 KB）？
+- 决策已确认（见 2.0）；剩余待评审：**强调色定稿**（陶土 / 苔绿 / 墨蓝）与画廊视觉走查（浅/深双主题截图见 PR）。
+- 后续按 2.5 迁移：登录门禁 → 壳层（导航重构：仅保留「市场」+ 设置面）→ 对话页 → 设置各区 → 空态/加载/错误态。
 
 ---
 

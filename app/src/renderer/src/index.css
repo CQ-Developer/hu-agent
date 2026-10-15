@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+/* 设计令牌（方向 B / 双主题）：定义 @theme 与深色变量，仅新增命名空间，不影响旧页面 */
+@import './styles/tokens.css';
+/* 画廊是 dev-only 评审页，类名不进入生产 CSS（画廊用独立的 gallery.css 入口） */
+@source not './gallery';
 
 html,
 body,
