@@ -172,10 +172,10 @@ jobs:
           STATS_E2E: "1"
         run: |
           npx vitest run \
-            tests/integration/cloud-e2e.test.ts \
-            tests/integration/market-e2e.test.ts \
-            tests/integration/sync-e2e.test.ts \
-            tests/integration/stats-e2e.test.ts
+            tests/integration/cloud_e2e.test.ts \
+            tests/integration/market_e2e.test.ts \
+            tests/integration/sync_e2e.test.ts \
+            tests/integration/stats_e2e.test.ts
 
       - name: 启动 Keycloak 并准备测试身份源
         working-directory: management
