@@ -180,17 +180,19 @@ interface HistorySummarizer {
 
 | 决策点 | 结论 |
 | --- | --- |
-| 视觉方向 | **B 暖中性纸感**（off-white 画布 + 白卡 + 细边框，更大圆角，正文 14px / 行高 1.7） |
+| 视觉方向 | **元素级液态玻璃**（参考 `液态玻璃设计.html`，2026-10-15 用户澄清）：按钮/输入/卡片/弹层/分段控件/开关/滑杆等元素用「半透明 + backdrop-blur + 镜面描边 + 悬浮阴影」；页面保持中性背景（不做满屏彩色光斑舞台） |
 | D-5 主题 | **做**：浅色 + 深色，跟随系统 + 手动切换；`class="dark"` 策略 + `prefers-color-scheme` |
-| D-6 动效 | **更活泼**：允许一次过冲/回弹（spring / bounce），单次 ≤ 600ms；`prefers-reduced-motion` 全量降级 |
-| D-7 依赖 | **零依赖**手写原语（不引 radix / shadcn / antd） |
-| 导航结构 | 顶部只保留「市场」；对话为默认主视图，其余入口收进「设置」面（分组：工作区 / 团队与云 / 系统） |
+| D-6 动效 | **更活泼**：过冲/回弹（spring / bounce）、按钮磁吸、点击涟漪、指针跟随高光；单次 ≤ 600ms；`prefers-reduced-motion` 全量降级 |
+| D-7 依赖 | **零依赖**手写元素（不引 radix / shadcn / antd） |
+| 导航结构 | 顶部只保留「市场」；对话为默认主视图，其余入口收进「设置」面（分组：工作区 / 团队与云 / 系统）——待实施 |
 | 平台 | Windows 与 macOS 同等 |
-| 强调色 | 默认 **陶土（clay）**，预设苔绿（moss）/ 墨蓝（ink），评审后定稿 |
+| 强调色 | 单一品牌强调色：浅色 `#5563e8` / 深色 `#7e9aff`（取自参考稿的主按钮与开关） |
 
-**落地状态（2026-10-15）**：`app/src/renderer/src/styles/tokens.css`（令牌 + 双主题 + 动效）与 dev-only
-设计画廊 `app/src/renderer/gallery.html` 已交付评审；画廊入口：
-`HUAGENT_RENDERER_PORT=5179 npx electron-vite dev --rendererOnly` 后访问 `/gallery.html`。
+**落地状态（2026-10-15）**：元素级玻璃已落到客户端：`app/src/renderer/src/styles/tokens.css`（双主题令牌 +
+元素组件类 `.glass` / `.ui-btn*` / `.ui-field` / `.ui-segmented` / `.ui-switch` / `.ui-slider`）、
+`app/src/renderer/src/components/ui/glass.tsx`（指针跟随高光 / 磁吸按钮 / 点击涟漪）；壳层、对话页、
+登录门禁与设置页已迁移；dev-only 设计画廊同步。**management-ui 待迁移**（antd 主题 + 玻璃覆盖）。
+画廊入口：`HUAGENT_RENDERER_PORT=5179 npx electron-vite dev --rendererOnly` 后访问 `/gallery.html`；
 主应用用 `@source not './gallery'` 排除画廊类名，画廊用独立的 `gallery.css` 入口。
 
 ### 2.1 B1 设计令牌层（Tailwind v4 `@theme`，零依赖）

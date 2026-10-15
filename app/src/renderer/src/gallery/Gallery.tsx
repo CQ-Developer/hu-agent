@@ -38,7 +38,7 @@ function applyAccent(accent: Accent): void {
 
 function Section({ title, desc, children }: { title: string; desc?: string; children: ReactNode }) {
   return (
-    <section className="rounded-card border border-line bg-surface p-6 shadow-soft">
+    <section className="glass p-6">
       <header className="mb-5">
         <h2 className="text-heading font-semibold tracking-tight">{title}</h2>
         {desc ? <p className="mt-1 text-small text-fg-muted">{desc}</p> : null}
@@ -86,13 +86,13 @@ function Button({
   onClick?: () => void
 }) {
   const variants: Record<string, string> = {
-    primary: 'bg-accent text-accent-contrast hover:bg-accent-hover shadow-soft',
-    secondary: 'bg-surface-2 text-fg border border-line hover:bg-surface-3',
-    ghost: 'text-fg-muted hover:bg-surface-2 hover:text-fg',
-    danger: 'bg-danger text-fg-inverse hover:opacity-90 shadow-soft',
+    primary: 'ui-btn-primary',
+    secondary: 'ui-btn-glass',
+    ghost: 'ui-btn-ghost',
+    danger: 'ui-btn-danger',
   }
   const sizes: Record<string, string> = {
-    sm: 'px-3 py-1.5 text-caption',
+    sm: 'px-3.5 py-1.5 text-caption',
     md: 'px-4 py-2 text-small',
     lg: 'px-5 py-2.5 text-body',
   }
@@ -100,7 +100,7 @@ function Button({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-field font-medium transition duration-200 ease-standard active:scale-[.97] ${variants[variant]} ${sizes[size]}`}
+      className={`ui-btn ${variants[variant]} ${sizes[size]}`}
     >
       {children}
     </button>
@@ -112,7 +112,7 @@ function Field({ label, placeholder, hint }: { label: string; placeholder: strin
     <label className="block">
       <span className="mb-1.5 block text-small font-medium text-fg">{label}</span>
       <input
-        className="w-full rounded-field border border-line bg-surface-2 px-3 py-2 text-small text-fg outline-none transition duration-200 ease-standard placeholder:text-fg-subtle focus:border-accent focus:ring-2 focus:ring-[var(--ui-accent-ring)]"
+        className="ui-field"
         placeholder={placeholder}
       />
       {hint ? <span className="mt-1 block text-caption text-fg-subtle">{hint}</span> : null}
