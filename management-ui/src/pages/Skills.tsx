@@ -198,7 +198,7 @@ export default function Skills() {
       </ResourceAdminCard>
 
       <Drawer
-        width={680}
+        size={680}
         open={Boolean(detail)}
         loading={detailLoading}
         title={detail ? `${detail.name} · ${detail.latestVersion ?? '-'}` : ''}

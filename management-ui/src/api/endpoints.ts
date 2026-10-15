@@ -27,6 +27,9 @@ export type Usage = Schema['UsageOut']
 export type Activation = Schema['ActivationOut']
 export type Device = Schema['DeviceOut']
 export type Identity = Schema['IdentityOut']
+export type AdminUser = Schema['AdminUserOut']
+export type PendingInvitation = Schema['PendingInvitationOut']
+export type ResetPasswordToken = Schema['ResetPasswordOut']
 
 export interface InvitationCreated {
   id: string
@@ -68,6 +71,9 @@ export const authApi = {
     api.post<Schema['RefreshOut']>('/api/v1/auth/refresh', { refreshToken }, { auth: false }),
   // 服务端按 device_id / all_devices 注销会话（管理台固定用自己的 deviceId）
   ssoExchange: (code: string, codeVerifier: string) => ssoApi.exchange(code, codeVerifier),
+  // 公开接口：兑换管理员签发的一次性重置令牌
+  resetPassword: (token: string, password: string) =>
+    api.post<{ status: string }>('/api/v1/auth/password/reset', { token, password }, { auth: false }),
   logout: (allDevices = false) =>
     api.post<Record<string, unknown>>('/api/v1/auth/logout', { allDevices, deviceId: 'management-ui' }),
 }
@@ -108,6 +114,7 @@ export const orgApi = {
     api.del<Record<string, unknown>>(`/api/v1/orgs/${orgId}/members/${userId}`),
   invite: (orgId: string, email: string, role: 'admin' | 'member') =>
     api.post<InvitationCreated>(`/api/v1/orgs/${orgId}/invitations`, { email, role }),
+  invitations: (orgId: string) => api.get<PendingInvitation[]>(`/api/v1/orgs/${orgId}/invitations`),
   teams: (orgId: string) => api.get<Team[]>(`/api/v1/orgs/${orgId}/teams`),
 }
 
@@ -121,6 +128,14 @@ export const teamApi = {
     api.del<Record<string, unknown>>(`/api/v1/teams/${teamId}/members/${userId}`),
   invite: (teamId: string, email: string, role: 'admin' | 'member') =>
     api.post<InvitationCreated>(`/api/v1/teams/${teamId}/invitations`, { email, role }),
+  invitations: (teamId: string) => api.get<PendingInvitation[]>(`/api/v1/teams/${teamId}/invitations`),
+}
+
+// ---------- 邀请（跨组织/团队） ----------
+export const invitationApi = {
+  // 仅对应范围的组织/团队管理员（或系统管理员）可撤销
+  revoke: (invitationId: string) =>
+    api.post<Schema['InvitationRevokedOut']>('/api/v1/invitations:revoke', { invitationId }),
 }
 
 // ---------- 审批 ----------
@@ -304,6 +319,28 @@ export const adminApi = {
     api.post<{ id: string; status: string }>(`/api/v1/admin/orgs/${orgId}:unfreeze`),
   dissolveOrg: (orgId: string) =>
     api.post<{ id: string; status: string }>(`/api/v1/admin/orgs/${orgId}:dissolve`),
+  users: (params: {
+    q?: string
+    status?: 'active' | 'disabled' | 'pending_deletion'
+    limit?: number
+    offset?: number
+  } = {}) =>
+    api.get<{ items: AdminUser[]; total: number }>('/api/v1/admin/users', {
+      query: {
+        q: params.q,
+        status: params.status,
+        limit: params.limit ?? 50,
+        offset: params.offset ?? 0,
+      },
+    }),
+  disableUser: (userId: string, reason?: string) =>
+    api.post<Schema['UserActionOut']>(`/api/v1/admin/users/${userId}:disable`, { reason }),
+  enableUser: (userId: string) => api.post<Schema['UserActionOut']>(`/api/v1/admin/users/${userId}:enable`),
+  forceLogoutUser: (userId: string) =>
+    api.post<{ revoked: number }>(`/api/v1/admin/users/${userId}:force-logout`),
+  restoreUser: (userId: string) => api.post<Schema['UserActionOut']>(`/api/v1/admin/users/${userId}:restore`),
+  resetUserPassword: (userId: string) =>
+    api.post<ResetPasswordToken>(`/api/v1/admin/users/${userId}:reset-password`),
 }
 
 // ---------- 组织/团队治理 ----------

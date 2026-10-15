@@ -8,7 +8,7 @@ import { App as AntApp, Alert, Button, Card, Form, Input, Modal, Popconfirm, Sel
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { orgApi, teamApi, type OrgMember, type TeamMember } from '../api/endpoints'
+import { orgApi, teamApi, invitationApi, type OrgMember, type PendingInvitation, type TeamMember } from '../api/endpoints'
 import { useScope } from '../app/ScopeProvider'
 import { useSession } from '../auth/SessionProvider'
 import { useAsync } from '../lib/useAsync'
@@ -30,19 +30,42 @@ export default function Members() {
   const [inviteToken, setInviteToken] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
+  // 页面直出（整页加载）时 scope 仍在异步拉取：用 currentTeamId 兜底，避免团队 Tab 一直空表
+  const currentTeamId = teamId ?? scope.team?.id ?? scope.adminTeams[0]?.id
+
   const members = useAsync(
     () =>
       tab === 'team'
-        ? teamId
-          ? teamApi.members(teamId)
+        ? currentTeamId
+          ? teamApi.members(currentTeamId)
           : Promise.resolve({ items: [], total: 0 })
         : scope.org
           ? orgApi.members(scope.org.id)
           : Promise.resolve({ items: [], total: 0 }),
-    [tab, teamId, scope.org?.id],
+    [tab, currentTeamId, scope.org?.id],
   )
 
-  const currentTeamId = teamId ?? scope.team?.id ?? scope.adminTeams[0]?.id
+  const invitations = useAsync(
+    () =>
+      tab === 'team'
+        ? currentTeamId
+          ? teamApi.invitations(currentTeamId)
+          : Promise.resolve([])
+        : scope.org
+          ? orgApi.invitations(scope.org.id)
+          : Promise.resolve([]),
+    [tab, currentTeamId, scope.org?.id],
+  )
+
+  const revokeInvite = async (invitation: PendingInvitation): Promise<void> => {
+    try {
+      await invitationApi.revoke(invitation.id)
+      void message.success(t('members.revoked'))
+      await invitations.reload()
+    } catch (cause) {
+      void message.error(errorText(cause, t))
+    }
+  }
 
   const changeRole = async (row: MemberRow, role: 'admin' | 'member'): Promise<void> => {
     try {
@@ -77,6 +100,7 @@ export default function Members() {
             : null
       setInviteToken(created?.acceptToken ?? null)
       void message.success(t('members.inviteCreated'))
+      await invitations.reload()
     } catch (cause) {
       void message.error(errorText(cause, t))
     } finally {
@@ -215,6 +239,51 @@ export default function Members() {
             ]}
           />
           {members.error && <Alert type="error" showIcon title={members.error} style={{ marginTop: 12 }} />}
+
+          <Card size="small" title={t('members.pendingInvitations')} style={{ marginTop: 16 }}>
+            <Table<PendingInvitation>
+              size="small"
+              rowKey="id"
+              loading={invitations.loading}
+              dataSource={invitations.data ?? []}
+              pagination={false}
+              locale={{ emptyText: t('members.noPendingInvitations') }}
+              columns={[
+                { title: t('members.email'), dataIndex: 'email' },
+                {
+                  title: t('members.role'),
+                  dataIndex: 'role',
+                  render: (value: string) => t(`members.${value}`, value),
+                },
+                {
+                  title: t('members.invitedBy'),
+                  dataIndex: 'invitedByEmail',
+                  render: (value: string | null) => value ?? '-',
+                },
+                {
+                  title: t('members.expiresAt'),
+                  dataIndex: 'expiresAt',
+                  render: (value: string) => formatDateTime(value, i18n.language),
+                },
+                {
+                  title: t('common.actions'),
+                  render: (_: unknown, row: PendingInvitation) => (
+                    <Popconfirm
+                      title={t('members.revokeConfirm')}
+                      okText={t('common.confirm')}
+                      cancelText={t('common.cancel')}
+                      onConfirm={() => void revokeInvite(row)}
+                    >
+                      <Button size="small" type="link" danger>
+                        {t('members.revoke')}
+                      </Button>
+                    </Popconfirm>
+                  ),
+                },
+              ]}
+            />
+            {invitations.error && <Alert type="error" showIcon title={invitations.error} style={{ marginTop: 12 }} />}
+          </Card>
         </>
       )}
 
