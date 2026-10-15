@@ -198,11 +198,11 @@ groups:
 ## 7. 一键部署监控栈（中小企业自托管）
 
 目标：一条命令得到「指标采集 + 预置看板 + 邮件告警」，不要求运维熟悉 Prometheus。
-编排文件 `docker/compose.observability.yaml` 是**叠加层**，可叠在快速开始编排上，也可独立运行。
+监控栈与业务服务在**同一个编排文件** `docker/compose.yaml` 中（profile: `monitoring`；容器日志聚合为 `logs`）。
 
 ```bash
-# 推荐：与快速开始一起（自动生成指标令牌、抓取目标、告警收件人）
-scripts/quickstart.sh up --email you@example.com --with-monitoring
+# 推荐：一键全组件（默认已包含监控栈，自动生成指标令牌、抓取目标、告警收件人）
+scripts/quickstart.sh up --email you@example.com
 # 已经部署好了业务服务，只想加监控：
 scripts/quickstart.sh monitoring up                  # 指标 + 看板 + 告警（含内置收件箱 Mailpit）
 scripts/quickstart.sh monitoring up --with-logs      # 再叠加 Loki 容器日志聚合（仅 Linux 宿主机）

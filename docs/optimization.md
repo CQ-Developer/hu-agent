@@ -223,7 +223,7 @@ dev-only 路由 `/gallery`（生产构建剔除）：令牌可视化（色板/�
 
 目标：中小企业 `docker compose` 一键起一套完整监控，配合既有 `/api/v1/system/metrics` 与 12 条告警规则。
 
-- `docker/compose.observability.yaml`（叠加层，独立卷与网络，可单独 `up/down`）
+- `docker/compose.yaml` 的 `monitoring`/`logs` profile（与业务服务同一编排，可单独 `up/down`）
   - **Prometheus**（抓取 API + 自身；规则文件即 `docs/delivery/monitoring.md` 的 12 条，转为 `rules/huagent.yml`；保留期可配）
   - **Grafana**（预置数据源 + 3 个 dashboard JSON：API 黄金指标 / 依赖与作业新鲜度 / 认证与 SSO；可选匿名只读 + 环境变量指定管理员口令）
   - **Alertmanager**（邮件与通用 webhook 两条路由；邮件参数复用现有 SMTP 配置）

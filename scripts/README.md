@@ -32,7 +32,7 @@ powershell -ExecutionPolicy Bypass -File scripts/stage5-demo.ps1
 脚本行为：
 
 - 幂等：账号已存在则登录；组织 slug / 团队名 / Skill 名带随机后缀，可反复执行；
-- 需要 Docker 访问 `huagent-postgres` 容器（把 `sysadmin@example.com` 直接标记为系统管理员，本地开发便捷通道）；
+- 需要 Docker 访问 compose 的 `postgres` 服务（脚本用 `docker compose -f docker/compose.yaml exec -T postgres` 把 `sysadmin@example.com` 直接标记为系统管理员，本地开发便捷通道）；
 - 触发登录限流（10/min/IP）时会自动读取 `Retry-After` 并等待重试；
 - 共 17 步，每步打印 `OK …`，最后输出「全部走查通过」；
 - 临时文件写在 `%TEMP%\huagent-skill-demo-<随机数>`；
@@ -54,7 +54,7 @@ powershell -ExecutionPolicy Bypass -File scripts/stage5-demo.ps1
 
 ```bash
 export MSYS_NO_PATHCONV=1   # Git Bash 下避免容器内绝对路径被转换
-KC="docker exec huagent-keycloak /opt/keycloak/bin/kcadm.sh"
+KC="docker compose -f docker/compose.yaml --profile sso exec -T keycloak /opt/keycloak/bin/kcadm.sh"
 $KC config credentials --server http://localhost:8081 --realm master --user admin --password admin
 $KC create realms -s realm=huagent -s enabled=true
 $KC create clients -r huagent -s clientId=hu-agent -s enabled=true -s publicClient=false   -s secret=hu-agent-secret -s standardFlowEnabled=true   -s 'redirectUris=["http://127.0.0.1:8080/api/v1/auth/sso/callback"]'
