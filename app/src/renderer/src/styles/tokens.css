@@ -1,0 +1,427 @@
+/**
+ * 客户端设计令牌（方向 B：暖中性纸感）
+ *
+ * 约定（docs/optimization.md 轨道 B / 2026-10-15 决策）：
+ * - 令牌是唯一色值/尺度/时长来源；组件内不允许硬编码色值与时长（后续由 ui-check 校验）
+ * - 原始令牌统一 `--ui-*` 前缀；`@theme inline` 只映射成新的 Tailwind 命名空间，
+ *   不覆盖 Tailwind 内置键（radius-sm/md/lg、font-sans、text-sm…），
+ *   因此**旧页面外观不受影响**，迁移按页面逐个进行
+ * - 主题：`:root` 浅色；`prefers-color-scheme: dark` 跟随系统；`.dark`/`.light` 显式覆盖
+ * - 强调色：`data-accent="clay|moss|ink"`（默认 clay）
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root,
+:root.light {
+  color-scheme: light;
+
+  /* 表面层级（暖纸） */
+  --ui-canvas: #f8f4ed;
+  --ui-surface: #fffdf9;
+  --ui-surface-2: #f2ece2;
+  --ui-surface-3: #e9e1d4;
+  --ui-line: #e6dfd3;
+  --ui-line-strong: #d5cab8;
+
+  /* 文本层级 */
+  --ui-fg: #2d2822;
+  --ui-fg-muted: #6d6458;
+  --ui-fg-subtle: #9b9183;
+  --ui-fg-inverse: #fdfbf7;
+
+  /* 强调色（默认陶土） */
+  --ui-accent: #b4542f;
+  --ui-accent-hover: #9d4526;
+  --ui-accent-soft: #f7e7dd;
+  --ui-accent-contrast: #fffaf6;
+  --ui-accent-ring: rgb(180 84 47 / 0.35);
+
+  /* 语义色 */
+  --ui-success: #3f7d4e;
+  --ui-success-soft: #e4f0e5;
+  --ui-warning: #a86c24;
+  --ui-warning-soft: #f7ecd8;
+  --ui-danger: #b4453c;
+  --ui-danger-soft: #f8e4e1;
+  --ui-info: #3a6ea5;
+  --ui-info-soft: #e2ecf7;
+
+  /* 阴影（暖色投影，避免冷灰） */
+  --ui-shadow-soft: 0 1px 2px rgb(74 60 43 / 0.05), 0 6px 18px -8px rgb(74 60 43 / 0.16);
+  --ui-shadow-lift: 0 2px 6px rgb(74 60 43 / 0.07), 0 18px 36px -14px rgb(74 60 43 / 0.22);
+  --ui-shadow-pop: 0 8px 20px -6px rgb(74 60 43 / 0.18), 0 28px 56px -20px rgb(74 60 43 / 0.28);
+}
+
+/* 跟随系统深色（未显式选择浅色时生效） */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+
+    --ui-canvas: #191612;
+    --ui-surface: #211d18;
+    --ui-surface-2: #2a251e;
+    --ui-surface-3: #342e25;
+    --ui-line: #322b23;
+    --ui-line-strong: #483f33;
+
+    --ui-fg: #ece5da;
+    --ui-fg-muted: #b4aa9b;
+    --ui-fg-subtle: #877d6e;
+    --ui-fg-inverse: #191612;
+
+    --ui-accent: #e08a63;
+    --ui-accent-hover: #eda184;
+    --ui-accent-soft: #3a2a20;
+    --ui-accent-contrast: #241610;
+    --ui-accent-ring: rgb(224 138 99 / 0.4);
+
+    --ui-success: #7fba8d;
+    --ui-success-soft: #202e20;
+    --ui-warning: #dba75f;
+    --ui-warning-soft: #332818;
+    --ui-danger: #e08a82;
+    --ui-danger-soft: #38211e;
+    --ui-info: #83aed9;
+    --ui-info-soft: #1f2b39;
+
+    --ui-shadow-soft: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 20px -10px rgb(0 0 0 / 0.55);
+    --ui-shadow-lift: 0 2px 8px rgb(0 0 0 / 0.45), 0 20px 40px -16px rgb(0 0 0 / 0.6);
+    --ui-shadow-pop: 0 10px 24px -8px rgb(0 0 0 / 0.5), 0 32px 64px -24px rgb(0 0 0 / 0.7);
+  }
+}
+
+/* 显式深色覆盖（优先级高于系统媒体查询） */
+:root.dark {
+  color-scheme: dark;
+
+  --ui-canvas: #191612;
+  --ui-surface: #211d18;
+  --ui-surface-2: #2a251e;
+  --ui-surface-3: #342e25;
+  --ui-line: #322b23;
+  --ui-line-strong: #483f33;
+
+  --ui-fg: #ece5da;
+  --ui-fg-muted: #b4aa9b;
+  --ui-fg-subtle: #877d6e;
+  --ui-fg-inverse: #191612;
+
+  --ui-accent: #e08a63;
+  --ui-accent-hover: #eda184;
+  --ui-accent-soft: #3a2a20;
+  --ui-accent-contrast: #241610;
+  --ui-accent-ring: rgb(224 138 99 / 0.4);
+
+  --ui-success: #7fba8d;
+  --ui-success-soft: #202e20;
+  --ui-warning: #dba75f;
+  --ui-warning-soft: #332818;
+  --ui-danger: #e08a82;
+  --ui-danger-soft: #38211e;
+  --ui-info: #83aed9;
+  --ui-info-soft: #1f2b39;
+
+  --ui-shadow-soft: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 20px -10px rgb(0 0 0 / 0.55);
+  --ui-shadow-lift: 0 2px 8px rgb(0 0 0 / 0.45), 0 20px 40px -16px rgb(0 0 0 / 0.6);
+  --ui-shadow-pop: 0 10px 24px -8px rgb(0 0 0 / 0.5), 0 32px 64px -24px rgb(0 0 0 / 0.7);
+}
+
+/* 强调色预设 */
+:root[data-accent='moss'] {
+  --ui-accent: #5e7a43;
+  --ui-accent-hover: #4e6737;
+  --ui-accent-soft: #e8eeda;
+  --ui-accent-contrast: #fbfdf8;
+  --ui-accent-ring: rgb(94 122 67 / 0.35);
+}
+:root.dark[data-accent='moss'] {
+  --ui-accent: #a3bd83;
+  --ui-accent-hover: #b6d095;
+  --ui-accent-soft: #2a3122;
+  --ui-accent-contrast: #151a11;
+  --ui-accent-ring: rgb(163 189 131 / 0.4);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light)[data-accent='moss'] {
+    --ui-accent: #a3bd83;
+    --ui-accent-hover: #b6d095;
+    --ui-accent-soft: #2a3122;
+    --ui-accent-contrast: #151a11;
+    --ui-accent-ring: rgb(163 189 131 / 0.4);
+  }
+}
+:root[data-accent='ink'] {
+  --ui-accent: #40608f;
+  --ui-accent-hover: #355079;
+  --ui-accent-soft: #e3e9f4;
+  --ui-accent-contrast: #f9fbff;
+  --ui-accent-ring: rgb(64 96 143 / 0.35);
+}
+:root.dark[data-accent='ink'] {
+  --ui-accent: #8dabdc;
+  --ui-accent-hover: #a5c1ee;
+  --ui-accent-soft: #232c3c;
+  --ui-accent-contrast: #121826;
+  --ui-accent-ring: rgb(141 171 220 / 0.4);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light)[data-accent='ink'] {
+    --ui-accent: #8dabdc;
+    --ui-accent-hover: #a5c1ee;
+    --ui-accent-soft: #232c3c;
+    --ui-accent-contrast: #121826;
+    --ui-accent-ring: rgb(141 171 220 / 0.4);
+  }
+}
+
+/* 深色下 clay 为默认强调色（无 data-accent 或显式 clay 均一致） */
+
+/* 字体与动效基础令牌（不随主题变化） */
+:root {
+  --ui-font-ui: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --ui-font-num: ui-monospace, 'SF Mono', 'Cascadia Mono', 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
+
+  --ui-radius-chip: 999px;
+  --ui-radius-field: 10px;
+  --ui-radius-card: 16px;
+  --ui-radius-panel: 22px;
+
+  /* 动效：更活泼（允许一次回弹/过冲，但单次 ≤ 600ms） */
+  --ui-dur-instant: 90ms;
+  --ui-dur-fast: 170ms;
+  --ui-dur-base: 260ms;
+  --ui-dur-slow: 420ms;
+  --ui-dur-lazy: 600ms;
+
+  --ui-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ui-ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --ui-ease-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --ui-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ui-ease-bounce: cubic-bezier(0.68, -0.55, 0.27, 1.55);
+}
+
+@theme inline {
+  /* 颜色：新命名空间，不覆盖 Tailwind 内置色板 */
+  --color-canvas: var(--ui-canvas);
+  --color-surface: var(--ui-surface);
+  --color-surface-2: var(--ui-surface-2);
+  --color-surface-3: var(--ui-surface-3);
+  --color-line: var(--ui-line);
+  --color-line-strong: var(--ui-line-strong);
+  --color-fg: var(--ui-fg);
+  --color-fg-muted: var(--ui-fg-muted);
+  --color-fg-subtle: var(--ui-fg-subtle);
+  --color-fg-inverse: var(--ui-fg-inverse);
+  --color-accent: var(--ui-accent);
+  --color-accent-hover: var(--ui-accent-hover);
+  --color-accent-soft: var(--ui-accent-soft);
+  --color-accent-contrast: var(--ui-accent-contrast);
+  --color-success: var(--ui-success);
+  --color-success-soft: var(--ui-success-soft);
+  --color-warning: var(--ui-warning);
+  --color-warning-soft: var(--ui-warning-soft);
+  --color-danger: var(--ui-danger);
+  --color-danger-soft: var(--ui-danger-soft);
+  --color-info: var(--ui-info);
+  --color-info-soft: var(--ui-info-soft);
+
+  /* 字体 */
+  --font-ui: var(--ui-font-ui);
+  --font-num: var(--ui-font-num);
+
+  /* 字阶（14px 正文 / 1.7 行高） */
+  --text-caption: 12px;
+  --text-caption--line-height: 1.5;
+  --text-small: 13px;
+  --text-small--line-height: 1.6;
+  --text-body: 14px;
+  --text-body--line-height: 1.7;
+  --text-title: 16px;
+  --text-title--line-height: 1.5;
+  --text-heading: 20px;
+  --text-heading--line-height: 1.4;
+  --text-display: 26px;
+  --text-display--line-height: 1.25;
+
+  /* 圆角（B：更大圆角） */
+  --radius-chip: var(--ui-radius-chip);
+  --radius-field: var(--ui-radius-field);
+  --radius-card: var(--ui-radius-card);
+  --radius-panel: var(--ui-radius-panel);
+
+  /* 阴影 */
+  --shadow-soft: var(--ui-shadow-soft);
+  --shadow-lift: var(--ui-shadow-lift);
+  --shadow-pop: var(--ui-shadow-pop);
+
+  /* 缓动 */
+  --ease-standard: var(--ui-ease-standard);
+  --ease-decelerate: var(--ui-ease-decelerate);
+  --ease-accelerate: var(--ui-ease-accelerate);
+  --ease-spring: var(--ui-ease-spring);
+  --ease-bounce: var(--ui-ease-bounce);
+
+  /* 动效预设（更活泼：pop/wiggle/bounce 均带过冲） */
+  --animate-fade-up: fade-up var(--ui-dur-base) var(--ui-ease-decelerate) both;
+  --animate-pop-in: pop-in var(--ui-dur-base) var(--ui-ease-spring) both;
+  --animate-pop-out: pop-out var(--ui-dur-fast) var(--ui-ease-accelerate) both;
+  --animate-slide-in-right: slide-in-right var(--ui-dur-base) var(--ui-ease-decelerate) both;
+  --animate-slide-in-left: slide-in-left var(--ui-dur-base) var(--ui-ease-decelerate) both;
+  --animate-shake: shake var(--ui-dur-slow) var(--ui-ease-standard) both;
+  --animate-wiggle: wiggle var(--ui-dur-slow) var(--ui-ease-spring) both;
+  --animate-bounce-in: bounce-in var(--ui-dur-lazy) var(--ui-ease-bounce) both;
+  --animate-breathe: breathe 2.4s var(--ui-ease-standard) infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-float: float 3.2s var(--ui-ease-standard) infinite;
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pop-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shake {
+  10%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  80% {
+    transform: translateX(4px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-6px);
+  }
+  40%,
+  60% {
+    transform: translateX(6px);
+  }
+}
+
+@keyframes wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-7deg);
+  }
+  75% {
+    transform: rotate(7deg);
+  }
+}
+
+@keyframes bounce-in {
+  0% {
+    opacity: 0;
+    transform: translateY(26px) scale(0.96);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1.015);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.985);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.015);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+/* 无障碍：系统开启减弱动效时全部降级为瞬时切换 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

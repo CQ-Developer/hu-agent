@@ -140,7 +140,7 @@ flowchart TB
 | 层 | 选型 | 理由 |
 | --- | --- | --- |
 | 客户端外壳 | ✅ Electron + TypeScript | Agent 循环、工具执行、MCP 均在 Node 生态；迭代速度优先（D1） |
-| 客户端 UI | React + TypeScript + Vite + Tailwind + shadcn/ui | 桌面端更现代；管理台单独用 Ant Design |
+| 客户端 UI | React + TypeScript + Vite + Tailwind（自研原语，**零第三方 UI 库**） | 设计令牌 + 双主题 + 动效见 `docs/optimization.md` 轨道 B；管理台单独用 Ant Design |
 | 服务端 | ✅ Python 3.14 + FastAPI + uv | 单人开发主力语言（D2）；Pydantic v2 校验 + 自动 OpenAPI 3.1；uv 统一依赖与 Python 运行时 |
 | 管理台 | React + TypeScript + Vite + Ant Design | 企业后台生态最全（表格、审批组件） |
 | 数据库 | PostgreSQL 18 | JSONB、分区表、`citext`、内置 `uuidv7()`；主键统一 UUIDv7（时间有序） |
