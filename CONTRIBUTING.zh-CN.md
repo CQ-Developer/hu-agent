@@ -26,6 +26,8 @@ uv run huagent-admin db-migrate
 uv run huagent-admin create-admin --email you@example.com    # 首个系统管理员（口令只打印一次）
 uv run huagent-api        # http://127.0.0.1:8080
 uv run huagent-worker     # 另一个终端
+# 后台开发进程的日志统一写到仓库根 logs/（已被 gitignore），例如：
+#   mkdir -p logs && (cd management && uv run huagent-api > ../logs/huagent-api.log 2>&1 &)
 
 # 客户端
 cd app && npm ci && npm run dev
