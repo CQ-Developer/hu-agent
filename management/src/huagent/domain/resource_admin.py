@@ -34,6 +34,8 @@ class ResourceSpec:
     resource_type: str  # 'skill' | 'mcp'
     target_type: str  # 审计 target_type：'skill' | 'mcp_server'
     load_sql: TextClause
+    #: load_sql 的资源 id 绑定名（Skill 用 skill_id，MCP 用 server_id）
+    load_param: str
     update_status_sql: TextClause
     mark_deleted_sql: TextClause
     not_found_message: str
@@ -66,7 +68,7 @@ async def set_resource_status(
     admin_required: bool,
     reason: str | None = None,
 ) -> dict[str, object]:
-    row = await load_resource(session, spec, {"id": resource_id}, include_disabled=True)
+    row = await load_resource(session, spec, {spec.load_param: resource_id}, include_disabled=True)
     await require_team_access(session, actor, row["team_id"], admin=admin_required)
     await session.execute(spec.update_status_sql, {"id": resource_id, "status": status, "reason": reason})
     await record_audit(
@@ -91,7 +93,7 @@ async def delete_resource(
     resource_id: UUID,
     notify: Callable[[RowMapping], Awaitable[int]],
 ) -> dict[str, object]:
-    row = await load_resource(session, spec, {"id": resource_id})
+    row = await load_resource(session, spec, {spec.load_param: resource_id})
     await require_team_access(session, actor, row["team_id"], admin=True)
     await session.execute(spec.mark_deleted_sql, {"id": resource_id})
     await notify(row)

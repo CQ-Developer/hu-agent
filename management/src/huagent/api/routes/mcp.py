@@ -26,6 +26,7 @@ from huagent.domain.audit import record_audit
 from huagent.domain.db import get_session
 from huagent.domain.notifications import notify_activation_users, notify_team_admins
 from huagent.domain.rbac import require_team_access, team_ids_for_user
+from huagent.domain.resource_admin import ResourceSpec, delete_resource, load_resource, set_resource_status
 
 router = APIRouter(tags=["mcp"])
 
@@ -145,6 +146,23 @@ MARKETPLACE = text(
       s.updated_at DESC
     LIMIT :limit OFFSET :offset
     """
+)
+
+MCP_SPEC = ResourceSpec(
+    resource_type="mcp",
+    target_type="mcp_server",
+    load_sql=SELECT_SERVER,
+    load_param="server_id",
+    update_status_sql=text(
+        "UPDATE mcp_servers SET status = :status, disabled_reason = :reason, "
+        "status_revision = nextval('resource_status_revision_seq') WHERE id = :id"
+    ),
+    mark_deleted_sql=text(
+        "UPDATE mcp_servers SET status = 'deleted', status_revision = nextval('resource_status_revision_seq') "
+        "WHERE id = :id"
+    ),
+    not_found_message="MCP server 不存在",
+    disabled_message="MCP server 已停用",
 )
 
 
@@ -351,34 +369,17 @@ async def enable_server(
 async def delete_server(
     server_id: UUID, actor: ActorDep, request: Request, session: SessionDep
 ) -> dict[str, object]:
-    server = await _load_server(session, server_id)
-    await require_team_access(session, actor, server["team_id"], admin=True)
-    await session.execute(
-        text(
-            "UPDATE mcp_servers SET status = 'deleted', status_revision = nextval('resource_status_revision_seq') "
-            "WHERE id = :id"
-        ),
-        {"id": server_id},
-    )
-    await notify_activation_users(
-        session,
-        resource_type="mcp",
-        ref_id=server_id,
-        kind="mcp.deleted",
-        params={"name": server["name"]},
-        payload={"mcpServerId": str(server_id)},
-    )
-    await record_audit(
-        session,
-        action="mcp.delete",
-        actor_id=actor.user_id,
-        org_id=server["org_id"],
-        target_type="mcp_server",
-        target_id=str(server_id),
-        actor_ip=client_ip(request),
-    )
-    await session.commit()
-    return {"id": str(server_id), "status": "deleted"}
+    async def notify(row: RowMapping) -> int:
+        return await notify_activation_users(
+            session,
+            resource_type="mcp",
+            ref_id=server_id,
+            kind="mcp.deleted",
+            params={"name": row["name"]},
+            payload={"mcpServerId": str(server_id)},
+        )
+
+    return await delete_resource(session, actor, request, MCP_SPEC, server_id, notify)
 
 
 @router.post("/mcp-servers/{server_id}/versions/{version}:revoke")
@@ -617,38 +618,15 @@ async def _set_server_status(
     admin_required: bool,
     reason: str | None = None,
 ) -> dict[str, object]:
-    server = await _load_server(session, server_id, include_disabled=True)
-    await require_team_access(session, actor, server["team_id"], admin=admin_required)
-    await session.execute(
-        text(
-            "UPDATE mcp_servers SET status = :status, disabled_reason = :reason, "
-            "status_revision = nextval('resource_status_revision_seq') WHERE id = :id"
-        ),
-        {"id": server_id, "status": status, "reason": reason},
+    return await set_resource_status(
+        session, actor, request, MCP_SPEC, server_id, status, admin_required=admin_required, reason=reason
     )
-    await record_audit(
-        session,
-        action=f"mcp.{'disable' if status == 'disabled' else status}",
-        actor_id=actor.user_id,
-        org_id=server["org_id"],
-        target_type="mcp_server",
-        target_id=str(server_id),
-        detail={"status": status, "reason": reason},
-        actor_ip=client_ip(request),
-    )
-    await session.commit()
-    return {"id": str(server_id), "status": status, "reason": reason}
 
 
 async def _load_server(
     session: AsyncSession, server_id: UUID, *, include_disabled: bool = False
 ) -> RowMapping:
-    row = (await session.execute(SELECT_SERVER, {"server_id": server_id})).mappings().first()
-    if row is None:
-        raise AppError(ErrorCode.NOT_FOUND, "MCP server 不存在")
-    if row["status"] == "disabled" and not include_disabled:
-        raise AppError(ErrorCode.CONFLICT, "MCP server 已停用")
-    return row
+    return await load_resource(session, MCP_SPEC, {"server_id": server_id}, include_disabled=include_disabled)
 
 
 def _validate_version_payload(payload: McpVersionIn) -> None:

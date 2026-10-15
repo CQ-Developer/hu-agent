@@ -30,6 +30,7 @@ from huagent.domain.packages import (
     validate_skill_package,
 )
 from huagent.domain.rbac import require_team_access, team_ids_for_user
+from huagent.domain.resource_admin import ResourceSpec, delete_resource, load_resource, set_resource_status
 from huagent.storage.objects import get_object_store
 
 router = APIRouter(tags=["skills"])
@@ -137,6 +138,23 @@ MARKETPLACE = text(
       s.updated_at DESC
     LIMIT :limit OFFSET :offset
     """
+)
+
+SKILL_SPEC = ResourceSpec(
+    resource_type="skill",
+    target_type="skill",
+    load_sql=SELECT_SKILL,
+    load_param="skill_id",
+    update_status_sql=text(
+        "UPDATE skills SET status = :status, disabled_reason = :reason, "
+        "status_revision = nextval('resource_status_revision_seq') WHERE id = :id"
+    ),
+    mark_deleted_sql=text(
+        "UPDATE skills SET status = 'deleted', status_revision = nextval('resource_status_revision_seq') "
+        "WHERE id = :id"
+    ),
+    not_found_message="Skill 不存在",
+    disabled_message="Skill 已停用",
 )
 
 
@@ -369,34 +387,17 @@ async def enable_skill(skill_id: UUID, actor: ActorDep, request: Request, sessio
 
 @router.delete("/skills/{skill_id}")
 async def delete_skill(skill_id: UUID, actor: ActorDep, request: Request, session: SessionDep) -> dict[str, object]:
-    skill = await _load_skill(session, skill_id)
-    await require_team_access(session, actor, skill["team_id"], admin=True)
-    await session.execute(
-        text(
-            "UPDATE skills SET status = 'deleted', status_revision = nextval('resource_status_revision_seq') "
-            "WHERE id = :id"
-        ),
-        {"id": skill_id},
-    )
-    await notify_activation_users(
-        session,
-        resource_type="skill",
-        ref_id=skill_id,
-        kind="skill.deleted",
-        params={"name": skill["name"]},
-        payload={"skillId": str(skill_id)},
-    )
-    await record_audit(
-        session,
-        action="skill.delete",
-        actor_id=actor.user_id,
-        org_id=skill["org_id"],
-        target_type="skill",
-        target_id=str(skill_id),
-        actor_ip=client_ip(request),
-    )
-    await session.commit()
-    return {"id": str(skill_id), "status": "deleted"}
+    async def notify(row: RowMapping) -> int:
+        return await notify_activation_users(
+            session,
+            resource_type="skill",
+            ref_id=skill_id,
+            kind="skill.deleted",
+            params={"name": row["name"]},
+            payload={"skillId": str(skill_id)},
+        )
+
+    return await delete_resource(session, actor, request, SKILL_SPEC, skill_id, notify)
 
 
 @router.post("/skills/{skill_id}/versions/{version}:revoke")
@@ -635,38 +636,15 @@ async def _set_skill_status(
     admin_required: bool,
     reason: str | None = None,
 ) -> dict[str, object]:
-    skill = await _load_skill(session, skill_id, include_disabled=True)
-    await require_team_access(session, actor, skill["team_id"], admin=admin_required)
-    await session.execute(
-        text(
-            "UPDATE skills SET status = :status, disabled_reason = :reason, "
-            "status_revision = nextval('resource_status_revision_seq') WHERE id = :id"
-        ),
-        {"id": skill_id, "status": status, "reason": reason},
+    return await set_resource_status(
+        session, actor, request, SKILL_SPEC, skill_id, status, admin_required=admin_required, reason=reason
     )
-    await record_audit(
-        session,
-        action=f"skill.{'disable' if status == 'disabled' else status}",
-        actor_id=actor.user_id,
-        org_id=skill["org_id"],
-        target_type="skill",
-        target_id=str(skill_id),
-        detail={"status": status, "reason": reason},
-        actor_ip=client_ip(request),
-    )
-    await session.commit()
-    return {"id": str(skill_id), "status": status, "reason": reason}
 
 
 async def _load_skill(
     session: AsyncSession, skill_id: UUID, *, include_disabled: bool = False
 ) -> RowMapping:
-    row = (await session.execute(SELECT_SKILL, {"skill_id": skill_id})).mappings().first()
-    if row is None:
-        raise AppError(ErrorCode.NOT_FOUND, "Skill 不存在")
-    if row["status"] == "disabled" and not include_disabled:
-        raise AppError(ErrorCode.CONFLICT, "Skill 已停用")
-    return row
+    return await load_resource(session, SKILL_SPEC, {"skill_id": skill_id}, include_disabled=include_disabled)
 
 
 async def read_body(request: Request) -> bytes:
