@@ -21,9 +21,19 @@ The project follows [Semantic Versioning](https://semver.org/) and the structure
   minimum 15 minutes; daily cron jobs: 26 hours).
 - Worker schedules consolidated into `worker/schedule.py` as the single source of truth for both the
   scheduler and the staleness budgets.
+- The desktop client can now **delete sessions** (visible action on each session row): it removes the
+  pi-durable submissions/entries/tasks/documents and the view index; running sessions cannot be deleted.
 
 ### Fixed
 
+- Desktop client chat appearing to do nothing: pi-durable only settles submissions as `done` or
+  `unanswered`, while the old code checked a non-existent `failed` status, so model errors were treated
+  as success with no UI feedback. `unanswered` now surfaces as `turn.end(error)` with the gateway error.
+- Historical sessions stopped working after the provider was changed: the session still referenced the
+  old model target (e.g. `deepseek/deepseek-flash`) and pi's registry returned `no_model`; the client now
+  heals the target to the current default before reading options or sending, and persists it.
+- Assistant replies were missing after a turn: `pi.live` is empty once a submission settles, so the
+  client now re-reads the durable entries at `turn.end`.
 - `HuAgentWorkerJobStale` used a hard-coded 2 hour threshold, so daily cron jobs (partition
   maintenance, snapshot cleanup, PII purge, daily usage pruning) alerted continuously between runs;
   it now compares against each job's own budget.

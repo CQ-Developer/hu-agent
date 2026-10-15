@@ -54,6 +54,7 @@ const EXPECTED_CHANNELS = [
   'permissions:audit',
   'permissions:rules',
   'sessions:create',
+  'sessions:delete',
   'sessions:items',
   'sessions:list',
   'sessions:options',

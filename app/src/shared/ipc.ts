@@ -485,6 +485,7 @@ export interface HuAgentApi {
     create(): Promise<SessionMetaView>
     items(sessionId: string): Promise<SessionItemView[]>
     rename(sessionId: string, title: string): Promise<void>
+    delete(sessionId: string): Promise<void>
     options(sessionId: string): Promise<SessionOptionsView>
     setOptions(sessionId: string, options: SessionOptionsView): Promise<SessionOptionsView>
     stats(sessionId: string): Promise<SessionUsageView>

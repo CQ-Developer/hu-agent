@@ -165,4 +165,21 @@ describe('DurableSessions（直接使用 pi-durable）', () => {
     sessions = b.instance
     expect(await sessions.list()).toEqual([])
   }, 60_000)
+
+  it('删除会话：durable 数据与索引一并清理，其他会话不受影响', async () => {
+    const opened = await open()
+    sessions = opened.instance
+    opened.faux.setResponses([fauxAssistantMessage([fauxText('收到')])])
+    const keep = await sessions.create({ title: '保留', model: { provider: 'faux', modelId: MODEL } })
+    const drop = await sessions.create({ title: '删除', model: { provider: 'faux', modelId: MODEL } })
+    await sessions.submit(drop.id, '你好', 'del-1')
+
+    await sessions.delete(drop.id)
+
+    expect((await sessions.list()).map((entry) => entry.id)).toEqual([keep.id])
+    await expect(sessions.view(drop.id)).rejects.toThrow()
+    // 保留下来的会话仍可读写
+    await sessions.submit(keep.id, '在', 'keep-1')
+    expect((await sessions.view(keep.id)).entries).toBeDefined()
+  }, 60_000)
 })

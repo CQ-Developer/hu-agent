@@ -91,6 +91,25 @@ export default function App() {
     await openSession(created.id)
   }, [openSession, refreshSessions])
 
+  /** 删除会话（确认后清理 durable 数据；删除当前会话时切到剩余第一个或新建）。 */
+  const deleteSession = useCallback(
+    async (sessionId: string): Promise<void> => {
+      const target = sessions.find((item) => item.id === sessionId)
+      if (!window.confirm(t('确认删除会话「{title}」？该操作不可恢复。', { title: target?.title ?? sessionId }))) return
+      try {
+        await window.huAgent.sessions.delete(sessionId)
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause))
+        return
+      }
+      const list = await refreshSessions()
+      if (sessionId !== currentId) return
+      if (list.length === 0) await createSession()
+      else await openSession(list[0]?.id ?? '')
+    },
+    [sessions, currentId, refreshSessions, createSession, openSession],
+  )
+
   /** 加载当前工作空间下的会话（无会话时新建一个）。 */
   const loadWorkspaceState = useCallback(
     async (target: WorkspaceInfoView): Promise<void> => {
@@ -221,6 +240,8 @@ export default function App() {
           void refreshSessions()
           void window.huAgent.usage.stats().then(setUsage)
           void window.huAgent.sessions.stats(event.sessionId).then(setStats)
+          // 以 durable 为准回读条目：`pi.live` 在 settle 后为空，纯流式缓冲会漏掉最后的助手消息
+          void window.huAgent.sessions.items(event.sessionId).then(setItems)
           break
         }
       }
@@ -344,6 +365,7 @@ export default function App() {
         searchHits={searchHits}
         accountLabel={accountName ?? t('未登录')}
         onSelect={(id) => void openSession(id)}
+        onDelete={(id) => void deleteSession(id)}
         onNew={() => void createSession()}
         onOpenProfile={() => setProfileOpen(true)}
         onSwitchWorkspace={(id) => void switchWorkspace(id)}

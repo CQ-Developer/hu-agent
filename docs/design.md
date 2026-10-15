@@ -410,6 +410,8 @@ flowchart TB
 | 项 | 实现 |
 | --- | --- |
 | 提交与幂等 | `requestId = turnId`（ULID）：同一回合重发返回同一 submission，不重复生成 |
+| 失败可可见 | `submission.wait()` 的终态是 `done` / `unanswered(reason, detail)`；`unanswered` 一律以 `turn.end(stopReason=error, error)` 上报并展示（`model_error` 带网关原文，`no_model` 带目标名） |
+| 界面回读 | `turn.end` 后以 durable 条目为准回读（`sessions:items`）：`pi.live` 在 settle 后为空，纯流式缓冲会漏掉最后一条助手消息 |
 | 取消 | `AbortController` → `conversation.abort()`（撤回排队输入并中止本轮），`turn.end` 记为 `cancelled` |
 | 崩溃恢复 | 打开存储时 `harness.resume()` 继续未完成运行；会话与回合状态在 SQLite |
 | 轮次/步数上限 | 由 pi-durable 管理，我们不再维护 `max_steps` |
@@ -427,7 +429,8 @@ flowchart TB
 
 | 场景 | 行为 |
 | --- | --- |
-| 模型网络错误 | 重试由 pi-ai/pi-durable 处理；settle 为 failed 时 `turn.end(error)`，用户可重试 |
+| 模型网络错误 | 重试由 pi-ai/pi-durable 处理；终态为 `unanswered(model_error)` 时 `turn.end(error)` 带网关错误原文，界面可见（2026-10-15 修复：此前误判为成功、无声失败） |
+| 会话模型失效 | 改过 provider/模型后，历史会话的旧目标（如 `deepseek/deepseek-flash`）在读取选项与发送前**自愈**为当前默认模型并持久化；注册表仍找不到时提示目标名（`no_model`） |
 | 上下文超长 | 由 pi-durable 的压缩处理 |
 | 工具超时/取消 | 工具与子进程由 pi 的工具执行器终止（子进程按进程组终止：Windows `taskkill /T`、macOS 进程组信号） |
 | 用户取消 | `conversation.abort()`；`turn.end` 的 `stopReason = cancelled` |
@@ -437,6 +440,7 @@ flowchart TB
 #### 5.2.5 并发与取消
 
 - 同一会话同一时刻只允许一个活跃 turn：`ipc/sessions.ts` 的 `activeTurns` 挡住重复发送（提示"该会话已有运行中的任务"）；
+- 运行中的会话不允许删除（`sessions:delete` 同样检查 `activeTurns`）；
 - 取消信号通过 `AbortController` 传播到 `conversation.abort()`；
 - 同一 turn 内的工具并行/串行策略由 pi-durable 的工具执行器决定；MCP 工具按其 client 的并发约束执行。
 
@@ -457,6 +461,9 @@ flowchart TB
 
 #### 5.3.1 存储布局
 
+- **删除会话（`sessions:delete`）**：pi-durable 1.2 没有删除 API，我们按 SQLite schema 在一个事务里
+  删除该会话的 `submissions/entries/tasks/documents/document_revisions/conversations` 行，再从视图索引移除；
+  运行中的会话由 IPC 层拒绝删除。实测：删除后索引与 SQLite 均无残留（`tests/durable_sessions.test.ts`）。
 - **每工作空间一份 SQLite**：`~/.hu-agent/sessions/<workspaceId>.sqlite`。pi-durable 的存储是
   单进程独占的，因此不能多个工作空间共用一个文件。
 - **同名视图索引** `<workspaceId>.index.json`：id / 标题 / 时间 / 消息数，只服务界面列表与排序。

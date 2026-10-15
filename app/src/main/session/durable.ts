@@ -17,7 +17,7 @@ import { dirname } from 'node:path'
 import { BACKGROUND_CONTEXT } from '@earendil-works/chord/context'
 import type { MutableModels } from '@earendil-works/pi-ai/models'
 import { Harness, createRegistry, type Conversation, type ConversationId } from '@earendil-works/pi-durable'
-import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
+import { openNodeSqliteDatabase, openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node'
 
 import type { SessionSearchHitView } from '../../shared/ipc'
 import { t } from '../i18n'
@@ -183,6 +183,50 @@ export class DurableSessions {
     entry.title = title
     entry.updatedAt = new Date().toISOString()
     await this.writeIndex(entries)
+  }
+
+  /**
+   * 删除会话：清理 durable 数据 + 视图索引（pi-durable 1.2 没有删除 API）。
+   *
+   * durable 侧按 SQLite schema 在**一个事务**里删除该会话的提交/条目/任务/文档
+   * （含任务作用域文档与文档修订）与 conversation 行；视图索引最后写（删除失败时列表不丢）。
+   * 调用方必须先确保该会话没有运行中的回合（IPC 层拦截）。
+   */
+  async delete(id: string): Promise<void> {
+    await this.purgeDurable(id)
+    const entries = (await this.readIndex()).filter((entry) => entry.id !== id)
+    await this.writeIndex(entries)
+  }
+
+  private async purgeDurable(id: string): Promise<void> {
+    const numericId = Number(id)
+    // 索引里的 id 是 durable 的数字主键（字符串形式）；非法值交给上层报错前先拒绝
+    if (!Number.isSafeInteger(numericId) || numericId <= 0) return
+    // 另开一个连接（WAL 支持多连接；适配器默认 5s busy timeout 处理并发写）
+    const database = await openNodeSqliteDatabase(this.options.file)
+    try {
+      await database.transaction(async (tx) => {
+        await tx.run(
+          `DELETE FROM document_revisions WHERE document_id IN (
+             SELECT id FROM documents WHERE (scope_kind = 'conversation' AND owner_id = ?)
+                OR (scope_kind = 'task' AND owner_id IN (SELECT id FROM tasks WHERE conversation_id = ?)))`,
+          numericId,
+          numericId,
+        )
+        await tx.run(
+          `DELETE FROM documents WHERE (scope_kind = 'conversation' AND owner_id = ?)
+             OR (scope_kind = 'task' AND owner_id IN (SELECT id FROM tasks WHERE conversation_id = ?))`,
+          numericId,
+          numericId,
+        )
+        await tx.run('DELETE FROM submissions WHERE conversation_id = ?', numericId)
+        await tx.run('DELETE FROM entries WHERE conversation_id = ?', numericId)
+        await tx.run('DELETE FROM tasks WHERE conversation_id = ?', numericId)
+        await tx.run('DELETE FROM conversations WHERE id = ?', numericId)
+      })
+    } finally {
+      await database.close()
+    }
   }
 
   /**

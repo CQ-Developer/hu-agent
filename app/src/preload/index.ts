@@ -18,6 +18,7 @@ const api: HuAgentApi = {
     create: () => ipcRenderer.invoke('sessions:create'),
     items: (sessionId) => ipcRenderer.invoke('sessions:items', sessionId),
     rename: (sessionId, title) => ipcRenderer.invoke('sessions:rename', sessionId, title),
+    delete: (sessionId) => ipcRenderer.invoke('sessions:delete', sessionId),
     options: (sessionId) => ipcRenderer.invoke('sessions:options', sessionId),
     setOptions: (sessionId, options) => ipcRenderer.invoke('sessions:set-options', sessionId, options),
     stats: (sessionId) => ipcRenderer.invoke('sessions:stats', sessionId),

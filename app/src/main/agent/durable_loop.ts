@@ -65,6 +65,44 @@ interface UsageLike {
   tools?: Record<string, unknown>
 }
 
+/** pi-durable 提交的终态形状（见 `SubmissionRecord`）：`done`，或 `unanswered` + reason/detail */
+interface SettledSubmissionLike {
+  status?: string
+  reason?: string
+  detail?: unknown
+}
+
+/**
+ * 把 `unanswered` 的失败原因翻译成用户可读文案。
+ *
+ * 注意：此前的实现检查 `status === 'failed'`——pi-durable 的终态只有 `done`/`unanswered`，
+ * 该分支永不命中，模型报错会被当成成功、界面没有任何提示（2026-10-15 实测缺陷）。
+ */
+export function describeUnanswered(reason?: string, detail?: unknown, target?: string): string {
+  const text =
+    typeof detail === 'string'
+      ? detail.trim()
+      : detail === undefined || detail === null
+        ? ''
+        : JSON.stringify(detail)
+  switch (reason) {
+    case 'model_error':
+      return t('模型调用失败：{detail}', { detail: text || t('请检查模型配置（Base URL / 密钥 / 网络）') })
+    case 'no_model':
+      return t('未找到会话配置的模型（{target}）：请在「模型配置」检查 provider 与模型名', {
+        target: target ?? '',
+      })
+    case 'aborted':
+      return t('回合已中止')
+    case 'stale':
+      return t('回合未执行（会话状态已变化），请重试')
+    case 'reset':
+      return t('会话已重置')
+    default:
+      return text || t('回合未完成（原因：{reason}）', { reason: reason ?? 'unknown' })
+  }
+}
+
 export async function runDurableTurn(deps: DurableTurnDeps, options: DurableTurnOptions): Promise<void> {
   const { emit, conversationId } = deps
   const base = { sessionId: conversationId, turnId: options.turnId }
@@ -171,9 +209,13 @@ export async function runDurableTurn(deps: DurableTurnDeps, options: DurableTurn
       { type: 'input', content: options.userText, requestId: options.turnId },
       BACKGROUND_CONTEXT,
     )
-    const settled = (await submission.wait(BACKGROUND_CONTEXT)) as unknown as { status?: string }
-    if (options.signal.aborted) stopReason = 'cancelled'
-    else if (settled?.status === 'failed') stopReason = 'error'
+    const settled = (await submission.wait(BACKGROUND_CONTEXT)) as unknown as SettledSubmissionLike
+    if (options.signal.aborted) {
+      stopReason = 'cancelled'
+    } else if (settled?.status === 'unanswered') {
+      stopReason = 'error'
+      errorMessage = describeUnanswered(settled.reason, settled.detail, `${deps.providerId}/${deps.modelId}`)
+    }
 
     // 用量落账：会话自己的 pi.usage 在回合前后的差量（含失败与中断；重放时差量为 0）
     const usage = usageDelta(usageModelsOf(await deps.sessions.view(conversationId)), usageBefore)

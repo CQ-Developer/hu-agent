@@ -11,6 +11,7 @@ interface Props {
   searchHits: SessionSearchHitView[]
   accountLabel: string
   onSelect: (id: string) => void
+  onDelete: (id: string) => void
   onNew: () => void
   onOpenProfile: () => void
   onSwitchWorkspace: (id: string) => void
@@ -27,6 +28,7 @@ export default function Sidebar({
   searchHits,
   accountLabel,
   onSelect,
+  onDelete,
   onNew,
   onOpenProfile,
   onSwitchWorkspace,
@@ -99,19 +101,34 @@ export default function Sidebar({
               </button>
             ))
           : sessions.map((session) => (
-              <button
-                key={session.id}
-                type="button"
-                onClick={() => onSelect(session.id)}
-                className={`mb-1 w-full truncate rounded-md px-3 py-2 text-left text-sm ${
-                  session.id === currentId ? 'bg-neutral-900 text-white' : 'text-neutral-700 hover:bg-neutral-100'
-                }`}
-              >
-                <div className="truncate">{session.title}</div>
-                <div className={`text-[11px] ${session.id === currentId ? 'text-neutral-300' : 'text-neutral-400'}`}>
-                  {session.messageCount} {t('条消息')}
-                </div>
-              </button>
+              <div key={session.id} className="group relative mb-1">
+                <button
+                  type="button"
+                  onClick={() => onSelect(session.id)}
+                  className={`w-full truncate rounded-md py-2 pl-3 pr-8 text-left text-sm ${
+                    session.id === currentId ? 'bg-neutral-900 text-white' : 'text-neutral-700 hover:bg-neutral-100'
+                  }`}
+                >
+                  <div className="truncate">{session.title}</div>
+                  <div className={`text-[11px] ${session.id === currentId ? 'text-neutral-300' : 'text-neutral-400'}`}>
+                    {session.messageCount} {t('条消息')}
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  title={t('删除会话')}
+                  aria-label={t('删除会话')}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onDelete(session.id)
+                  }}
+                  className={`absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded px-1.5 py-1 text-xs group-hover:block ${
+                    session.id === currentId ? 'text-neutral-300 hover:bg-white/20' : 'text-neutral-400 hover:bg-neutral-200'
+                  }`}
+                >
+                  ×
+                </button>
+              </div>
             ))}
         {searching && searchHits.length === 0 && (
           <div className="px-3 py-2 text-[11px] text-neutral-400">{t('没有匹配的会话内容')}</div>
