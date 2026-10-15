@@ -30,6 +30,8 @@ uv run huagent-admin db-migrate
 uv run huagent-admin create-admin --email you@example.com    # first administrator (password printed once)
 uv run huagent-api        # http://127.0.0.1:8080
 uv run huagent-worker     # second terminal
+# Background dev processes: write output to the repo-root logs/ (git-ignored), e.g.
+#   mkdir -p logs && (cd management && uv run huagent-api > ../logs/huagent-api.log 2>&1 &)
 
 # Desktop client
 cd app && npm ci && npm run dev

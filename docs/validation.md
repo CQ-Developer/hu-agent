@@ -19,9 +19,10 @@ scripts/dev-deps.sh up
 HUAGENT_DATABASE_URL=postgresql://huagent:huagent_dev@localhost:5432/huagent \
   uv run --project management huagent-admin db-migrate
 
-# 3) 服务端 + worker
-(cd management && uv run huagent-api > /tmp/huagent-api.log 2>&1 &)
-(cd management && uv run huagent-worker > /tmp/huagent-worker.log 2>&1 &)
+# 3) 服务端 + worker（后台日志统一写仓库根 logs/，该目录已被 gitignore）
+mkdir -p logs
+(cd management && uv run huagent-api > ../logs/huagent-api.log 2>&1 &)
+(cd management && uv run huagent-worker > ../logs/huagent-worker.log 2>&1 &)
 curl -s http://127.0.0.1:8080/api/v1/system/health
 
 # 4) 种子数据（账号 / 组织 / 团队 / 已发布 Skill / 用量事件）
