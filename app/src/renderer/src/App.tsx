@@ -16,17 +16,10 @@ import ChatView from './components/ChatView'
 import { useGlassEffects } from './components/ui/glass'
 import LoginGate from './components/LoginGate'
 import ProfileDialog from './components/ProfileDialog'
+import SettingsDialog from './components/SettingsDialog'
 import Sidebar from './components/Sidebar'
 import TopTabs, { type AppTab } from './components/TopTabs'
-import AboutSection from './components/settings/AboutSection'
 import MarketSection from './components/settings/MarketSection'
-import McpSection from './components/settings/McpSection'
-import ModelSection from './components/settings/ModelSection'
-import PermissionSection from './components/settings/PermissionSection'
-import SkillsSection from './components/settings/SkillsSection'
-import StatsSection from './components/settings/StatsSection'
-import SyncSection from './components/settings/SyncSection'
-import WorkspaceSection from './components/settings/WorkspaceSection'
 import { applyResolved, t, useI18n } from './i18n'
 import {
   accumulateUsage,
@@ -52,6 +45,7 @@ export default function App() {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<AppTab>('chat')
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [accountName, setAccountName] = useState<string | null>(null)
   const [sessionState, setSessionState] = useState<'loading' | 'required' | 'ready'>('loading')
@@ -376,7 +370,7 @@ export default function App() {
         onOpenHit={(sessionId) => void openSession(sessionId)}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopTabs active={tab} onChange={setTab} />
+        <TopTabs active={tab} onChange={setTab} onOpenSettings={() => setSettingsOpen(true)} />
 
         {/* 对话页始终挂载，仅隐藏：避免切换 tab 丢失流式状态 */}
         <div className={tab === 'chat' ? 'flex min-h-0 min-w-0 flex-1 flex-col' : 'hidden'}>
@@ -399,29 +393,25 @@ export default function App() {
           />
         </div>
 
-        {tab !== 'chat' && (
+        {tab === 'market' && (
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-5">
             <div className="mx-auto max-w-3xl">
-              {tab === 'models' && <ModelSection onChanged={refreshDerived} />}
-              {tab === 'market' && <MarketSection onChanged={refreshDerived} />}
-              {tab === 'skills' && <SkillsSection onChanged={refreshDerived} />}
-              {tab === 'mcp' && <McpSection onChanged={refreshDerived} />}
-              {tab === 'workspace' && (
-                <WorkspaceSection
-                  workspaces={workspaces}
-                  activeWorkspace={workspace}
-                  onSwitch={(id) => void switchWorkspace(id)}
-                  onPick={() => void pickWorkspace()}
-                />
-              )}
-              {tab === 'sync' && <SyncSection onChanged={refreshDerived} />}
-              {tab === 'stats' && <StatsSection />}
-              {tab === 'permissions' && <PermissionSection />}
-              {tab === 'about' && <AboutSection />}
+              <MarketSection onChanged={refreshDerived} />
             </div>
           </div>
         )}
       </div>
+
+      {settingsOpen && (
+        <SettingsDialog
+          onClose={() => setSettingsOpen(false)}
+          onChanged={refreshDerived}
+          workspaces={workspaces}
+          activeWorkspace={workspace}
+          onSwitchWorkspace={(id) => void switchWorkspace(id)}
+          onPickWorkspace={() => void pickWorkspace()}
+        />
+      )}
 
       {profileOpen && (
         <ProfileDialog

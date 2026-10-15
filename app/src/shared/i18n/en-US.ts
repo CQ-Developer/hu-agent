@@ -583,6 +583,10 @@ const enUS: Record<string, Message> = {
   '[sync] 自动同步失败：': '[sync] automatic sync failed: ',
   '会话服务未打开：请先调用 open()': 'Session service is not open: call open() first',
   '会话不存在：{id}': 'Session not found: {id}',
+  '设置': 'Settings',
+  '工作区': 'Workspace',
+  '团队与云': 'Team & cloud',
+  '系统': 'System',
   '模型调用失败：{detail}': 'Model call failed: {detail}',
   '请检查模型配置（Base URL / 密钥 / 网络）': 'check the model configuration (base URL / API key / network)',
   '未找到会话配置的模型（{target}）：请在「模型配置」检查 provider 与模型名':

@@ -184,7 +184,7 @@ interface HistorySummarizer {
 | D-5 主题 | **做**：浅色 + 深色，跟随系统 + 手动切换；`class="dark"` 策略 + `prefers-color-scheme` |
 | D-6 动效 | **更活泼**：过冲/回弹（spring / bounce）、按钮磁吸、点击涟漪、指针跟随高光；单次 ≤ 600ms；`prefers-reduced-motion` 全量降级 |
 | D-7 依赖 | **零依赖**手写元素（不引 radix / shadcn / antd） |
-| 导航结构 | 顶部只保留「市场」；对话为默认主视图，其余入口收进「设置」面（分组：工作区 / 团队与云 / 系统）——待实施 |
+| 导航结构 | 顶部只保留「对话 / 市场」+ 齿轮设置面；其余入口收进「设置」（分组：工作区 / 团队与云 / 系统）——**已实施**（2026-10-15，`components/SettingsDialog.tsx`） |
 | 平台 | Windows 与 macOS 同等 |
 | 强调色 | 单一品牌强调色：浅色 `#5563e8` / 深色 `#7e9aff`（取自参考稿的主按钮与开关） |
 
@@ -193,6 +193,9 @@ interface HistorySummarizer {
 `app/src/renderer/src/components/ui/glass.tsx`（指针跟随高光 / 磁吸按钮 / 点击涟漪）；壳层、对话页、
 登录门禁与设置页已迁移；**management-ui 已迁移**（`app/theme.ts` 主题偏好 + ConfigProvider 算法与主色 +
 `index.css` 覆盖 antd 组件为玻璃表面，头部/登录页提供 跟随系统/浅色/深色 切换）；dev-only 设计画廊同步。
+**导航重构已实施**：顶部只保留「对话 / 市场」，模型/Skill/MCP/工作空间/云同步/用量/权限/关于收进设置弹层
+（分组：工作区 / 团队与云 / 系统）。页面底色为中性浅灰渐变（无彩色光斑），元素无鼠标跟随光环，
+按钮不做磁吸位移（悬停移位会导致点击丢失）。
 画廊入口：`HUAGENT_RENDERER_PORT=5179 npx electron-vite dev --rendererOnly` 后访问 `/gallery.html`；
 主应用用 `@source not './gallery'` 排除画廊类名，画廊用独立的 `gallery.css` 入口。
 
