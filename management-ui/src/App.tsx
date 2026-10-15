@@ -1,10 +1,11 @@
-import { App as AntApp, ConfigProvider } from 'antd'
+import { App as AntApp, ConfigProvider, theme as antdTheme } from 'antd'
 import enUS from 'antd/locale/en_US'
 import zhCN from 'antd/locale/zh_CN'
 import { useTranslation } from 'react-i18next'
 import { Navigate, RouterProvider, createBrowserRouter, useLocation } from 'react-router-dom'
 
 import { ScopeProvider } from './app/ScopeProvider'
+import { useTheme } from './app/theme'
 import RequireAuth, { NoPermission } from './auth/RequireAuth'
 import { SessionProvider, useSession } from './auth/SessionProvider'
 import AdminLayout from './layout/AdminLayout'
@@ -92,10 +93,36 @@ function AppShell() {
 
 export default function App() {
   const { i18n } = useTranslation()
+  const { resolved } = useTheme()
   const locale = i18n.language === 'en-US' ? enUS : zhCN
+  const dark = resolved === 'dark'
 
   return (
-    <ConfigProvider locale={locale}>
+    <ConfigProvider
+      locale={locale}
+      theme={{
+        algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+        token: {
+          colorPrimary: dark ? '#7e9aff' : '#5563e8',
+          colorInfo: dark ? '#7e9aff' : '#5563e8',
+          borderRadius: 12,
+          borderRadiusLG: 18,
+          colorBgLayout: 'transparent',
+          fontFamily:
+            "-apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif",
+        },
+        components: {
+          Layout: {
+            headerBg: 'transparent',
+            siderBg: 'transparent',
+            bodyBg: 'transparent',
+            triggerBg: 'transparent',
+          },
+          Menu: { itemBg: 'transparent', subMenuItemBg: 'transparent' },
+          Table: { headerBg: 'transparent' },
+        },
+      }}
+    >
       {/* antd App：为 message/notification/modal 提供上下文（React 19 下静态方法不可用） */}
       <AntApp>
         <SessionProvider>

@@ -191,7 +191,8 @@ interface HistorySummarizer {
 **落地状态（2026-10-15）**：元素级玻璃已落到客户端：`app/src/renderer/src/styles/tokens.css`（双主题令牌 +
 元素组件类 `.glass` / `.ui-btn*` / `.ui-field` / `.ui-segmented` / `.ui-switch` / `.ui-slider`）、
 `app/src/renderer/src/components/ui/glass.tsx`（指针跟随高光 / 磁吸按钮 / 点击涟漪）；壳层、对话页、
-登录门禁与设置页已迁移；dev-only 设计画廊同步。**management-ui 待迁移**（antd 主题 + 玻璃覆盖）。
+登录门禁与设置页已迁移；**management-ui 已迁移**（`app/theme.ts` 主题偏好 + ConfigProvider 算法与主色 +
+`index.css` 覆盖 antd 组件为玻璃表面，头部/登录页提供 跟随系统/浅色/深色 切换）；dev-only 设计画廊同步。
 画廊入口：`HUAGENT_RENDERER_PORT=5179 npx electron-vite dev --rendererOnly` 后访问 `/gallery.html`；
 主应用用 `@source not './gallery'` 排除画廊类名，画廊用独立的 `gallery.css` 入口。
 

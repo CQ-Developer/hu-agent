@@ -1,5 +1,10 @@
 export default {
   app: { name: 'hu-agent 管理台' },
+  theme: {
+    system: '跟随系统',
+    light: '浅色',
+    dark: '深色',
+  },
   menu: {
     dashboard: '概览',
     approvals: '审批',
