@@ -114,6 +114,20 @@ NOTIFICATION_MESSAGES: dict[str, dict[str, MessageTemplate]] = {
             ),
         },
     },
+    "user.disabled": {
+        "zh-CN": {"title": "账号已被禁用", "body": "{reason|如有疑问请联系系统管理员。}"},
+        "en-US": {
+            "title": "Account disabled",
+            "body": "{reason|Contact a system administrator if you have questions.}",
+        },
+    },
+    "user.restored": {
+        "zh-CN": {"title": "账号已恢复", "body": "你的注销申请已由管理员撤销，可以重新登录。"},
+        "en-US": {
+            "title": "Account restored",
+            "body": "An administrator cancelled your account deletion request; you can log in again.",
+        },
+    },
     "skill.disabled": {
         "zh-CN": {
             "title": "Skill「{name}」已被停用",

@@ -15,7 +15,7 @@ from pydantic import Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from huagent.api.deps import Actor, client_ip, get_actor
+from huagent.api.deps import Actor, client_ip, get_actor, require_system_admin
 from huagent.api.schemas import ApiModel
 from huagent.common.config import get_settings
 from huagent.common.errors import AppError, ErrorCode
@@ -27,11 +27,6 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 ActorDep = Annotated[Actor, Depends(get_actor)]
-
-
-def _require_system_admin(actor: Actor) -> None:
-    if not actor.is_system_admin:
-        raise AppError(ErrorCode.FORBIDDEN, "需要系统管理员权限")
 
 
 # ---------------------------------------------------------------- 审计日志
@@ -92,7 +87,7 @@ async def list_audit(
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> AuditListOut:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     params: dict[str, Any] = {
         "action": action,
         "action_prefix": f"{action}%" if action else "%",
@@ -144,7 +139,7 @@ SELECT_SETTINGS = text("SELECT key, value, updated_at FROM system_settings WHERE
 
 @router.get("/settings", response_model=SettingsOut)
 async def list_settings(actor: ActorDep, session: SessionDep) -> SettingsOut:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     rows = (
         await session.execute(SELECT_SETTINGS, {"keys": list(SETTING_SPECS)})
     ).mappings().all()
@@ -172,7 +167,7 @@ async def update_settings(
     request: Request,
     session: SessionDep,
 ) -> SettingsOut:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     if not payload.values:
         raise AppError(ErrorCode.VALIDATION_FAILED, "至少提供一项设置")
 
@@ -270,7 +265,7 @@ async def list_prices(
     provider: str = Query(default=""),
     model: str = Query(default=""),
 ) -> list[PriceOut]:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     rows = (await session.execute(SELECT_PRICES, {"provider": provider, "model": model})).mappings().all()
     return [PriceOut(**dict(row)) for row in rows]
 
@@ -282,7 +277,7 @@ async def upsert_price(
     request: Request,
     session: SessionDep,
 ) -> PriceOut:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     if not payload.provider.strip() or not payload.model.strip():
         raise AppError(ErrorCode.VALIDATION_FAILED, "provider 与 model 不能为空")
     prices = (payload.input_price, payload.output_price, payload.cache_read_price, payload.cache_write_price)
@@ -324,7 +319,7 @@ async def delete_price(
     model: Annotated[str, Query(min_length=1)],
     effective_from: Annotated[date, Query()],
 ) -> dict[str, int]:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     result = await session.execute(
         DELETE_PRICE, {"provider": provider, "model": model, "effective_from": effective_from}
     )
@@ -374,7 +369,7 @@ async def _set_org_status(
     status: str,
     action: str,
 ) -> OrgAdminOut:
-    _require_system_admin(actor)
+    require_system_admin(actor)
     row = (await session.execute(FREEZE_ORG, {"org_id": org_id, "status": status})).mappings().first()
     if row is None:
         raise AppError(ErrorCode.NOT_FOUND, "组织不存在")
@@ -407,7 +402,7 @@ async def unfreeze_org(org_id: UUID, actor: ActorDep, request: Request, session:
 @router.post("/orgs/{org_id}:dissolve", response_model=OrgAdminOut)
 async def dissolve_org(org_id: UUID, actor: ActorDep, request: Request, session: SessionDep) -> OrgAdminOut:
     """解散组织（design 6.10.5）：资源软删、团队归档；个人工作空间与快照不受影响（D12 个人所有）。"""
-    _require_system_admin(actor)
+    require_system_admin(actor)
     row = (await session.execute(FREEZE_ORG, {"org_id": org_id, "status": "deleted"})).mappings().first()
     if row is None:
         raise AppError(ErrorCode.NOT_FOUND, "组织不存在")

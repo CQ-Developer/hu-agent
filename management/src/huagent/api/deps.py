@@ -77,3 +77,9 @@ def client_ip(request: Request) -> str:
     if forwarded:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
+
+
+def require_system_admin(actor: Actor) -> None:
+    """系统区接口的统一门禁（design 7.2）：非系统管理员一律 403。"""
+    if not actor.is_system_admin:
+        raise AppError(ErrorCode.FORBIDDEN, "需要系统管理员权限")

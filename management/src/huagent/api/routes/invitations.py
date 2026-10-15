@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import text
@@ -16,6 +17,7 @@ from huagent.common.errors import AppError, ErrorCode
 from huagent.common.security import hash_refresh_token
 from huagent.domain.audit import record_audit
 from huagent.domain.db import get_session
+from huagent.domain.rbac import require_org_access, require_team_access
 
 router = APIRouter(tags=["invitations"])
 
@@ -25,6 +27,15 @@ ActorDep = Annotated[Actor, Depends(get_actor)]
 
 class AcceptIn(ApiModel):
     token: str
+
+
+class RevokeInvitationIn(ApiModel):
+    invitation_id: UUID
+
+
+class InvitationRevokedOut(ApiModel):
+    id: UUID
+    status: str
 
 
 class InvitationPreview(ApiModel):
@@ -48,6 +59,53 @@ SELECT_INVITATION = text(
     WHERE i.token_hash = :token_hash
     """
 )
+
+
+SELECT_INVITATION_BY_ID = text(
+    "SELECT id, type, org_id, team_id, email, status FROM invitations WHERE id = :id"
+)
+
+REVOKE_INVITATION = text(
+    "UPDATE invitations SET status = 'revoked' WHERE id = :id AND status = 'pending'"
+)
+
+
+@router.post("/invitations:revoke", response_model=InvitationRevokedOut)
+async def revoke_invitation(
+    payload: RevokeInvitationIn,
+    actor: ActorDep,
+    request: Request,
+    session: SessionDep,
+) -> InvitationRevokedOut:
+    """撤销待处理邀请（design 6.3.4）：组织/团队管理员只能撤销本范围的邀请。"""
+    row = (
+        await session.execute(SELECT_INVITATION_BY_ID, {"id": payload.invitation_id})
+    ).mappings().first()
+    if row is None:
+        raise AppError(ErrorCode.NOT_FOUND, "邀请不存在")
+    if row["status"] != "pending":
+        raise AppError(ErrorCode.CONFLICT, "邀请已失效")
+    if not actor.is_system_admin:
+        if row["type"] == "org":
+            await require_org_access(session, actor, row["org_id"], admin=True)
+        else:
+            await require_team_access(session, actor, row["team_id"], admin=True)
+
+    result = await session.execute(REVOKE_INVITATION, {"id": payload.invitation_id})
+    if int(getattr(result, "rowcount", 0) or 0) != 1:
+        raise AppError(ErrorCode.CONFLICT, "邀请已失效")
+    await record_audit(
+        session,
+        action=f"invitation.revoke.{row['type']}",
+        actor_id=actor.user_id,
+        org_id=row["org_id"],
+        target_type="invitation",
+        target_id=str(row["id"]),
+        detail={"email": str(row["email"])},
+        actor_ip=client_ip(request),
+    )
+    await session.commit()
+    return InvitationRevokedOut(id=row["id"], status="revoked")
 
 
 @router.get("/invitations/{token}", response_model=InvitationPreview)

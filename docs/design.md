@@ -1553,6 +1553,7 @@ erDiagram
 | `users` | `id uuid PK, email citext UNIQUE, password_hash（SSO 用户可空）, display_name, avatar_url, locale(zh-CN\|en-US), is_system_admin, status(active\|disabled), email_verified_at, roles_version int, created_at, updated_at` |
 | `devices` | `id, user_id FK, device_id text, platform(win32\|darwin), app_version, name, last_seen_at`，UNIQUE `(user_id, device_id)` |
 | `refresh_tokens` | `id, user_id, device_id, token_hash UNIQUE, family_id, expires_at, revoked_at, replaced_by_id` |
+| `password_reset_tokens` | `id, user_id, token_hash UNIQUE, issued_by NULL, expires_at, used_at, created_at`（一次性重置令牌，仅存哈希） |
 | `identity_providers` | `id, name, type(oidc), issuer_url, client_id, client_secret_enc, scopes, enabled, allowed_email_domains text[], auto_join_org_id NULL, created_by, created_at` |
 | `user_identities` | `id, user_id, provider_id, subject, email, last_login_at`；UNIQUE `(provider_id, subject)` |
 
@@ -1655,7 +1656,7 @@ db/
 | POST | `/auth/sso/exchange` | 公开 | 一次性 code + PKCE verifier 换 token |
 | POST | `/auth/refresh` | 公开（凭 refresh） | 旋转式刷新，重放检测 |
 | POST | `/auth/logout` | 登录 | 按设备/全部注销 |
-| POST | `/auth/password/forgot` `/reset` | 公开 | 重置密码 |
+| POST | `/auth/password/reset` | 公开 | 兑换管理员签发的一次性重置令牌（自助忘记密码的邮件投递见 v1.x） |
 | GET/PATCH | `/me` | 登录 | 个人信息 |
 | GET/DELETE | `/me/devices` `/{deviceId}` | 登录 | 设备管理 |
 | GET/PATCH | `/me/notifications` | 登录 | 通知列表/已读 |
@@ -1671,6 +1672,7 @@ db/
 | GET/PATCH | `/orgs/{id}` | `org.manage` / 成员读 | 详情/修改 |
 | GET | `/orgs/{id}/members` | 组织成员 | 列表（分页、搜索） |
 | POST | `/orgs/{id}/invitations` | `org.member.invite` | 邀请入组织 |
+| GET | `/orgs/{id}/invitations` | `org.member.invite` | 待处理邀请（撤销入口） |
 | PATCH/DELETE | `/orgs/{id}/members/{userId}` | `org.member.invite` | 改角色/移除（保护最后管理员） |
 | GET | `/orgs/{id}/teams` | 组织成员 | 团队列表 |
 
@@ -1682,7 +1684,15 @@ db/
 | GET | `/teams/{id}` | 团队成员 | 详情 |
 | GET | `/teams/{id}/members` | 团队成员 | 列表 |
 | POST | `/teams/{id}/invitations` | `team.member.invite` | 邀请组织成员 |
+| GET | `/teams/{id}/invitations` | `team.member.invite` | 待处理邀请（撤销入口） |
 | PATCH/DELETE | `/teams/{id}/members/{userId}` | `team.member.invite` | 改角色/移除 |
+
+**邀请**
+
+| 方法 | 路径 | 权限 | 说明 |
+| --- | --- | --- | --- |
+| POST | `/invitations:accept` | 登录（邮箱需匹配） | 接受邀请（见 6.3.4） |
+| POST | `/invitations:revoke` | 对应组织/团队管理员（系统管理员可越级） | 撤销待处理邀请 |
 
 **审批**
 
@@ -1738,7 +1748,11 @@ db/
 | --- | --- | --- | --- |
 | GET | `/admin/orgs?status=` | `org.approve` | 组织列表（含待审批） |
 | POST | `/admin/orgs/{id}:freeze` `:unfreeze` | `org.manage` | 冻结/解冻 |
-| GET | `/admin/users?q=&status=` | `system.settings` | 用户检索、禁用 |
+| GET | `/admin/users?q=&status=` | `system.settings` | 用户检索、状态筛选（active/disabled/pending_deletion） |
+| POST | `/admin/users/{id}:disable` `:enable` | `system.settings` | 禁用/启用；禁用撤销全部会话并通知本人 |
+| POST | `/admin/users/{id}:force-logout` | `system.settings` | 撤销该账号全部 refresh token |
+| POST | `/admin/users/{id}:restore` | `system.settings` | 注销宽限期内恢复账号 |
+| POST | `/admin/users/{id}:reset-password` | `system.settings` | 签发一次性重置令牌（24 小时，明文仅返回一次） |
 | GET/PUT | `/admin/settings` | `system.settings` | 配额/保留/最低版本 |
 | GET/PUT | `/admin/model-prices` | `system.settings` | 价格表维护 |
 | GET/POST/PATCH/DELETE | `/admin/identity-providers[/{id}]` | `system.settings` | SSO 身份源管理（client_secret 仅写入不回显） |
@@ -1755,6 +1769,7 @@ db/
 | access token | 15 分钟；`roles_version` 不同步时强制刷新 |
 | 登出 | 单设备/全部设备；管理员可强制某用户全下线 |
 | 邀请 token | 仅存哈希，一次性，7 天有效，支持重发失效 |
+| 重置 token | 仅存哈希，一次性，24 小时有效；管理员签发（同一用户只保留最新一个）；兑换后撤销该账号全部会话；已用/过期 7 天后清理，自助「忘记密码」复用同一机制（邮件投递待 v1.x） |
 | 敏感操作二次确认 | 删除组织/团队、强制下线、修改配额需重新输入密码（可配） |
 
 #### 6.10.2 数据与存储安全
@@ -1809,7 +1824,10 @@ db/
   `usage.daily_retention_days`（日聚合 730 天，worker `usage.daily.prune` 每日清理）、
   `snapshot.retention`（快照版本数）。三者在 `system_settings` 中可调。
 - **宽限期内恢复**：不提供自助撤销（界面明确提示不可自助恢复）；运维可按 `operations.md`
-  的 SQL 把账号置回 `active` 并清空 `deletion_requested_at`。阶段 B 的用户管理页面将提供该操作入口。
+  的 SQL 把账号置回 `active` 并清空 `deletion_requested_at`；管理台「用户管理」页的「恢复账号」调用
+  `POST /admin/users/{id}:restore` 完成同一操作（系统管理员权限，写审计并通知本人）。
+- **密码重置令牌**：管理员在「用户管理」页签发后 24 小时有效、库中仅存哈希；兑换设密时撤销
+  该账号全部会话；已使用或过期 7 天后的令牌由 worker `password_reset.prune` 清理。
 - **客户端入口**：个人中心 →「数据与隐私」提供导出（保存 JSON）与注销（二次确认）；
   注销成功后本地会话立即失效并回到登录门禁；**本地工作空间文件不随账号删除，界面提示用户自行清理**。
 
@@ -1824,6 +1842,7 @@ db/
 | 审批超时提醒（48h）/标记 stale（7d） | 每小时 | 状态位判断 |
 | 邮件发送（邀请/审批结果，SMTP 可选） | 事件触发 + 重试 | `email_outbox` 状态机 |
 | 审计/用量保留清理 | 每日 04:00 | 分区/范围删除 |
+| 密码重置令牌清理 | 每日 04:45 | 已使用/过期 7 天后删除 |
 
 调度用 APScheduler（worker 进程内）+ PostgreSQL advisory lock 保证多实例下同一任务只执行一次；任务本身幂等（见上表），失败重试 3 次、记录 `job_runs` 并告警。v1 不引入消息队列，后续需要事件驱动再评估 RabbitMQ / Kafka。
 
@@ -1948,14 +1967,14 @@ Skill 管理与审核（列表/详情/SKILL.md 预览/版本列表/上架/下架
 - **管理台 SSO**：浏览器端 PKCE（S256），流程为 管理台 → 服务端 authorize → IdP → 服务端 callback →
   302 回管理台 `/sso/callback` → `/auth/sso/exchange` 换本地令牌；回跳地址必须为回环地址（开发）或登记在
   服务端 `cors_origins`（生产，见 deployment.md）。
-- **尚未实现**（v1.x）：系统区的用户管理页面（用户列表/禁用/重置）、邀请撤销、统计页的成员维度下钻。
+- **尚未实现**（v1.x）：统计页的成员维度下钻、自助「忘记密码」的邮件投递（管理台用户管理页与邀请撤销已交付；重置密码由管理员签发一次性链接）。
 
 
 ### 7.2 页面清单
 
 | 区域 | 页面 | 可见角色 | 关键内容 |
 | --- | --- | --- | --- |
-| 公开 | 登录 / 注册 / 忘记密码 / 邀请接受 | 所有人 | 邀请接受页展示组织/团队名与邀请人 |
+| 公开 | 登录 / 注册 / 重置密码（一次性令牌）/ 邀请接受 | 所有人 | 邀请接受页展示组织/团队名与邀请人；重置页设置新密码（管理员签发链接，忘记密码邮件投递见 v1.x） |
 | 个人 | 我的申请与资源 / 我的用量 / 通知 / 设备与安全 / 语言设置 | 所有用户 | 提交记录、启用资源与状态、个人 token 曲线 |
 | 组织 | 概览（成员数/团队数/存储/用量摘要） | 组织管理员起 | 卡片 + 趋势图 |
 | 组织 | 团队管理（含待审批标签页） | 组织管理员 | 创建审批、冻结、成员 |
@@ -1966,7 +1985,7 @@ Skill 管理与审核（列表/详情/SKILL.md 预览/版本列表/上架/下架
 | 团队 | 成员与邀请 | 团队管理员 | — |
 | 团队 | 统计（成员 × 资源激活 / 用量） | 团队管理员 | 启用明细表 + 用量图 |
 | 团队 | 设置（关联工作空间配额提示） | 团队管理员 | — |
-| 系统 | 组织审批 / 组织管理 / 全局统计 / 用户管理 / 审计日志 / 身份源（SSO）管理 / 系统设置（配额、保留、价格表、最低客户端版本） | 系统管理员 | 全局视图与导出 |
+| 系统 | 组织审批 / 组织管理 / 全局统计 / 用户管理（检索/禁用/恢复/重置链接） / 审计日志 / 身份源（SSO）管理 / 系统设置（配额、保留、价格表、最低客户端版本） | 系统管理员 | 全局视图与导出 |
 
 ### 7.3 关键交互细节
 

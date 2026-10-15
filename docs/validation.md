@@ -15,7 +15,7 @@ scripts/quickstart.sh up --email you@example.com   # 生成密钥 → 起全栈 
 # 1) 依赖（PostgreSQL 18 / Redis / MinIO（源码构建）/ Keycloak / Mailpit）
 scripts/dev-deps.sh up
 
-# 2) 数据库（幂等，含 V0001–V0005）
+# 2) 数据库（幂等，含 V0001–V0006）
 HUAGENT_DATABASE_URL=postgresql://huagent:huagent_dev@localhost:5432/huagent \
   uv run --project management huagent-admin db-migrate
 
