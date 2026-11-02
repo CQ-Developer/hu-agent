@@ -14,20 +14,20 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.4",
-    "antd": "^6.6.5",
-    "i18next": "^26.4.3",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-i18next": "^17.0.16",
-    "react-router-dom": "^7.1.0"
+    "antd": "^6.6.8",
+    "i18next": "^26.5.11",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-i18next": "^17.1.9",
+    "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "typescript": "^5.7.3",
-    "vite": "^8.3.4"
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
   },
   "overrides": {
     "rollup": "4.64.5"
